@@ -6,7 +6,9 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // shadcn primitives are generated vendor code; lint the prototype surface,
+  // not the scaffold's upstream component implementations.
+  globalIgnores(['dist', 'src/components/ui/**', 'src/hooks/use-mobile.ts']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
