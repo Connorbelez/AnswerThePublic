@@ -141,6 +141,16 @@
   transform-origin: center;
 }
 
+@media (max-width: 1023px) {
+  .prototype-switcher {
+    position: relative;
+    left: auto;
+    bottom: auto;
+    margin: 1rem auto 0;
+    transform: none;
+  }
+}
+
 @media (min-width: 1024px) {
   .prototype-shell {
     padding-bottom: 0;

@@ -269,9 +269,11 @@ function ModeSwitch({ state }: { state: PrototypeState }) {
 function TextComposer({
   state,
   className,
+  compact = false,
 }: {
   state: PrototypeState
   className?: string
+  compact?: boolean
 }) {
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
@@ -280,7 +282,10 @@ function TextComposer({
         value={state.draft}
         onChange={(event) => state.updateDraft(event.target.value)}
         placeholder="Add your perspective…"
-        className="min-h-56 flex-1 resize-none border-0 bg-transparent px-0 py-2 text-[17px] leading-7 shadow-none focus-visible:ring-0"
+        className={cn(
+          "flex-1 resize-none border-0 bg-transparent px-0 py-2 text-[17px] leading-7 shadow-none focus-visible:ring-0",
+          compact ? "min-h-24" : "min-h-56",
+        )}
       />
       <div className="flex items-center justify-between border-t border-black/8 pt-3">
         <span className="text-xs text-muted-foreground">
@@ -292,10 +297,21 @@ function TextComposer({
   )
 }
 
-function AudioComposer({ state }: { state: PrototypeState }) {
+function AudioComposer({
+  state,
+  compact = false,
+}: {
+  state: PrototypeState
+  compact?: boolean
+}) {
   return (
-    <div className="flex min-h-64 flex-1 flex-col items-center justify-center rounded-[28px] border border-black/8 bg-[#f3f0e8] px-5 py-8 text-center">
-      <div className="mb-7 flex h-14 items-end gap-1" aria-hidden="true">
+    <div
+      className={cn(
+        "flex flex-1 flex-col items-center justify-center rounded-[28px] border border-black/8 bg-[#f3f0e8] px-5 text-center",
+        compact ? "min-h-40 py-4" : "min-h-64 py-8",
+      )}
+    >
+      <div className={cn("flex items-end gap-1", compact ? "mb-3 h-9" : "mb-7 h-14")} aria-hidden="true">
         {[18, 34, 48, 25, 54, 38, 22, 44, 58, 31, 46, 24, 37, 52, 28].map(
           (height, index) => (
             <span
@@ -312,7 +328,7 @@ function AudioComposer({ state }: { state: PrototypeState }) {
           ),
         )}
       </div>
-      <p className="font-mono text-3xl font-semibold tracking-tight tabular-nums">
+      <p className={cn("font-mono font-semibold tracking-tight tabular-nums", compact ? "text-2xl" : "text-3xl")}>
         {formatTimer(state.recordingSeconds)}
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
@@ -322,7 +338,8 @@ function AudioComposer({ state }: { state: PrototypeState }) {
         type="button"
         onClick={() => state.setRecording(!state.recording)}
         className={cn(
-          "mt-6 flex size-16 items-center justify-center rounded-full text-white shadow-lg transition active:scale-95",
+          "flex items-center justify-center rounded-full text-white shadow-lg transition active:scale-95",
+          compact ? "mt-3 size-12" : "mt-6 size-16",
           state.recording ? "bg-[#17211b]" : "bg-[#df5b3f]",
         )}
         aria-label={state.recording ? "Pause recording" : "Resume recording"}
@@ -333,7 +350,7 @@ function AudioComposer({ state }: { state: PrototypeState }) {
           <Mic className="size-6" />
         )}
       </button>
-      <p className="mt-5 max-w-60 text-xs leading-5 text-muted-foreground">
+      <p className={cn("max-w-60 text-xs leading-5 text-muted-foreground", compact ? "mt-3" : "mt-5")}>
         Prototype recording only—no microphone access. Audio continues while you
         open the brief.
       </p>
@@ -695,7 +712,7 @@ function PinnedSpeakingNotes({ state }: { state: PrototypeState }) {
 
 function BriefReferencePane({ state }: { state: PrototypeState }) {
   return (
-    <section className="h-full overflow-y-auto bg-[#efece3]">
+    <section className="h-full overflow-y-auto bg-[#efece3] text-[#17211b]">
       <div className="mx-auto max-w-3xl space-y-8 px-4 py-5 sm:px-7 lg:py-8">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -742,7 +759,7 @@ function CompactInputSurface({
   openEditor: () => void
 }) {
   return (
-    <section className="flex h-full min-h-0 flex-col bg-white">
+    <section className="flex h-full min-h-0 flex-col bg-white text-[#17211b]">
       <div className="flex items-center justify-between gap-3 border-b border-black/8 px-4 py-2.5">
         <div>
           <p className="text-[10px] font-bold tracking-[0.14em] text-black/35 uppercase">
@@ -752,7 +769,7 @@ function CompactInputSurface({
         </div>
         <SaveStatus state={state.saveState} />
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-[auto_1fr] gap-3 p-3 sm:grid-cols-[12rem_1fr]">
+      <div className="grid min-h-0 flex-1 grid-cols-[auto_1fr] items-center gap-3 p-3 sm:grid-cols-[12rem_1fr]">
         <ModeSwitch state={state} />
         {state.mode === "type" ? (
           <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-black/8 bg-[#fbfaf6] px-3">
@@ -805,15 +822,30 @@ function CompactInputSurface({
 function ResizeHandle({ orientation }: { orientation: "horizontal" | "vertical" }) {
   return (
     <Separator
+      aria-label={
+        orientation === "horizontal"
+          ? "Resize reference and input panes horizontally"
+          : "Resize reference and input panes vertically"
+      }
       className={cn(
-        "group relative z-20 flex shrink-0 items-center justify-center bg-[#17211b]/12 outline-none transition hover:bg-[#2e765e]/35 focus-visible:bg-[#2e765e]/40",
-        orientation === "horizontal" ? "w-3 cursor-col-resize" : "h-3 cursor-row-resize",
+        "group relative z-20 flex shrink-0 touch-none select-none items-center justify-center bg-transparent outline-none",
+        orientation === "horizontal" ? "w-8 cursor-col-resize" : "h-8 cursor-row-resize",
       )}
     >
       <span
+        aria-hidden="true"
         className={cn(
-          "flex items-center justify-center rounded-full border border-black/10 bg-white text-black/35 shadow-sm",
-          orientation === "horizontal" ? "h-11 w-5" : "h-5 w-11",
+          "absolute bg-[#17211b]/20 transition-colors group-hover:bg-[#2e765e]/60 group-focus-visible:bg-[#2e765e]",
+          orientation === "horizontal"
+            ? "inset-y-0 left-1/2 w-px -translate-x-1/2"
+            : "inset-x-0 top-1/2 h-px -translate-y-1/2",
+        )}
+      />
+      <span
+        aria-hidden="true"
+        className={cn(
+          "relative flex items-center justify-center rounded-full border border-black/10 bg-white text-black/40 shadow-[0_2px_10px_rgba(23,33,27,0.14)] transition group-hover:scale-105 group-hover:border-[#2e765e]/35 group-hover:text-[#2e765e] group-focus-visible:ring-2 group-focus-visible:ring-[#2e765e]/35",
+          orientation === "horizontal" ? "h-12 w-6" : "h-6 w-12",
         )}
       >
         {orientation === "horizontal" ? (
@@ -823,6 +855,54 @@ function ResizeHandle({ orientation }: { orientation: "horizontal" | "vertical" 
         )}
       </span>
     </Separator>
+  )
+}
+
+function WorkspaceScreenTabs({
+  screen,
+  onChange,
+  tone = "light",
+}: {
+  screen: "brief" | "editor"
+  onChange: (screen: "brief" | "editor") => void
+  tone?: "light" | "deck"
+}) {
+  const deck = tone === "deck"
+
+  return (
+    <nav
+      className={cn(
+        "grid shrink-0 grid-cols-2 gap-1 border-b p-2.5 sm:mx-auto sm:my-2 sm:w-full sm:max-w-md sm:rounded-2xl sm:border",
+        deck
+          ? "border-white/10 bg-[#15231d]"
+          : "border-black/10 bg-[#efece3]",
+      )}
+      aria-label="Content request workspace"
+    >
+      {([
+        { id: "brief" as const, label: "Brief", icon: BookOpen },
+        { id: "editor" as const, label: "Editor", icon: FileText },
+      ]).map((item) => {
+        const active = screen === item.id
+        const Icon = item.icon
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onChange(item.id)}
+            className={cn(
+              "flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition",
+              active && !deck && "bg-[#17211b] text-white shadow-sm",
+              active && deck && "bg-[#e6fe55] text-[#17211b] shadow-sm",
+              !active && !deck && "text-black/45",
+              !active && deck && "text-white/48 hover:bg-white/5 hover:text-white/75",
+            )}
+          >
+            <Icon className="size-4" /> {item.label}
+          </button>
+        )
+      })}
+    </nav>
   )
 }
 
@@ -941,7 +1021,7 @@ function EditorContextDeck({ state }: { state: PrototypeState }) {
 
 function EditorInputPane({ state }: { state: PrototypeState }) {
   return (
-    <section className="flex h-full min-h-0 flex-col bg-white">
+    <section className="flex h-full min-h-0 flex-col bg-white text-[#17211b]">
       <div className="flex items-center justify-between gap-3 border-b border-black/8 px-4 py-3 sm:px-6">
         <div>
           <p className="text-[10px] font-bold tracking-[0.16em] text-black/35 uppercase">
@@ -954,7 +1034,11 @@ function EditorInputPane({ state }: { state: PrototypeState }) {
       <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
         <ModeSwitch state={state} />
         <div className="mt-4 flex min-h-0 flex-1 flex-col rounded-[26px] border border-black/8 bg-[#fbfaf6] p-5">
-          {state.mode === "type" ? <TextComposer state={state} /> : <AudioComposer state={state} />}
+          {state.mode === "type" ? (
+            <TextComposer state={state} compact />
+          ) : (
+            <AudioComposer state={state} compact />
+          )}
         </div>
       </div>
       <SubmitBar state={state} />
@@ -970,28 +1054,7 @@ function VariantB({ state }: { state: PrototypeState }) {
   return (
     <main className="flex h-svh min-h-svh flex-col overflow-hidden bg-[#efece3] text-[#17211b]">
       <RequestTopBar tone="dark" />
-      <nav className="grid shrink-0 grid-cols-2 gap-1 border-b border-black/10 bg-[#efece3] p-2.5 sm:mx-auto sm:my-2 sm:w-full sm:max-w-md sm:rounded-2xl sm:border">
-        <button
-          type="button"
-          onClick={() => setScreen("brief")}
-          className={cn(
-            "flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition",
-            screen === "brief" ? "bg-[#17211b] text-white shadow-sm" : "text-black/45",
-          )}
-        >
-          <BookOpen className="size-4" /> Brief
-        </button>
-        <button
-          type="button"
-          onClick={() => setScreen("editor")}
-          className={cn(
-            "flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition",
-            screen === "editor" ? "bg-[#17211b] text-white shadow-sm" : "text-black/45",
-          )}
-        >
-          <FileText className="size-4" /> Editor
-        </button>
-      </nav>
+      <WorkspaceScreenTabs screen={screen} onChange={setScreen} />
 
       <div className="mx-auto min-h-0 w-full max-w-7xl flex-1 overflow-hidden border-x border-black/8">
         {screen === "brief" ? (
@@ -1000,12 +1063,13 @@ function VariantB({ state }: { state: PrototypeState }) {
             orientation={orientation}
             className="h-full"
             defaultLayout={{ "brief-reference": 70, "brief-input": 30 }}
+            resizeTargetMinimumSize={{ coarse: 42, fine: 12 }}
           >
-            <Panel id="brief-reference" minSize={45} defaultSize={70}>
+            <Panel id="brief-reference" minSize="45%" defaultSize="70%">
               <BriefReferencePane state={state} />
             </Panel>
             <ResizeHandle orientation={orientation} />
-            <Panel id="brief-input" minSize={18} maxSize={55} defaultSize={30}>
+            <Panel id="brief-input" minSize="18%" maxSize="55%" defaultSize="30%">
               <CompactInputSurface state={state} openEditor={() => setScreen("editor")} />
             </Panel>
           </PanelGroup>
@@ -1015,12 +1079,13 @@ function VariantB({ state }: { state: PrototypeState }) {
             orientation={orientation}
             className="h-full"
             defaultLayout={{ "editor-reference": 42, "editor-input": 58 }}
+            resizeTargetMinimumSize={{ coarse: 42, fine: 12 }}
           >
-            <Panel id="editor-reference" minSize={25} maxSize={68} defaultSize={42}>
+            <Panel id="editor-reference" minSize="25%" maxSize="68%" defaultSize="42%">
               <EditorContextDeck state={state} />
             </Panel>
             <ResizeHandle orientation={orientation} />
-            <Panel id="editor-input" minSize={32} defaultSize={58}>
+            <Panel id="editor-input" minSize="32%" defaultSize="58%">
               <EditorInputPane state={state} />
             </Panel>
           </PanelGroup>
@@ -1058,115 +1123,67 @@ const contextCards = [
 ]
 
 function VariantC({ state }: { state: PrototypeState }) {
-  const [activeCard, setActiveCard] = useState(0)
-  const active = contextCards[activeCard]
-
-  const go = (direction: -1 | 1) => {
-    setActiveCard((current) =>
-      (current + direction + contextCards.length) % contextCards.length,
-    )
-  }
+  const [screen, setScreen] = useState<"brief" | "editor">("brief")
+  const isMobile = useIsMobile()
+  const orientation = isMobile ? "vertical" : "horizontal"
 
   return (
-    <main className="flex min-h-svh flex-col bg-[#15231d] text-white">
+    <main className="flex h-svh min-h-svh flex-col overflow-hidden bg-[#15231d] text-white">
       <RequestTopBar tone="dark" />
-      <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col">
-        <section className="shrink-0 px-4 pt-5 sm:px-7">
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <Badge className="bg-[#e6fe55] text-[#17211b]">{request.urgency}</Badge>
-                <span className="text-xs font-medium text-white/45">{request.responseLength}</span>
-              </div>
-              <h1 className="mt-3 max-w-xl text-2xl font-semibold tracking-[-0.04em] sm:text-3xl">
-                Keep the brief in motion.
-              </h1>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                aria-label="Previous context card"
-                size="icon-lg"
-                variant="outline"
-                className="rounded-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
-                onClick={() => go(-1)}
-              >
-                <ChevronLeft />
-              </Button>
-              <Button
-                aria-label="Next context card"
-                size="icon-lg"
-                variant="outline"
-                className="rounded-full border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
-                onClick={() => go(1)}
-              >
-                <ChevronRight />
-              </Button>
-            </div>
-          </div>
+      <WorkspaceScreenTabs screen={screen} onChange={setScreen} tone="deck" />
 
-          <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
-            {contextCards.map((card, index) => (
-              <button
-                key={card.id}
-                type="button"
-                onClick={() => setActiveCard(index)}
-                className={cn(
-                  "shrink-0 rounded-full border px-3 py-2 text-xs font-semibold transition",
-                  index === activeCard
-                    ? "border-[#e6fe55] bg-[#e6fe55] text-[#17211b]"
-                    : "border-white/12 bg-white/5 text-white/55",
-                )}
-              >
-                {index + 1}. {card.title}
-              </button>
-            ))}
-          </div>
-
-          <article className="relative min-h-56 overflow-hidden rounded-[30px] bg-[#f4f0e4] p-5 text-[#17211b] shadow-[0_24px_70px_rgba(0,0,0,0.28)] sm:p-6">
-            <div className="absolute top-0 right-0 size-32 translate-x-8 -translate-y-8 rounded-full bg-[#e6fe55]/70 blur-2xl" />
-            <div className="relative flex items-center gap-3">
-              <span className="flex size-10 items-center justify-center rounded-full bg-[#17211b] text-white">
-                <active.icon className="size-4" />
-              </span>
-              <div>
-                <p className="text-[10px] font-bold tracking-[0.16em] text-black/40 uppercase">
-                  {active.eyebrow}
-                </p>
-                <h2 className="font-semibold">{active.title}</h2>
-              </div>
-            </div>
-            <ContextCardBody id={active.id} state={state} />
-          </article>
-        </section>
-
-        <section className="mt-5 flex min-h-0 flex-1 flex-col rounded-t-[32px] bg-white text-[#17211b] shadow-[0_-20px_60px_rgba(0,0,0,0.18)]">
-          <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 pt-4 sm:px-7">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <ModeSwitch state={state} />
-              <SaveStatus state={state.saveState} />
-            </div>
-            <div className="flex min-h-0 flex-1 flex-col rounded-t-[24px] border-x border-t border-black/8 bg-[#fbfaf6] px-5 pt-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold tracking-[0.14em] text-black/35 uppercase">
-                  Your perspective
-                </span>
-                <button
-                  type="button"
-                  className="flex items-center gap-1 text-xs font-semibold text-[#2e765e]"
-                  onClick={() => go(1)}
-                >
-                  Next context <ChevronRight className="size-3.5" />
-                </button>
-              </div>
-              {state.mode === "type" ? (
-                <TextComposer state={state} />
-              ) : (
-                <AudioComposer state={state} />
-              )}
-            </div>
-          </div>
-          <SubmitBar state={state} />
-        </section>
+      <div className="mx-auto min-h-0 w-full max-w-7xl flex-1 overflow-hidden border-x border-white/8">
+        {screen === "brief" ? (
+          <PanelGroup
+            key={`deck-brief-${orientation}`}
+            orientation={orientation}
+            className="h-full"
+            defaultLayout={{ "deck-brief-reference": 72, "deck-brief-input": 28 }}
+            resizeTargetMinimumSize={{ coarse: 42, fine: 12 }}
+          >
+            <Panel id="deck-brief-reference" minSize="45%" defaultSize="72%">
+              <BriefReferencePane state={state} />
+            </Panel>
+            <ResizeHandle orientation={orientation} />
+            <Panel
+              id="deck-brief-input"
+              minSize="18%"
+              maxSize="55%"
+              defaultSize="28%"
+            >
+              <CompactInputSurface state={state} openEditor={() => setScreen("editor")} />
+            </Panel>
+          </PanelGroup>
+        ) : (
+          <PanelGroup
+            key={`deck-editor-${orientation}`}
+            orientation={orientation}
+            className="h-full"
+            defaultLayout={
+              isMobile
+                ? { "deck-editor-reference": 35, "deck-editor-input": 65 }
+                : { "deck-editor-reference": 44, "deck-editor-input": 56 }
+            }
+            resizeTargetMinimumSize={{ coarse: 42, fine: 12 }}
+          >
+            <Panel
+              id="deck-editor-reference"
+              minSize="26%"
+              maxSize="70%"
+              defaultSize={isMobile ? "35%" : "44%"}
+            >
+              <EditorContextDeck state={state} />
+            </Panel>
+            <ResizeHandle orientation={orientation} />
+            <Panel
+              id="deck-editor-input"
+              minSize="30%"
+              defaultSize={isMobile ? "65%" : "56%"}
+            >
+              <EditorInputPane state={state} />
+            </Panel>
+          </PanelGroup>
+        )}
       </div>
     </main>
   )
@@ -1285,7 +1302,7 @@ export function App() {
     const value = new URLSearchParams(window.location.search).get("variant")
     return variants.some((item) => item.key === value)
       ? (value as VariantKey)
-      : "B"
+      : "C"
   }, [])
   const [variant, setVariant] = useState<VariantKey>(initialVariant)
   const state = usePrototypeState()
