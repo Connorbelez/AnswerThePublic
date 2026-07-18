@@ -1,7 +1,7 @@
-// THROWAWAY PROTOTYPE — Three variants of the mobile Founder Input composer,
-// switchable via `?variant=A|B|C`, answering how context should stay available while responding.
+// THROWAWAY PROTOTYPE — Seven variants of the mobile Founder Input composer,
+// switchable via `?variant=A|B|C|D|E|F|G`.
 import { useEffect, useMemo, useState } from "react"
-import { AnimatePresence, motion, useReducedMotion } from "motion/react"
+import { motion, useReducedMotion } from "motion/react"
 import {
   ArrowLeft,
   BookOpen,
@@ -35,14 +35,6 @@ import { Group as PanelGroup, Panel, Separator } from "react-resizable-panels"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  type CarouselApi,
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel"
 import {
   Sheet,
   SheetContent,
@@ -313,10 +305,12 @@ function TextComposer({
   state,
   className,
   compact = false,
+  minimal = false,
 }: {
   state: PrototypeState
   className?: string
   compact?: boolean
+  minimal?: boolean
 }) {
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
@@ -327,10 +321,15 @@ function TextComposer({
         placeholder="Add your perspective…"
         className={cn(
           "flex-1 resize-none border-0 bg-transparent px-0 py-2 text-[17px] leading-7 shadow-none focus-visible:ring-0",
-          compact ? "min-h-24" : "min-h-56",
+          minimal ? "min-h-16" : compact ? "min-h-24" : "min-h-56",
         )}
       />
-      <div className="flex items-center justify-between border-t border-black/8 pt-3">
+      <div
+        className={cn(
+          "flex items-center justify-between border-t border-black/8 pt-3",
+          minimal && "hidden",
+        )}
+      >
         <span className="text-xs text-muted-foreground">
           {state.draft.trim().split(/\s+/).length} words
         </span>
@@ -755,10 +754,8 @@ function PinnedSpeakingNotes({ state }: { state: PrototypeState }) {
 
 function BriefReferencePane({
   state,
-  headerAction,
 }: {
   state: PrototypeState
-  headerAction?: React.ReactNode
 }) {
   return (
     <section className="h-full overflow-y-auto bg-[#efece3] text-[#17211b]">
@@ -773,15 +770,9 @@ function BriefReferencePane({
             </h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Badge
-              className={cn(
-                "bg-[#df5b3f] text-white",
-                headerAction && "max-[420px]:hidden",
-              )}
-            >
+            <Badge className="bg-[#df5b3f] text-white">
               {request.urgency}
             </Badge>
-            {headerAction}
           </div>
         </div>
         <QuestionBlock />
@@ -813,27 +804,23 @@ function BriefReferencePane({
 function CompactInputSurface({
   state,
   openEditor,
-  showExpand = true,
 }: {
   state: PrototypeState
   openEditor: () => void
-  showExpand?: boolean
 }) {
   return (
     <section className="flex h-full min-h-0 flex-col bg-white/[0.96] text-[#17211b] shadow-[0_-12px_36px_rgba(23,33,27,0.08)] backdrop-blur-xl">
       <div className="flex shrink-0 items-center gap-2.5 px-3 pt-3">
         <ModeSwitch state={state} className="min-w-0 flex-1 sm:max-w-48" />
         <SaveStatus state={state.saveState} />
-        {showExpand && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="min-h-11 shrink-0 rounded-xl px-3 font-semibold text-[#214f40] active:scale-[0.97]"
-            onClick={openEditor}
-          >
-            Expand
-          </Button>
-        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="min-h-11 shrink-0 rounded-xl px-3 font-semibold text-[#214f40] active:scale-[0.97]"
+          onClick={openEditor}
+        >
+          Expand
+        </Button>
       </div>
       <div className="min-h-0 flex-1 p-3 pt-2">
         {state.mode === "type" ? (
@@ -976,10 +963,13 @@ function WorkspaceScreenTabs({
 function EditorContextDeck({
   state,
   presentation = "panel",
+  collapsed = false,
 }: {
   state: PrototypeState
-  presentation?: "panel" | "classic"
+  presentation?: "panel" | "classic" | "unified"
+  collapsed?: boolean
 }) {
+  const reduceMotion = useReducedMotion()
   const [visible, setVisible] = useState<string[]>(["question", "points"])
   const [pinned, setPinned] = useState<string[]>(["question"])
 
@@ -998,6 +988,146 @@ function EditorContextDeck({
   const displayed = contextCards.filter(
     (card) => visible.includes(card.id) || pinned.includes(card.id),
   )
+
+  if (presentation === "unified") {
+    const layoutTransition = reduceMotion
+      ? { duration: 0 }
+      : { type: "spring" as const, bounce: 0, duration: 0.4 }
+
+    return (
+      <section className="flex h-full min-h-0 flex-col bg-[#15231d] px-4 pt-4 text-white sm:px-7">
+        <div className="shrink-0">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-[#e6fe55] text-[#17211b]">
+                  {request.urgency}
+                </Badge>
+                <span className="text-xs font-medium text-white/45">
+                  {request.responseLength}
+                </span>
+              </div>
+              <h1 className="mt-2 text-xl font-semibold tracking-[-0.04em] sm:text-2xl">
+                Keep the brief in motion.
+              </h1>
+            </div>
+            <Badge className="shrink-0 bg-white/10 text-white">
+              {pinned.length} pinned
+            </Badge>
+          </div>
+
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-3 scrollbar-none">
+            {contextCards.map((card) => {
+              const isVisible = visible.includes(card.id)
+              const isPinned = pinned.includes(card.id)
+              return (
+                <div
+                  key={card.id}
+                  className={cn(
+                    "flex shrink-0 items-center rounded-full border p-1 pl-3 transition-colors",
+                    isVisible || isPinned
+                      ? "border-[#e6fe55] bg-[#e6fe55] text-[#17211b]"
+                      : "border-white/12 bg-white/5 text-white/55",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleVisible(card.id)}
+                    className="flex min-h-8 items-center gap-1.5 py-1 text-xs font-semibold active:opacity-70"
+                    aria-pressed={isVisible || isPinned}
+                  >
+                    {(isVisible || isPinned) && <Check className="size-3" />}
+                    {card.title}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => togglePinned(card.id)}
+                    className={cn(
+                      "ml-1 flex size-8 items-center justify-center rounded-full active:scale-[0.94]",
+                      isPinned
+                        ? "bg-[#17211b] text-[#e6fe55]"
+                        : isVisible
+                          ? "text-[#17211b]/45 hover:bg-black/5"
+                          : "text-white/35 hover:bg-white/10",
+                    )}
+                    aria-label={isPinned ? `Unpin ${card.title}` : `Pin ${card.title}`}
+                  >
+                    <Pin className={cn("size-3", isPinned && "fill-current")} />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {displayed.length ? (
+          <motion.div
+            layout
+            transition={{ layout: layoutTransition }}
+            className={cn(
+              "min-h-0 flex-1 gap-3 pb-4 scrollbar-none",
+              collapsed
+                ? "grid content-start overflow-y-auto"
+                : "flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden",
+            )}
+            aria-label="Brief reference cards"
+            aria-orientation={collapsed ? "vertical" : "horizontal"}
+          >
+            {displayed.map((card, index) => (
+              <motion.article
+                layout
+                transition={{ layout: layoutTransition }}
+                key={card.id}
+                className={cn(
+                  "relative rounded-[28px] bg-[#f4f0e4] p-5 text-[#17211b] shadow-[0_18px_50px_rgba(0,0,0,0.22)]",
+                  collapsed
+                    ? "w-full shrink-0"
+                    : "h-full min-w-[88%] snap-center overflow-y-auto sm:min-w-[68%] lg:min-w-[48%]",
+                  pinned.includes(card.id) && "ring-2 ring-[#e6fe55] ring-inset",
+                )}
+                aria-label={`${index + 1} of ${displayed.length}: ${card.title}`}
+              >
+                <div className="pointer-events-none absolute top-0 right-0 size-28 translate-x-8 -translate-y-8 rounded-full bg-[#e6fe55]/65 blur-2xl" />
+                <div className="relative flex items-center gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#17211b] text-white">
+                    <card.icon className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold tracking-[0.16em] text-black/40 uppercase">
+                      {card.eyebrow}
+                    </p>
+                    <h2 className="font-semibold">{card.title}</h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => togglePinned(card.id)}
+                    className="relative flex size-11 shrink-0 items-center justify-center rounded-full bg-black/5 active:scale-[0.94]"
+                    aria-label={
+                      pinned.includes(card.id)
+                        ? `Unpin ${card.title}`
+                        : `Pin ${card.title}`
+                    }
+                  >
+                    <Pin
+                      className={cn(
+                        "size-3.5",
+                        pinned.includes(card.id) && "fill-current",
+                      )}
+                    />
+                  </button>
+                </div>
+                <ContextCardBody id={card.id} state={state} />
+              </motion.article>
+            ))}
+          </motion.div>
+        ) : (
+          <div className="mb-4 flex min-h-40 flex-1 items-center justify-center rounded-[28px] border border-dashed border-white/15 p-6 text-center text-sm text-white/45">
+            Toggle a context item above to add it to the deck.
+          </div>
+        )}
+      </section>
+    )
+  }
 
   if (presentation === "classic") {
     return (
@@ -1211,11 +1341,66 @@ function EditorInputPane({
   state,
   presentation = "panel",
   headerAction,
+  collapsed = false,
 }: {
   state: PrototypeState
-  presentation?: "panel" | "classic"
+  presentation?: "panel" | "classic" | "unified"
   headerAction?: React.ReactNode
+  collapsed?: boolean
 }) {
+  if (presentation === "unified") {
+    return (
+      <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-t-[30px] bg-white text-[#17211b] shadow-[0_-18px_55px_rgba(0,0,0,0.2)]">
+        <div className="flex min-h-0 flex-1 flex-col px-3 pt-3 sm:px-6 sm:pt-4">
+          <div className="flex shrink-0 items-center gap-2.5">
+            <ModeSwitch state={state} className="min-w-0 flex-1 sm:max-w-64" />
+            <SaveStatus state={state.saveState} />
+            {headerAction}
+          </div>
+
+          <motion.div
+            layout
+            className={cn(
+              "mt-2 flex min-h-0 flex-1 flex-col border border-black/8 bg-[#fbfaf6] px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] focus-within:border-[#2e765e]/40 focus-within:ring-3 focus-within:ring-[#2e765e]/10",
+              collapsed ? "rounded-[22px] py-2" : "mt-4 rounded-t-[24px] pt-4",
+            )}
+          >
+            <div
+              className={cn(
+                "items-center justify-between",
+                collapsed ? "hidden" : "flex",
+              )}
+            >
+              <span className="text-xs font-bold tracking-[0.14em] text-black/35 uppercase">
+                Your perspective
+              </span>
+              <span className="text-xs font-semibold text-[#2e765e]">
+                {state.draft.trim().split(/\s+/).length} words
+              </span>
+            </div>
+            {state.mode === "type" ? (
+              <TextComposer state={state} compact minimal={collapsed} />
+            ) : (
+              <AudioComposer state={state} compact={collapsed} />
+            )}
+          </motion.div>
+        </div>
+
+        <div
+          className={cn(
+            "grid shrink-0 transition-[grid-template-rows,opacity] duration-200",
+            collapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100",
+          )}
+          aria-hidden={collapsed}
+        >
+          <div className="overflow-hidden">
+            <SubmitBar state={state} />
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   if (presentation === "classic") {
     return (
       <section className="mt-5 flex min-h-[23rem] flex-1 flex-col rounded-t-[32px] bg-white text-[#17211b] shadow-[0_-20px_60px_rgba(0,0,0,0.18)]">
@@ -2027,81 +2212,8 @@ function VariantF({ state }: { state: PrototypeState }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Variant G — Unified canvas. Brief and editor remain in one spatial surface:
-// the brief owns the canvas initially, then contracts into a swipeable card
-// rail while the editor grows into the released space.
-// ---------------------------------------------------------------------------
-
-function UnifiedReferenceCarousel({ state }: { state: PrototypeState }) {
-  const [api, setApi] = useState<CarouselApi>()
-  const [current, setCurrent] = useState(0)
-
-  useEffect(() => {
-    if (!api) return
-    const updateCurrent = () => setCurrent(api.selectedScrollSnap())
-    updateCurrent()
-    api.on("select", updateCurrent)
-    api.on("reInit", updateCurrent)
-    return () => {
-      api.off("select", updateCurrent)
-      api.off("reInit", updateCurrent)
-    }
-  }, [api])
-
-  return (
-    <section className="h-full bg-[#15231d] px-4 pt-3 pb-4 text-white sm:px-6">
-      <div className="mb-2.5 flex min-h-11 items-center justify-between pr-24">
-        <div className="min-w-0">
-          <p className="text-[10px] font-bold tracking-[0.16em] text-white/40 uppercase">
-            Reference cards
-          </p>
-          <p className="truncate text-sm font-semibold text-white/85">
-            Swipe through the brief while you write
-          </p>
-        </div>
-        <span className="shrink-0 text-xs font-semibold text-[#e6fe55] tabular-nums">
-          {current + 1} / {contextCards.length}
-        </span>
-      </div>
-
-      <Carousel
-        setApi={setApi}
-        opts={{ align: "start", containScroll: "trimSnaps" }}
-        className="h-[calc(100%-3.375rem)]"
-        aria-label="Brief reference cards"
-      >
-        <CarouselContent className="h-full -ml-3">
-          {contextCards.map((card, index) => (
-            <CarouselItem
-              key={card.id}
-              className="h-full basis-[88%] pl-3 sm:basis-[66%] lg:basis-[44%]"
-              aria-label={`${index + 1} of ${contextCards.length}: ${card.title}`}
-            >
-              <article className="h-full overflow-y-auto rounded-[24px] bg-[#f4f0e4] p-4 text-[#17211b] shadow-[0_14px_36px_rgba(0,0,0,0.18)] sm:p-5">
-                <div className="flex items-center gap-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#17211b] text-[#e6fe55]">
-                    <card.icon className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[9px] font-bold tracking-[0.14em] text-black/40 uppercase">
-                      {card.eyebrow}
-                    </p>
-                    <h2 className="truncate text-sm font-semibold">{card.title}</h2>
-                  </div>
-                </div>
-                <ContextCardBody id={card.id} state={state} />
-              </article>
-            </CarouselItem>
-          ))}
-        </CarouselContent>
-        <CarouselPrevious className="top-[-3.15rem] right-12 bottom-auto left-auto size-11 border-white/10 bg-white/10 text-white hover:bg-white/16 hover:text-white active:scale-[0.94]" />
-        <CarouselNext className="top-[-3.15rem] right-0 bottom-auto left-auto size-11 border-white/10 bg-white/10 text-white hover:bg-white/16 hover:text-white active:scale-[0.94]" />
-      </Carousel>
-    </section>
-  )
-}
-
+// Variant G keeps one Context Deck workspace mounted. Collapse changes the
+// card axis and editor height; it never swaps to the separate Brief screen.
 function VariantG({ state }: { state: PrototypeState }) {
   const [expanded, setExpanded] = useState(false)
   const reduceMotion = useReducedMotion()
@@ -2109,113 +2221,61 @@ function VariantG({ state }: { state: PrototypeState }) {
     ? { duration: 0.12 }
     : { type: "spring" as const, bounce: 0, duration: 0.4 }
 
-  const expandButton = (
+  const toggleButton = (
     <Button
       size="sm"
-      className="min-h-11 rounded-full bg-[#17211b] px-3.5 text-white shadow-sm hover:bg-[#243229] active:scale-[0.96]"
-      onClick={() => setExpanded(true)}
+      variant="ghost"
+      className="min-h-11 shrink-0 rounded-xl px-2.5 font-semibold text-[#214f40] hover:bg-[#e8f0e9] active:scale-[0.96] sm:px-3.5"
+      onClick={() => setExpanded((current) => !current)}
       aria-expanded={expanded}
       aria-controls="unified-editor"
+      aria-label={expanded ? "Collapse editor" : "Expand editor"}
     >
-      <Maximize2 className="size-4" />
-      Expand
-    </Button>
-  )
-
-  const collapseButton = (
-    <Button
-      size="sm"
-      variant="outline"
-      className="min-h-11 rounded-full px-3.5 active:scale-[0.96]"
-      onClick={() => setExpanded(false)}
-      aria-expanded={expanded}
-      aria-controls="unified-editor"
-    >
-      <Minimize2 className="size-4" />
-      Collapse
+      {expanded ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+      {expanded ? "Collapse" : "Expand"}
     </Button>
   )
 
   return (
-    <main className="flex h-svh min-h-svh flex-col overflow-hidden bg-[#15231d] text-white">
-      <RequestTopBar tone="dark" />
-      <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden border-x border-white/8">
-        <motion.div
-          layout
-          transition={{ layout: layoutTransition }}
-          className={cn(
-            "min-h-0 overflow-hidden",
-            expanded ? "h-[17rem] shrink-0 sm:h-[19rem]" : "flex-1",
-          )}
-        >
-          <AnimatePresence initial={false} mode="popLayout">
-            {expanded ? (
-              <motion.div
-                key="reference-carousel"
-                className="h-full"
-                initial={{ opacity: 0, scale: 0.985 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.985 }}
-                transition={{ duration: reduceMotion ? 0.08 : 0.2 }}
-              >
-                <UnifiedReferenceCarousel state={state} />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="full-brief"
-                className="h-full"
-                initial={{ opacity: 0, scale: 0.995 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.995 }}
-                transition={{ duration: reduceMotion ? 0.08 : 0.18 }}
-              >
-                <BriefReferencePane state={state} headerAction={expandButton} />
-              </motion.div>
+    <>
+      <div className="h-svh" aria-hidden="true" />
+      <main className="fixed inset-0 flex h-svh min-h-svh flex-col overflow-hidden bg-[#15231d] text-white">
+        <RequestTopBar tone="dark" />
+        <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden border-x border-white/8">
+          <motion.div
+            layout
+            transition={{ layout: layoutTransition }}
+            className={cn(
+              "min-h-0 overflow-hidden",
+              expanded ? "h-[18rem] shrink-0 sm:h-[20rem]" : "flex-1",
             )}
-          </AnimatePresence>
-        </motion.div>
+          >
+            <EditorContextDeck
+              state={state}
+              presentation="unified"
+              collapsed={!expanded}
+            />
+          </motion.div>
 
-        <motion.div
-          id="unified-editor"
-          layout
-          transition={{ layout: layoutTransition }}
-          className={cn(
-            "min-h-0 overflow-hidden",
-            expanded ? "flex-1" : "h-[10.75rem] shrink-0",
-          )}
-        >
-          <AnimatePresence initial={false} mode="popLayout">
-            {expanded ? (
-              <motion.div
-                key="full-editor"
-                className="h-full"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                transition={{ duration: reduceMotion ? 0.08 : 0.22 }}
-              >
-                <EditorInputPane state={state} headerAction={collapseButton} />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="compact-editor"
-                className="h-full"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: reduceMotion ? 0.08 : 0.18 }}
-              >
-                <CompactInputSurface
-                  state={state}
-                  openEditor={() => setExpanded(true)}
-                  showExpand={false}
-                />
-              </motion.div>
+          <motion.div
+            id="unified-editor"
+            layout
+            transition={{ layout: layoutTransition }}
+            className={cn(
+              "min-h-0 overflow-hidden",
+              expanded ? "flex-1" : "h-[10.5rem] shrink-0",
             )}
-          </AnimatePresence>
-        </motion.div>
-      </div>
-    </main>
+          >
+            <EditorInputPane
+              state={state}
+              presentation="unified"
+              collapsed={!expanded}
+              headerAction={toggleButton}
+            />
+          </motion.div>
+        </div>
+      </main>
+    </>
   )
 }
 
