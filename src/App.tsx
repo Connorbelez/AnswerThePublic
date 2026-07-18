@@ -1067,7 +1067,7 @@ function EditorContextDeck({
             className={cn(
               "min-h-0 flex-1 gap-3 pb-4 scrollbar-none",
               collapsed
-                ? "grid content-start overflow-y-auto"
+                ? "grid content-start overflow-x-hidden overflow-y-auto"
                 : "flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden",
             )}
             aria-label="Brief reference cards"
@@ -1079,15 +1079,15 @@ function EditorContextDeck({
                 transition={{ layout: layoutTransition }}
                 key={card.id}
                 className={cn(
-                  "relative rounded-[28px] bg-[#f4f0e4] p-5 text-[#17211b] shadow-[0_18px_50px_rgba(0,0,0,0.22)]",
+                  "relative max-w-full shrink-0 overflow-x-hidden rounded-[28px] bg-[#f4f0e4] p-5 text-[#17211b] shadow-[0_18px_50px_rgba(0,0,0,0.22)]",
                   collapsed
-                    ? "w-full shrink-0"
+                    ? "w-full"
                     : "h-full min-w-[88%] snap-center overflow-y-auto sm:min-w-[68%] lg:min-w-[48%]",
                   pinned.includes(card.id) && "ring-2 ring-[#e6fe55] ring-inset",
                 )}
                 aria-label={`${index + 1} of ${displayed.length}: ${card.title}`}
               >
-                <div className="pointer-events-none absolute top-0 right-0 size-28 translate-x-8 -translate-y-8 rounded-full bg-[#e6fe55]/65 blur-2xl" />
+                <div className="pointer-events-none absolute top-2 right-2 size-24 rounded-full bg-[#e6fe55]/65 blur-2xl" />
                 <div className="relative flex items-center gap-3">
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#17211b] text-white">
                     <card.icon className="size-4" />
@@ -2212,8 +2212,8 @@ function VariantF({ state }: { state: PrototypeState }) {
   )
 }
 
-// Variant G keeps one Context Deck workspace mounted. Collapse changes the
-// card axis and editor height; it never swaps to the separate Brief screen.
+// Variant G keeps one Context Deck workspace mounted. Collapse stacks cards;
+// expand turns the same cards into a horizontal deck and grows the editor.
 function VariantG({ state }: { state: PrototypeState }) {
   const [expanded, setExpanded] = useState(false)
   const reduceMotion = useReducedMotion()
@@ -2245,10 +2245,7 @@ function VariantG({ state }: { state: PrototypeState }) {
           <motion.div
             layout
             transition={{ layout: layoutTransition }}
-            className={cn(
-              "min-h-0 overflow-hidden",
-              expanded ? "h-[18rem] shrink-0 sm:h-[20rem]" : "flex-1",
-            )}
+            className="min-h-0 flex-1 overflow-hidden"
           >
             <EditorContextDeck
               state={state}
@@ -2263,7 +2260,9 @@ function VariantG({ state }: { state: PrototypeState }) {
             transition={{ layout: layoutTransition }}
             className={cn(
               "min-h-0 overflow-hidden",
-              expanded ? "flex-1" : "h-[10.5rem] shrink-0",
+              expanded
+                ? "h-[50svh] max-h-[50svh] shrink-0"
+                : "h-[10.5rem] shrink-0",
             )}
           >
             <EditorInputPane
