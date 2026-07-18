@@ -906,7 +906,13 @@ function WorkspaceScreenTabs({
   )
 }
 
-function EditorContextDeck({ state }: { state: PrototypeState }) {
+function EditorContextDeck({
+  state,
+  presentation = "panel",
+}: {
+  state: PrototypeState
+  presentation?: "panel" | "classic"
+}) {
   const [visible, setVisible] = useState<string[]>(["question", "points"])
   const [pinned, setPinned] = useState<string[]>(["question"])
 
@@ -925,6 +931,121 @@ function EditorContextDeck({ state }: { state: PrototypeState }) {
   const displayed = contextCards.filter(
     (card) => visible.includes(card.id) || pinned.includes(card.id),
   )
+
+  if (presentation === "classic") {
+    return (
+      <section className="shrink-0 px-4 pt-5 text-white sm:px-7">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-[#e6fe55] text-[#17211b]">{request.urgency}</Badge>
+              <span className="text-xs font-medium text-white/45">
+                {request.responseLength}
+              </span>
+            </div>
+            <h1 className="mt-3 max-w-xl text-2xl font-semibold tracking-[-0.04em] sm:text-3xl">
+              Keep the brief in motion.
+            </h1>
+          </div>
+          <Badge className="shrink-0 bg-white/10 text-white">
+            {pinned.length} pinned
+          </Badge>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
+          {contextCards.map((card) => {
+            const isVisible = visible.includes(card.id)
+            const isPinned = pinned.includes(card.id)
+            return (
+              <div
+                key={card.id}
+                className={cn(
+                  "flex shrink-0 items-center rounded-full border p-1 pl-3 transition",
+                  isVisible || isPinned
+                    ? "border-[#e6fe55] bg-[#e6fe55] text-[#17211b]"
+                    : "border-white/12 bg-white/5 text-white/55",
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleVisible(card.id)}
+                  className="flex items-center gap-1.5 py-1 text-xs font-semibold"
+                  aria-pressed={isVisible || isPinned}
+                >
+                  {(isVisible || isPinned) && <Check className="size-3" />}
+                  {card.title}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => togglePinned(card.id)}
+                  className={cn(
+                    "ml-1 flex size-7 items-center justify-center rounded-full",
+                    isPinned
+                      ? "bg-[#17211b] text-[#e6fe55]"
+                      : isVisible
+                        ? "text-[#17211b]/45 hover:bg-black/5"
+                        : "text-white/35 hover:bg-white/10",
+                  )}
+                  aria-label={isPinned ? `Unpin ${card.title}` : `Pin ${card.title}`}
+                >
+                  <Pin className={cn("size-3", isPinned && "fill-current")} />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+
+        {displayed.length ? (
+          <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 scrollbar-none">
+            {displayed.map((card) => (
+              <article
+                key={card.id}
+                className={cn(
+                  "relative min-h-56 w-full min-w-full snap-center overflow-hidden rounded-[30px] bg-[#f4f0e4] p-5 text-[#17211b] shadow-[0_24px_70px_rgba(0,0,0,0.28)] sm:p-6",
+                  pinned.includes(card.id) && "ring-2 ring-[#e6fe55] ring-inset",
+                )}
+              >
+                <div className="absolute top-0 right-0 size-32 translate-x-8 -translate-y-8 rounded-full bg-[#e6fe55]/70 blur-2xl" />
+                <div className="relative flex items-center gap-3">
+                  <span className="flex size-10 items-center justify-center rounded-full bg-[#17211b] text-white">
+                    <card.icon className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-bold tracking-[0.16em] text-black/40 uppercase">
+                      {card.eyebrow}
+                    </p>
+                    <h2 className="font-semibold">{card.title}</h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => togglePinned(card.id)}
+                    className="relative flex size-9 items-center justify-center rounded-full bg-black/5"
+                    aria-label={
+                      pinned.includes(card.id)
+                        ? `Unpin ${card.title}`
+                        : `Pin ${card.title}`
+                    }
+                  >
+                    <Pin
+                      className={cn(
+                        "size-3.5",
+                        pinned.includes(card.id) && "fill-current",
+                      )}
+                    />
+                  </button>
+                </div>
+                <ContextCardBody id={card.id} state={state} />
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="flex min-h-56 items-center justify-center rounded-[30px] border border-dashed border-white/15 p-6 text-center text-sm text-white/45">
+            Toggle a context item above to add it to the deck.
+          </div>
+        )}
+      </section>
+    )
+  }
 
   return (
     <section className="flex h-full min-h-0 flex-col bg-[#15231d] text-white">
@@ -1019,7 +1140,42 @@ function EditorContextDeck({ state }: { state: PrototypeState }) {
   )
 }
 
-function EditorInputPane({ state }: { state: PrototypeState }) {
+function EditorInputPane({
+  state,
+  presentation = "panel",
+}: {
+  state: PrototypeState
+  presentation?: "panel" | "classic"
+}) {
+  if (presentation === "classic") {
+    return (
+      <section className="mt-5 flex min-h-[23rem] flex-1 flex-col rounded-t-[32px] bg-white text-[#17211b] shadow-[0_-20px_60px_rgba(0,0,0,0.18)]">
+        <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 pt-4 sm:px-7">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <ModeSwitch state={state} />
+            <SaveStatus state={state.saveState} />
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col rounded-t-[24px] border-x border-t border-black/8 bg-[#fbfaf6] px-5 pt-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold tracking-[0.14em] text-black/35 uppercase">
+                Your perspective
+              </span>
+              <span className="text-xs font-semibold text-[#2e765e]">
+                {state.draft.trim().split(/\s+/).length} words
+              </span>
+            </div>
+            {state.mode === "type" ? (
+              <TextComposer state={state} compact />
+            ) : (
+              <AudioComposer state={state} compact />
+            )}
+          </div>
+        </div>
+        <SubmitBar state={state} />
+      </section>
+    )
+  }
+
   return (
     <section className="flex h-full min-h-0 flex-col bg-white text-[#17211b]">
       <div className="flex items-center justify-between gap-3 border-b border-black/8 px-4 py-3 sm:px-6">
@@ -1154,23 +1310,11 @@ function VariantC({ state }: { state: PrototypeState }) {
           </div>
         ) : (
           <div
-            className={cn(
-              "grid h-full min-h-0",
-              isMobile ? "grid-rows-[35fr_65fr]" : "grid-cols-[44fr_56fr]",
-            )}
-            aria-label="Context deck and editor"
+            className="flex h-full min-h-0 flex-col overflow-y-auto bg-[#15231d]"
+            aria-label="Classic context deck editor"
           >
-            <div className="min-h-0 min-w-0 overflow-hidden">
-              <EditorContextDeck state={state} />
-            </div>
-            <div
-              className={cn(
-                "min-h-0 min-w-0 overflow-hidden border-white/10",
-                isMobile ? "border-t" : "border-l",
-              )}
-            >
-              <EditorInputPane state={state} />
-            </div>
+            <EditorContextDeck state={state} presentation="classic" />
+            <EditorInputPane state={state} presentation="classic" />
           </div>
         )}
       </div>
