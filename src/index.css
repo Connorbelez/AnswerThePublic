@@ -82,6 +82,7 @@
 
   body {
     @apply m-0 min-w-80 bg-background text-foreground antialiased;
+    min-height: 100svh;
     overscroll-behavior-y: none;
   }
 
@@ -91,69 +92,177 @@
   }
 }
 
-.prototype-shell {
+.wordmark {
+  font-weight: 760;
+  letter-spacing: -0.045em;
+}
+
+.auth-page {
+  display: grid;
   min-height: 100svh;
-  padding-bottom: 5.75rem;
-  background: #17211b;
+  align-content: space-between;
+  gap: 3rem;
+  padding: max(1.5rem, env(safe-area-inset-top)) 1rem
+    max(1.5rem, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 75% 12%, rgb(146 186 156 / 28%), transparent 32rem),
+    #17211b;
 }
 
-.prototype-switcher {
-  position: fixed;
-  z-index: 100;
-  left: 50%;
-  bottom: max(1rem, env(safe-area-inset-bottom));
+.auth-brand {
+  color: #f5f4ec;
+}
+
+.auth-brand .wordmark {
+  font-size: 1.25rem;
+}
+
+.auth-brand p {
+  margin: 0.1rem 0 0;
+  color: rgb(245 244 236 / 62%);
+  font-size: 0.78rem;
+}
+
+.auth-card {
+  width: min(100%, 28rem);
+  margin-inline: auto;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 28%);
+}
+
+.auth-icon,
+.empty-queue__icon {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  margin-bottom: 0.75rem;
+  border-radius: 0.85rem;
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+}
+
+.auth-icon svg,
+.empty-queue__icon svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.auth-assurance {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.app-shell {
+  min-height: 100svh;
+  background:
+    linear-gradient(180deg, rgb(242 242 232 / 80%), transparent 18rem),
+    var(--background);
+}
+
+.app-header {
   display: flex;
-  width: min(calc(100vw - 2rem), 23rem);
-  min-height: 3.75rem;
-  transform: translateX(-50%);
+  min-height: 4.25rem;
   align-items: center;
-  gap: 0.25rem;
-  border: 1px solid rgb(255 255 255 / 14%);
-  border-radius: 999px;
-  background: rgb(14 20 16 / 94%);
-  padding: 0.35rem;
-  box-shadow: 0 16px 55px rgb(0 0 0 / 35%);
-  backdrop-filter: blur(18px);
+  justify-content: space-between;
+  padding: max(0.7rem, env(safe-area-inset-top)) 1rem 0.7rem;
 }
 
-.scrollbar-none {
-  scrollbar-width: none;
+.app-header__brand,
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
 }
 
-.scrollbar-none::-webkit-scrollbar {
+.identity__copy {
+  display: block;
+  text-align: right;
+}
+
+.identity__copy strong,
+.identity__copy span {
+  display: block;
+}
+
+.identity__copy strong {
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.identity__copy span {
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+}
+
+.workspace {
+  width: min(100%, 76rem);
+  margin-inline: auto;
+  padding: 2rem 1rem 4rem;
+}
+
+.workspace__heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.workspace__heading h1 {
+  margin: 0.75rem 0 0.2rem;
+  font-size: clamp(2rem, 7vw, 3.25rem);
+  font-weight: 670;
+  letter-spacing: -0.055em;
+  line-height: 0.95;
+}
+
+.workspace__heading p {
+  margin: 0;
+  color: var(--muted-foreground);
+}
+
+.workspace__heading > button {
   display: none;
 }
 
-@keyframes wave {
-  0%,
-  100% {
-    transform: scaleY(0.65);
-    opacity: 0.55;
-  }
-  50% {
-    transform: scaleY(1.15);
-    opacity: 1;
-  }
+.empty-queue {
+  margin-top: 3rem;
+  border: 1px dashed var(--border);
+  background: rgb(255 255 255 / 56%);
+  box-shadow: none;
 }
 
-.animate-wave {
-  animation: wave 900ms ease-in-out infinite;
-  transform-origin: center;
+.empty-queue [data-slot="card-content"] {
+  padding-block: 1rem;
 }
 
-@media (max-width: 1023px) {
-  .prototype-switcher {
-    position: relative;
-    left: auto;
-    bottom: auto;
-    margin: 1rem auto 0;
-    transform: none;
+.empty-queue h2 {
+  margin: 0 0 0.45rem;
+  font-size: 1rem;
+}
+
+.empty-queue p {
+  max-width: 38rem;
+  margin: 0;
+  color: var(--muted-foreground);
+  line-height: 1.55;
+}
+
+@media (min-width: 40rem) {
+  .auth-page {
+    align-content: center;
+    grid-template-columns: minmax(12rem, 1fr) minmax(22rem, 28rem);
+    align-items: center;
+    padding-inline: max(3rem, 8vw);
   }
-}
 
-@media (min-width: 1024px) {
-  .prototype-shell {
-    padding-bottom: 0;
+  .workspace__heading > button {
+    display: block;
+  }
+
+  .workspace {
+    padding-inline: 2rem;
   }
 }
 
