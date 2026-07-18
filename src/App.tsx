@@ -13,7 +13,10 @@ import {
   ExternalLink,
   FileCheck2,
   FileText,
+  GripHorizontal,
+  GripVertical,
   Link2,
+  Keyboard,
   Mic,
   MoreHorizontal,
   Pause,
@@ -24,6 +27,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react"
+import { Group as PanelGroup, Panel, Separator } from "react-resizable-panels"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -35,6 +39,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 
 type VariantKey = "A" | "B" | "C"
@@ -42,7 +47,7 @@ type ComposerMode = "type" | "record"
 
 const variants: { key: VariantKey; name: string }[] = [
   { key: "A", name: "Context dock" },
-  { key: "B", name: "Briefing desk" },
+  { key: "B", name: "Brief + editor" },
   { key: "C", name: "Context deck" },
 ]
 
@@ -647,135 +652,380 @@ function VariantA({ state }: { state: PrototypeState }) {
   )
 }
 
-function VariantB({ state }: { state: PrototypeState }) {
-  const [mobilePanel, setMobilePanel] = useState<"brief" | "response">("brief")
+function PinnedSpeakingNotes({ state }: { state: PrototypeState }) {
+  const points = request.talkingPoints.filter((point) =>
+    state.pinned.includes(point.id),
+  )
+  if (!points.length) return null
 
   return (
-    <main className="flex min-h-svh flex-col bg-[#efece3] text-[#17211b]">
-      <RequestTopBar tone="dark" />
-      <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,0.92fr)_minmax(440px,1.08fr)]">
-        <div className="grid grid-cols-2 gap-1 border-b border-black/10 bg-[#efece3] p-3 lg:hidden">
-          <button
-            type="button"
-            onClick={() => setMobilePanel("brief")}
-            className={cn(
-              "flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold",
-              mobilePanel === "brief" ? "bg-[#17211b] text-white" : "text-black/45",
-            )}
+    <section>
+      <SectionHeading icon={Pin} eyebrow="Kept in view" title="Pinned speaking notes" />
+      <div className="space-y-3">
+        {points.map((point) => (
+          <article
+            key={point.id}
+            className="rounded-[22px] border border-[#2e765e]/25 bg-[#eef5ef] p-4"
           >
-            <BookOpen className="size-4" /> Brief
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobilePanel("response")}
-            className={cn(
-              "flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold",
-              mobilePanel === "response" ? "bg-[#17211b] text-white" : "text-black/45",
-            )}
-          >
-            <Mic className="size-4" /> Respond
-          </button>
+            <div className="flex items-start gap-3">
+              <Pin className="mt-1 size-4 shrink-0 fill-current text-[#2e765e]" />
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-semibold leading-5 text-[#17211b]">
+                  {point.title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-[#17211b]/65">
+                  {point.detail}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => state.togglePin(point.id)}
+                className="flex size-8 shrink-0 items-center justify-center rounded-full border border-[#2e765e]/20 text-[#2e765e] hover:bg-white/70"
+                aria-label={`Unpin ${point.title}`}
+              >
+                <PinOff className="size-3.5" />
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function BriefReferencePane({ state }: { state: PrototypeState }) {
+  return (
+    <section className="h-full overflow-y-auto bg-[#efece3]">
+      <div className="mx-auto max-w-3xl space-y-8 px-4 py-5 sm:px-7 lg:py-8">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-bold tracking-[0.18em] text-black/40 uppercase">
+              Brief first
+            </p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">
+              Everything you need to answer.
+            </h1>
+          </div>
+          <Badge className="bg-[#df5b3f] text-white">{request.urgency}</Badge>
         </div>
-
-        <section
-          className={cn(
-            "min-h-0 overflow-y-auto border-black/10 bg-[#efece3] lg:block lg:border-r",
-            mobilePanel === "brief" ? "block" : "hidden",
-          )}
-        >
-          <div className="mx-auto max-w-2xl space-y-8 px-4 py-5 sm:px-7 lg:py-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-bold tracking-[0.18em] text-black/40 uppercase">
-                  The briefing desk
-                </p>
-                <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">
-                  Context, uninterrupted.
-                </h1>
-              </div>
-              <Badge className="bg-[#df5b3f] text-white">{request.urgency}</Badge>
-            </div>
-            <QuestionBlock />
-            <section>
-              <SectionHeading icon={Sparkles} eyebrow="Prepared for you" title="Talking points" />
-              <TalkingPointList state={state} />
-            </section>
-            <section>
-              <SectionHeading icon={Search} eyebrow="Evidence pack" title="Research & citations" />
-              <ResearchList />
-            </section>
-            <section className="pb-8">
-              <SectionHeading icon={CircleAlert} eyebrow="Before answering" title="Open questions" />
-              <ul className="space-y-2 rounded-[22px] border border-black/8 bg-white p-4 text-sm leading-6 text-black/55">
-                {request.missingResearch.map((item) => (
-                  <li key={item} className="flex gap-2.5">
-                    <span className="mt-2 size-1.5 shrink-0 rounded-full bg-[#df5b3f]" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </div>
+        <QuestionBlock />
+        <PinnedSpeakingNotes state={state} />
+        <section>
+          <SectionHeading icon={Sparkles} eyebrow="Prepared for you" title="Talking points" />
+          <TalkingPointList state={state} />
         </section>
-
-        <section
-          className={cn(
-            "min-h-0 bg-white lg:flex lg:flex-col",
-            mobilePanel === "response" ? "flex flex-1 flex-col" : "hidden",
-          )}
-        >
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-black/8 bg-white/95 px-5 py-3 backdrop-blur-xl lg:px-7">
-            <div className="flex items-center gap-2 text-xs font-semibold text-black/45">
-              <span className="size-2 rounded-full bg-emerald-500" />
-              Local-first draft
-            </div>
-            <SaveStatus state={state.saveState} />
-          </div>
-          <div className="mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col px-4 py-5 sm:px-7 lg:py-8">
-            <div className="mb-5 hidden rounded-2xl border border-black/8 bg-[#f6f5f0] p-3 lg:block">
-              <div className="flex items-start gap-2">
-                <BookOpen className="mt-0.5 size-4 shrink-0 text-[#2e765e]" />
-                <p className="line-clamp-2 text-sm font-semibold leading-5">
-                  {request.question}
-                </p>
-              </div>
-            </div>
-            <ModeSwitch state={state} />
-            <div className="mt-5 flex min-h-0 flex-1 flex-col">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-bold tracking-[0.16em] text-black/35 uppercase">
-                    Founder input
-                  </p>
-                  <h2 className="text-xl font-semibold tracking-tight">Add what only you know.</h2>
-                </div>
-                <Badge variant="secondary">{request.responseLength}</Badge>
-              </div>
-              <PinnedPointChips state={state} />
-              <div className="mt-4 flex min-h-0 flex-1 flex-col rounded-[28px] border border-black/8 p-5">
-                {state.mode === "type" ? (
-                  <TextComposer state={state} />
-                ) : (
-                  <AudioComposer state={state} />
-                )}
-              </div>
-            </div>
-          </div>
-          <SubmitBar state={state} />
+        <section>
+          <SectionHeading icon={Search} eyebrow="Evidence pack" title="Research & citations" />
+          <ResearchList />
+        </section>
+        <section className="pb-8">
+          <SectionHeading icon={CircleAlert} eyebrow="Before answering" title="Open questions" />
+          <ul className="space-y-2 rounded-[22px] border border-black/8 bg-white p-4 text-sm leading-6 text-black/55">
+            {request.missingResearch.map((item) => (
+              <li key={item} className="flex gap-2.5">
+                <span className="mt-2 size-1.5 shrink-0 rounded-full bg-[#df5b3f]" />
+                {item}
+              </li>
+            ))}
+          </ul>
         </section>
       </div>
+    </section>
+  )
+}
 
-      {mobilePanel === "brief" && (
-        <div className="sticky bottom-0 border-t border-black/8 bg-[#efece3]/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl lg:hidden">
-          <Button
-            size="lg"
-            className="h-12 w-full rounded-2xl bg-[#17211b]"
-            onClick={() => setMobilePanel("response")}
-          >
-            <Mic /> Add your perspective
-          </Button>
+function CompactInputSurface({
+  state,
+  openEditor,
+}: {
+  state: PrototypeState
+  openEditor: () => void
+}) {
+  return (
+    <section className="flex h-full min-h-0 flex-col bg-white">
+      <div className="flex items-center justify-between gap-3 border-b border-black/8 px-4 py-2.5">
+        <div>
+          <p className="text-[10px] font-bold tracking-[0.14em] text-black/35 uppercase">
+            Quick capture
+          </p>
+          <p className="text-sm font-semibold">Add a thought without leaving the brief</p>
         </div>
+        <SaveStatus state={state.saveState} />
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-[auto_1fr] gap-3 p-3 sm:grid-cols-[12rem_1fr]">
+        <ModeSwitch state={state} />
+        {state.mode === "type" ? (
+          <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-black/8 bg-[#fbfaf6] px-3">
+            <Keyboard className="size-4 shrink-0 text-black/35" />
+            <Textarea
+              aria-label="Quick Founder Input"
+              value={state.draft}
+              onChange={(event) => state.updateDraft(event.target.value)}
+              className="max-h-20 min-h-11 flex-1 border-0 bg-transparent px-0 py-2 text-sm leading-5 focus-visible:ring-0"
+            />
+            <Button
+              size="sm"
+              className="shrink-0 rounded-xl bg-[#17211b]"
+              onClick={openEditor}
+            >
+              Expand
+            </Button>
+          </div>
+        ) : (
+          <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-black/8 bg-[#fbfaf6] px-3">
+            <button
+              type="button"
+              onClick={() => state.setRecording(!state.recording)}
+              className={cn(
+                "flex size-10 shrink-0 items-center justify-center rounded-full text-white",
+                state.recording ? "bg-[#17211b]" : "bg-[#df5b3f]",
+              )}
+              aria-label={state.recording ? "Pause recording" : "Start recording"}
+            >
+              {state.recording ? <Pause className="size-4" /> : <Mic className="size-4" />}
+            </button>
+            <div className="min-w-0 flex-1">
+              <p className="font-mono text-sm font-semibold tabular-nums">
+                {formatTimer(state.recordingSeconds)}
+              </p>
+              <p className="truncate text-xs text-black/40">
+                {state.recording ? "Recording locally" : "Ready to record"}
+              </p>
+            </div>
+            <Button size="sm" variant="outline" className="shrink-0 rounded-xl" onClick={openEditor}>
+              Expand
+            </Button>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function ResizeHandle({ orientation }: { orientation: "horizontal" | "vertical" }) {
+  return (
+    <Separator
+      className={cn(
+        "group relative z-20 flex shrink-0 items-center justify-center bg-[#17211b]/12 outline-none transition hover:bg-[#2e765e]/35 focus-visible:bg-[#2e765e]/40",
+        orientation === "horizontal" ? "w-3 cursor-col-resize" : "h-3 cursor-row-resize",
       )}
+    >
+      <span
+        className={cn(
+          "flex items-center justify-center rounded-full border border-black/10 bg-white text-black/35 shadow-sm",
+          orientation === "horizontal" ? "h-11 w-5" : "h-5 w-11",
+        )}
+      >
+        {orientation === "horizontal" ? (
+          <GripVertical className="size-3.5" />
+        ) : (
+          <GripHorizontal className="size-3.5" />
+        )}
+      </span>
+    </Separator>
+  )
+}
+
+function EditorContextDeck({ state }: { state: PrototypeState }) {
+  const [visible, setVisible] = useState<string[]>(["question", "points"])
+  const [pinned, setPinned] = useState<string[]>(["question"])
+
+  const toggleVisible = (id: string) => {
+    setVisible((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    )
+  }
+  const togglePinned = (id: string) => {
+    setPinned((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    )
+    setVisible((current) => (current.includes(id) ? current : [...current, id]))
+  }
+
+  const displayed = contextCards.filter(
+    (card) => visible.includes(card.id) || pinned.includes(card.id),
+  )
+
+  return (
+    <section className="flex h-full min-h-0 flex-col bg-[#15231d] text-white">
+      <div className="border-b border-white/10 px-4 py-4 sm:px-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-bold tracking-[0.16em] text-white/40 uppercase">
+              Editor reference
+            </p>
+            <h2 className="mt-0.5 text-lg font-semibold tracking-tight">Context deck</h2>
+          </div>
+          <Badge className="bg-[#e6fe55] text-[#17211b]">
+            {pinned.length} pinned
+          </Badge>
+        </div>
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {contextCards.map((card) => {
+            const isVisible = visible.includes(card.id)
+            const isPinned = pinned.includes(card.id)
+            return (
+              <div
+                key={card.id}
+                className={cn(
+                  "flex shrink-0 items-center rounded-full border p-1 pl-3 transition",
+                  isVisible || isPinned
+                    ? "border-[#e6fe55]/70 bg-[#e6fe55]/10 text-white"
+                    : "border-white/12 bg-white/5 text-white/45",
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleVisible(card.id)}
+                  className="flex items-center gap-1.5 py-1 text-xs font-semibold"
+                >
+                  {(isVisible || isPinned) && <Check className="size-3" />}
+                  {card.title}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => togglePinned(card.id)}
+                  className={cn(
+                    "ml-1 flex size-7 items-center justify-center rounded-full",
+                    isPinned ? "bg-[#e6fe55] text-[#17211b]" : "text-white/40 hover:bg-white/10",
+                  )}
+                  aria-label={isPinned ? `Unpin ${card.title}` : `Pin ${card.title}`}
+                >
+                  <Pin className={cn("size-3", isPinned && "fill-current")} />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 sm:p-4">
+        {displayed.length ? (
+          displayed.map((card) => (
+            <article
+              key={card.id}
+              className={cn(
+                "rounded-[24px] bg-[#f4f0e4] p-4 text-[#17211b]",
+                pinned.includes(card.id) && "ring-2 ring-[#e6fe55]",
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex size-8 items-center justify-center rounded-full bg-[#17211b] text-white">
+                  <card.icon className="size-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] font-bold tracking-[0.14em] text-black/40 uppercase">
+                    {card.eyebrow}
+                  </p>
+                  <h3 className="text-sm font-semibold">{card.title}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => togglePinned(card.id)}
+                  className="flex size-8 items-center justify-center rounded-full bg-black/5"
+                >
+                  <Pin className={cn("size-3.5", pinned.includes(card.id) && "fill-current")} />
+                </button>
+              </div>
+              <ContextCardBody id={card.id} state={state} />
+            </article>
+          ))
+        ) : (
+          <div className="flex h-full min-h-40 items-center justify-center rounded-[24px] border border-dashed border-white/15 p-6 text-center text-sm text-white/45">
+            Toggle a context item above to keep it beside the editor.
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function EditorInputPane({ state }: { state: PrototypeState }) {
+  return (
+    <section className="flex h-full min-h-0 flex-col bg-white">
+      <div className="flex items-center justify-between gap-3 border-b border-black/8 px-4 py-3 sm:px-6">
+        <div>
+          <p className="text-[10px] font-bold tracking-[0.16em] text-black/35 uppercase">
+            Founder input
+          </p>
+          <h2 className="text-lg font-semibold tracking-tight">Add what only you know.</h2>
+        </div>
+        <SaveStatus state={state.saveState} />
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
+        <ModeSwitch state={state} />
+        <div className="mt-4 flex min-h-0 flex-1 flex-col rounded-[26px] border border-black/8 bg-[#fbfaf6] p-5">
+          {state.mode === "type" ? <TextComposer state={state} /> : <AudioComposer state={state} />}
+        </div>
+      </div>
+      <SubmitBar state={state} />
+    </section>
+  )
+}
+
+function VariantB({ state }: { state: PrototypeState }) {
+  const [screen, setScreen] = useState<"brief" | "editor">("brief")
+  const isMobile = useIsMobile()
+  const orientation = isMobile ? "vertical" : "horizontal"
+
+  return (
+    <main className="flex h-svh min-h-svh flex-col overflow-hidden bg-[#efece3] text-[#17211b]">
+      <RequestTopBar tone="dark" />
+      <nav className="grid shrink-0 grid-cols-2 gap-1 border-b border-black/10 bg-[#efece3] p-2.5 sm:mx-auto sm:my-2 sm:w-full sm:max-w-md sm:rounded-2xl sm:border">
+        <button
+          type="button"
+          onClick={() => setScreen("brief")}
+          className={cn(
+            "flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition",
+            screen === "brief" ? "bg-[#17211b] text-white shadow-sm" : "text-black/45",
+          )}
+        >
+          <BookOpen className="size-4" /> Brief
+        </button>
+        <button
+          type="button"
+          onClick={() => setScreen("editor")}
+          className={cn(
+            "flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition",
+            screen === "editor" ? "bg-[#17211b] text-white shadow-sm" : "text-black/45",
+          )}
+        >
+          <FileText className="size-4" /> Editor
+        </button>
+      </nav>
+
+      <div className="mx-auto min-h-0 w-full max-w-7xl flex-1 overflow-hidden border-x border-black/8">
+        {screen === "brief" ? (
+          <PanelGroup
+            key={`brief-${orientation}`}
+            orientation={orientation}
+            className="h-full"
+            defaultLayout={{ "brief-reference": 70, "brief-input": 30 }}
+          >
+            <Panel id="brief-reference" minSize={45} defaultSize={70}>
+              <BriefReferencePane state={state} />
+            </Panel>
+            <ResizeHandle orientation={orientation} />
+            <Panel id="brief-input" minSize={18} maxSize={55} defaultSize={30}>
+              <CompactInputSurface state={state} openEditor={() => setScreen("editor")} />
+            </Panel>
+          </PanelGroup>
+        ) : (
+          <PanelGroup
+            key={`editor-${orientation}`}
+            orientation={orientation}
+            className="h-full"
+            defaultLayout={{ "editor-reference": 42, "editor-input": 58 }}
+          >
+            <Panel id="editor-reference" minSize={25} maxSize={68} defaultSize={42}>
+              <EditorContextDeck state={state} />
+            </Panel>
+            <ResizeHandle orientation={orientation} />
+            <Panel id="editor-input" minSize={32} defaultSize={58}>
+              <EditorInputPane state={state} />
+            </Panel>
+          </PanelGroup>
+        )}
+      </div>
     </main>
   )
 }
@@ -1035,7 +1285,7 @@ export function App() {
     const value = new URLSearchParams(window.location.search).get("variant")
     return variants.some((item) => item.key === value)
       ? (value as VariantKey)
-      : "A"
+      : "B"
   }, [])
   const [variant, setVariant] = useState<VariantKey>(initialVariant)
   const state = usePrototypeState()
