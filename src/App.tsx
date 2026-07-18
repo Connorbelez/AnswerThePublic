@@ -16,7 +16,6 @@ import {
   GripHorizontal,
   GripVertical,
   Link2,
-  Keyboard,
   Mic,
   MoreHorizontal,
   Pause,
@@ -241,9 +240,11 @@ function SaveStatus({ state }: { state: PrototypeState["saveState"] }) {
 function ModeSwitch({
   state,
   tone = "light",
+  className,
 }: {
   state: PrototypeState
   tone?: "light" | "dark"
+  className?: string
 }) {
   const dark = tone === "dark"
   return (
@@ -251,13 +252,17 @@ function ModeSwitch({
       className={cn(
         "grid grid-cols-2 rounded-2xl p-1",
         dark ? "bg-white/10" : "bg-black/5",
+        className,
       )}
+      aria-label="Input method"
+      role="group"
     >
       <button
         type="button"
         onClick={() => state.setMode("type")}
+        aria-pressed={state.mode === "type"}
         className={cn(
-          "flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition",
+          "flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-[transform,background-color,color,box-shadow] active:scale-[0.97]",
           state.mode === "type"
             ? dark
               ? "bg-white text-[#17211b] shadow-sm"
@@ -273,8 +278,9 @@ function ModeSwitch({
       <button
         type="button"
         onClick={() => state.setMode("record")}
+        aria-pressed={state.mode === "record"}
         className={cn(
-          "flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition",
+          "flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-[transform,background-color,color,box-shadow] active:scale-[0.97]",
           state.mode === "record"
             ? dark
               ? "bg-white text-[#17211b] shadow-sm"
@@ -784,42 +790,37 @@ function CompactInputSurface({
   openEditor: () => void
 }) {
   return (
-    <section className="flex h-full min-h-0 flex-col bg-white text-[#17211b]">
-      <div className="flex items-center justify-between gap-3 border-b border-black/8 px-4 py-2.5">
-        <div>
-          <p className="text-[10px] font-bold tracking-[0.14em] text-black/35 uppercase">
-            Quick capture
-          </p>
-          <p className="text-sm font-semibold">Add a thought without leaving the brief</p>
-        </div>
+    <section className="flex h-full min-h-0 flex-col bg-white/[0.96] text-[#17211b] shadow-[0_-12px_36px_rgba(23,33,27,0.08)] backdrop-blur-xl">
+      <div className="flex shrink-0 items-center gap-2.5 px-3 pt-3">
+        <ModeSwitch state={state} className="min-w-0 flex-1 sm:max-w-48" />
         <SaveStatus state={state.saveState} />
+        <Button
+          size="sm"
+          variant="ghost"
+          className="min-h-11 shrink-0 rounded-xl px-3 font-semibold text-[#214f40] active:scale-[0.97]"
+          onClick={openEditor}
+        >
+          Expand
+        </Button>
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-[auto_1fr] items-center gap-3 p-3 sm:grid-cols-[12rem_1fr]">
-        <ModeSwitch state={state} />
+      <div className="min-h-0 flex-1 p-3 pt-2">
         {state.mode === "type" ? (
-          <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-black/8 bg-[#fbfaf6] px-3">
-            <Keyboard className="size-4 shrink-0 text-black/35" />
+          <div className="flex h-full min-h-20 min-w-0 rounded-[20px] border border-black/8 bg-[#fbfaf6] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition focus-within:border-[#2e765e]/40 focus-within:ring-3 focus-within:ring-[#2e765e]/10">
             <Textarea
               aria-label="Quick Founder Input"
               value={state.draft}
               onChange={(event) => state.updateDraft(event.target.value)}
-              className="max-h-20 min-h-11 flex-1 border-0 bg-transparent px-0 py-2 text-sm leading-5 focus-visible:ring-0"
+              placeholder="Add what only you know…"
+              className="h-full min-h-20 flex-1 resize-none border-0 bg-transparent px-0 py-2.5 text-base leading-6 shadow-none focus-visible:ring-0"
             />
-            <Button
-              size="sm"
-              className="shrink-0 rounded-xl bg-[#17211b]"
-              onClick={openEditor}
-            >
-              Expand
-            </Button>
           </div>
         ) : (
-          <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-black/8 bg-[#fbfaf6] px-3">
+          <div className="flex h-full min-h-20 min-w-0 items-center gap-3 rounded-[20px] border border-black/8 bg-[#fbfaf6] px-3">
             <button
               type="button"
               onClick={() => state.setRecording(!state.recording)}
               className={cn(
-                "flex size-10 shrink-0 items-center justify-center rounded-full text-white",
+                "flex size-11 shrink-0 items-center justify-center rounded-full text-white transition-transform active:scale-[0.94]",
                 state.recording ? "bg-[#17211b]" : "bg-[#df5b3f]",
               )}
               aria-label={state.recording ? "Pause recording" : "Start recording"}
@@ -834,9 +835,18 @@ function CompactInputSurface({
                 {state.recording ? "Recording locally" : "Ready to record"}
               </p>
             </div>
-            <Button size="sm" variant="outline" className="shrink-0 rounded-xl" onClick={openEditor}>
-              Expand
-            </Button>
+            <div className="flex items-end gap-1" aria-hidden="true">
+              {[10, 18, 26, 14, 22, 16, 24].map((height, index) => (
+                <span
+                  key={index}
+                  className={cn(
+                    "w-0.5 rounded-full bg-[#2e765e]",
+                    state.recording && "animate-wave",
+                  )}
+                  style={{ height, animationDelay: `${index * 60}ms` }}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -1317,9 +1327,11 @@ function VariantC({ state }: { state: PrototypeState }) {
           <div
             className={cn(
               "grid h-full min-h-0",
-              isMobile ? "grid-rows-[72fr_28fr]" : "grid-cols-[72fr_28fr]",
+              isMobile
+                ? "grid-rows-[minmax(0,1fr)_10.75rem]"
+                : "grid-cols-[72fr_28fr]",
             )}
-            aria-label="Brief and quick capture"
+            aria-label="Brief and founder input"
           >
             <div className="min-h-0 min-w-0 overflow-hidden">
               <BriefReferencePane state={state} />
