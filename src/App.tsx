@@ -22,10 +22,12 @@ import {
   Pause,
   Pin,
   PinOff,
+  ScrollText,
   Search,
   Send,
   Sparkles,
   X,
+  Zap,
 } from "lucide-react"
 import { Group as PanelGroup, Panel, Separator } from "react-resizable-panels"
 
@@ -42,13 +44,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 
-type VariantKey = "A" | "B" | "C"
+type VariantKey = "A" | "B" | "C" | "D" | "E" | "F"
 type ComposerMode = "type" | "record"
 
 const variants: { key: VariantKey; name: string }[] = [
   { key: "A", name: "Context dock" },
   { key: "B", name: "Brief + editor" },
   { key: "C", name: "Context deck" },
+  { key: "D", name: "Citation strip" },
+  { key: "E", name: "Guided walkthrough" },
+  { key: "F", name: "Split-canvas focus" },
 ]
 
 const request = {
@@ -233,17 +238,33 @@ function SaveStatus({ state }: { state: PrototypeState["saveState"] }) {
   )
 }
 
-function ModeSwitch({ state }: { state: PrototypeState }) {
+function ModeSwitch({
+  state,
+  tone = "light",
+}: {
+  state: PrototypeState
+  tone?: "light" | "dark"
+}) {
+  const dark = tone === "dark"
   return (
-    <div className="grid grid-cols-2 rounded-2xl bg-black/5 p-1">
+    <div
+      className={cn(
+        "grid grid-cols-2 rounded-2xl p-1",
+        dark ? "bg-white/10" : "bg-black/5",
+      )}
+    >
       <button
         type="button"
         onClick={() => state.setMode("type")}
         className={cn(
           "flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition",
           state.mode === "type"
-            ? "bg-white text-[#17211b] shadow-sm"
-            : "text-black/50",
+            ? dark
+              ? "bg-white text-[#17211b] shadow-sm"
+              : "bg-white text-[#17211b] shadow-sm"
+            : dark
+              ? "text-white/55 hover:text-white/80"
+              : "text-black/50",
         )}
       >
         <FileText className="size-4" />
@@ -255,8 +276,12 @@ function ModeSwitch({ state }: { state: PrototypeState }) {
         className={cn(
           "flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition",
           state.mode === "record"
-            ? "bg-white text-[#17211b] shadow-sm"
-            : "text-black/50",
+            ? dark
+              ? "bg-white text-[#17211b] shadow-sm"
+              : "bg-white text-[#17211b] shadow-sm"
+            : dark
+              ? "text-white/55 hover:text-white/80"
+              : "text-black/50",
         )}
       >
         <Mic className="size-4" />
@@ -1382,6 +1407,577 @@ function ContextCardBody({ id, state }: { id: string; state: PrototypeState }) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Variant D — Citation strip. A persistent one-line digest of the ask, key
+// points, verified sources, and guardrail stays glued above the composer at
+// all times; the full brief expands into a sheet only on demand. The composer
+// keeps the rest of the screen. Question: does a compressed, always-visible
+// evidence/guardrail strip replace split-screen context while drafting?
+// ---------------------------------------------------------------------------
+
+function StripRow({
+  icon: Icon,
+  label,
+  value,
+  tone = "light",
+}: {
+  icon: typeof Sparkles
+  label: string
+  value: string
+  tone?: "light" | "dark"
+}) {
+  return (
+    <div className="flex items-center gap-2.5 px-4 py-2">
+      <span
+        className={cn(
+          "flex size-7 shrink-0 items-center justify-center rounded-full",
+          tone === "dark" ? "bg-white/10 text-[#e6fe55]" : "bg-[#17211b] text-white",
+        )}
+      >
+        <Icon className="size-3.5" />
+      </span>
+      <span
+        className={cn(
+          "shrink-0 text-[10px] font-bold tracking-[0.14em] uppercase",
+          tone === "dark" ? "text-white/40" : "text-black/35",
+        )}
+      >
+        {label}
+      </span>
+      <span
+        className={cn(
+          "truncate text-xs font-medium",
+          tone === "dark" ? "text-white/80" : "text-[#17211b]/75",
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function CitationStrip({
+  state,
+  onOpenBrief,
+}: {
+  state: PrototypeState
+  onOpenBrief: () => void
+}) {
+  return (
+    <section
+      aria-label="Brief digest"
+      className="shrink-0 border-b border-white/10 bg-[#1d2b23]"
+    >
+      <div className="divide-y divide-white/6">
+        <StripRow icon={BookOpen} label="Ask" value={request.question} tone="dark" />
+        <StripRow
+          icon={Sparkles}
+          label="Points"
+          value={request.talkingPoints.map((p) => p.title).join(" · ")}
+          tone="dark"
+        />
+        <StripRow
+          icon={Link2}
+          label="Sources"
+          value={`${request.research.length} verified — ${request.research.map((r) => r.label.split("—")[0].trim()).join(", ")}`}
+          tone="dark"
+        />
+        <StripRow icon={CircleAlert} label="Guard" value={request.guardrail} tone="dark" />
+      </div>
+      <button
+        type="button"
+        onClick={onOpenBrief}
+        className="flex w-full items-center justify-center gap-2 border-t border-white/10 py-2.5 text-xs font-semibold text-[#e6fe55] transition hover:bg-white/5"
+      >
+        <ScrollText className="size-3.5" />
+        Full brief
+        {state.pinned.length > 0 && (
+          <span className="rounded-full bg-[#e6fe55]/15 px-2 py-0.5 text-[10px] font-bold">
+            {state.pinned.length} pinned
+          </span>
+        )}
+      </button>
+    </section>
+  )
+}
+
+function VariantD({ state }: { state: PrototypeState }) {
+  const [briefOpen, setBriefOpen] = useState(false)
+
+  return (
+    <main className="flex h-svh min-h-svh flex-col overflow-hidden bg-[#15231d] text-white">
+      <RequestTopBar tone="dark" />
+      <CitationStrip state={state} onOpenBrief={() => setBriefOpen(true)} />
+
+      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 pt-4 sm:px-7">
+        <div className="mb-3">
+          <ModeSwitch state={state} tone="dark" />
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col rounded-t-[28px] bg-white px-5 pt-4 text-[#17211b]">
+          <div className="mb-1 flex items-center justify-between">
+            <h2 className="text-xs font-bold tracking-[0.14em] text-black/35 uppercase">
+              Your perspective
+            </h2>
+            <span className="text-xs text-black/35">Private draft</span>
+          </div>
+          {state.mode === "type" ? (
+            <TextComposer state={state} />
+          ) : (
+            <AudioComposer state={state} />
+          )}
+        </div>
+      </div>
+      <SubmitBar state={state} />
+
+      <Sheet open={briefOpen} onOpenChange={setBriefOpen}>
+        <SheetContent
+          side="bottom"
+          className="max-h-[94svh] overflow-y-auto rounded-t-[32px] bg-[#fbfaf6]"
+        >
+          <SheetHeader className="sticky top-0 z-10 border-b border-black/8 bg-[#fbfaf6]/95 px-5 py-4 backdrop-blur-xl">
+            <div className="mx-auto mb-1 h-1.5 w-10 rounded-full bg-black/15" />
+            <div className="flex items-center justify-between pr-9">
+              <div>
+                <SheetTitle className="text-lg">Full brief</SheetTitle>
+                <SheetDescription>
+                  Pin talking points to keep them in the strip digest.
+                </SheetDescription>
+              </div>
+              <Badge variant="secondary">3 sources</Badge>
+            </div>
+          </SheetHeader>
+          <FullBrief state={state} />
+        </SheetContent>
+      </Sheet>
+    </main>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Variant E — Guided walkthrough. The brief becomes a horizontal stepper: the
+// ask, each talking point, sources, open questions, and the guardrail, one
+// block at a time. A type/record capture dock stays persistent at the bottom
+// so jotting never requires leaving the current step. Question: does
+// sequenced brief reading beat spatial split-screen?
+// ---------------------------------------------------------------------------
+
+type WalkStep = {
+  id: string
+  label: string
+  eyebrow: string
+  title: string
+}
+
+const walkSteps: WalkStep[] = [
+  { id: "ask", label: "Ask", eyebrow: "The ask", title: "Original question" },
+  ...request.talkingPoints.map((p, i) => ({
+    id: p.id,
+    label: `Point ${i + 1}`,
+    eyebrow: `Talking point ${i + 1} of ${request.talkingPoints.length}`,
+    title: p.title,
+  })),
+  { id: "sources", label: "Sources", eyebrow: "Evidence pack", title: "Research & citations" },
+  { id: "verify", label: "Verify", eyebrow: "Before answering", title: "Still to verify" },
+  { id: "guard", label: "Guard", eyebrow: "Keep in mind", title: "Response guardrail" },
+]
+
+function WalkStepBody({ id, state }: { id: string; state: PrototypeState }) {
+  if (id === "ask") {
+    return (
+      <div>
+        <p className="text-xl leading-8 font-semibold tracking-[-0.02em] text-[#17211b]">
+          “{request.question}”
+        </p>
+        <p className="mt-4 text-xs font-medium text-black/45">
+          {request.source} · {request.age} · {request.responseLength}
+        </p>
+      </div>
+    )
+  }
+  const point = request.talkingPoints.find((p) => p.id === id)
+  if (point) {
+    const isPinned = state.pinned.includes(point.id)
+    return (
+      <div>
+        <p className="text-base leading-7 text-[#17211b]/75">{point.detail}</p>
+        <button
+          type="button"
+          onClick={() => state.togglePin(point.id)}
+          className={cn(
+            "mt-5 flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition",
+            isPinned
+              ? "border-[#2e765e] bg-[#e8f0e9] text-[#2e765e]"
+              : "border-black/12 text-black/50 hover:bg-black/5",
+          )}
+        >
+          {isPinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+          {isPinned ? "Pinned to dock" : "Pin to dock"}
+        </button>
+      </div>
+    )
+  }
+  if (id === "sources") {
+    return (
+      <div className="space-y-2">
+        {request.research.map((source) => (
+          <div key={source.label} className="flex items-start gap-3 rounded-2xl bg-black/4 p-3">
+            <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-[#17211b]">{source.label}</p>
+              <p className="mt-0.5 text-xs leading-5 text-black/50">{source.note}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (id === "verify") {
+    return (
+      <ul className="space-y-3">
+        {request.missingResearch.map((item) => (
+          <li key={item} className="flex gap-2.5 text-sm leading-6 text-[#17211b]/75">
+            <span className="mt-2 size-1.5 shrink-0 rounded-full bg-[#df5b3f]" />
+            {item}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+  return (
+    <p className="rounded-2xl bg-[#17211b] p-4 text-sm leading-6 text-white/80">
+      {request.guardrail}
+    </p>
+  )
+}
+
+function VariantE({ state }: { state: PrototypeState }) {
+  const [stepIndex, setStepIndex] = useState(0)
+  const step = walkSteps[stepIndex]
+  const pinnedPoints = request.talkingPoints.filter((p) => state.pinned.includes(p.id))
+
+  return (
+    <main className="flex h-svh min-h-svh flex-col overflow-hidden bg-[#fbfaf6] text-[#17211b]">
+      <RequestTopBar />
+
+      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
+        <nav
+          aria-label="Brief walkthrough"
+          className="flex shrink-0 gap-1.5 overflow-x-auto px-4 pt-3 pb-2 scrollbar-none"
+        >
+          {walkSteps.map((item, index) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setStepIndex(index)}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-semibold transition",
+                index === stepIndex
+                  ? "border-[#17211b] bg-[#17211b] text-white"
+                  : index < stepIndex
+                    ? "border-[#2e765e]/30 bg-[#e8f0e9] text-[#2e765e]"
+                    : "border-black/10 text-black/40",
+              )}
+              aria-current={index === stepIndex ? "step" : undefined}
+            >
+              {index < stepIndex && <Check className="size-3" />}
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+          <article className="rounded-[28px] border border-black/8 bg-white p-5 shadow-[0_16px_40px_rgba(23,33,27,0.05)] sm:p-6">
+            <p className="text-[10px] font-bold tracking-[0.16em] text-black/40 uppercase">
+              {step.eyebrow}
+            </p>
+            <h2 className="mt-1.5 font-heading text-xl font-semibold tracking-tight text-[#17211b]">
+              {step.title}
+            </h2>
+            <div className="mt-4">
+              <WalkStepBody id={step.id} state={state} />
+            </div>
+            <div className="mt-6 flex items-center justify-between gap-3 border-t border-black/8 pt-4">
+              <Button
+                variant="outline"
+                className="rounded-2xl"
+                disabled={stepIndex === 0}
+                onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
+              >
+                <ChevronLeft /> Back
+              </Button>
+              <span className="text-xs font-medium text-black/35">
+                {stepIndex + 1} / {walkSteps.length}
+              </span>
+              {stepIndex < walkSteps.length - 1 ? (
+                <Button
+                  className="rounded-2xl bg-[#17211b]"
+                  onClick={() => setStepIndex((i) => Math.min(walkSteps.length - 1, i + 1))}
+                >
+                  Next <ChevronRight />
+                </Button>
+              ) : (
+                <Button
+                  className="rounded-2xl bg-[#2e765e]"
+                  onClick={() => setStepIndex(0)}
+                >
+                  Restart brief
+                </Button>
+              )}
+            </div>
+          </article>
+        </div>
+
+        <section
+          aria-label="Capture dock"
+          className="shrink-0 rounded-t-[28px] border-t border-black/8 bg-white px-4 pt-3 shadow-[0_-16px_40px_rgba(23,33,27,0.08)]"
+        >
+          {pinnedPoints.length > 0 && (
+            <div className="mb-2 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {pinnedPoints.map((point) => (
+                <button
+                  key={point.id}
+                  type="button"
+                  onClick={() => state.togglePin(point.id)}
+                  className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#2e765e]/25 bg-[#eef5ef] px-3 py-1.5 text-[11px] font-semibold text-[#214f40]"
+                >
+                  <Pin className="size-3 fill-current" />
+                  {point.title}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <ModeSwitch state={state} />
+            <SaveStatus state={state.saveState} />
+          </div>
+          <div className="mt-2 pb-2">
+            {state.mode === "type" ? (
+              <Textarea
+                aria-label="Quick Founder Input"
+                value={state.draft}
+                onChange={(event) => state.updateDraft(event.target.value)}
+                placeholder="Jot a thought without leaving this step…"
+                className="max-h-28 min-h-16 resize-none rounded-2xl border-black/8 bg-[#fbfaf6] text-sm leading-6 focus-visible:ring-1"
+              />
+            ) : (
+              <div className="flex items-center gap-3 rounded-2xl border border-black/8 bg-[#fbfaf6] px-3 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => state.setRecording(!state.recording)}
+                  className={cn(
+                    "flex size-11 shrink-0 items-center justify-center rounded-full text-white transition active:scale-95",
+                    state.recording ? "bg-[#17211b]" : "bg-[#df5b3f]",
+                  )}
+                  aria-label={state.recording ? "Pause recording" : "Start recording"}
+                >
+                  {state.recording ? <Pause className="size-4" /> : <Mic className="size-4" />}
+                </button>
+                <div className="min-w-0 flex-1">
+                  <p className="font-mono text-sm font-semibold tabular-nums">
+                    {formatTimer(state.recordingSeconds)}
+                  </p>
+                  <p className="truncate text-xs text-black/40">
+                    {state.recording ? "Recording locally" : "Ready to record"}
+                  </p>
+                </div>
+                <div className="flex items-end gap-1" aria-hidden="true">
+                  {[10, 18, 26, 14, 22, 16, 24].map((height, index) => (
+                    <span
+                      key={index}
+                      className={cn("w-0.5 rounded-full bg-[#2e765e]", state.recording && "animate-wave")}
+                      style={{ height, animationDelay: `${index * 60}ms` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+      <SubmitBar state={state} />
+    </main>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Variant F — Split-canvas focus. One surface: a muted context rail beside a
+// dominant composer, with a one-tap focus mode that collapses context to a
+// minimal digest. Desktop shows rail and composer side by side; mobile keeps
+// them stacked. Question: is attention (dim/expand) a better lever than
+// navigation (screens, decks) for keeping context available while drafting?
+// ---------------------------------------------------------------------------
+
+function FocusRailCard({
+  icon: Icon,
+  eyebrow,
+  title,
+  children,
+  dimmed,
+}: {
+  icon: typeof Sparkles
+  eyebrow: string
+  title: string
+  children: React.ReactNode
+  dimmed: boolean
+}) {
+  return (
+    <article
+      className={cn(
+        "rounded-[22px] border border-white/10 bg-white/6 p-4 transition-opacity",
+        dimmed && "opacity-45",
+      )}
+    >
+      <div className="flex items-center gap-2.5">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-[#e6fe55]">
+          <Icon className="size-3.5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[9px] font-bold tracking-[0.14em] text-white/40 uppercase">{eyebrow}</p>
+          <h3 className="truncate text-sm font-semibold text-white">{title}</h3>
+        </div>
+      </div>
+      {!dimmed && <div className="mt-3">{children}</div>}
+    </article>
+  )
+}
+
+function VariantF({ state }: { state: PrototypeState }) {
+  const [focus, setFocus] = useState(false)
+  const isMobile = useIsMobile()
+
+  const rail = (
+    <aside
+      aria-label="Context rail"
+      className={cn(
+        "flex min-h-0 flex-col overflow-y-auto bg-[#15231d] p-3 sm:p-4",
+        isMobile ? "w-full" : "w-[21rem] shrink-0 border-r border-white/8",
+      )}
+    >
+      <div className="mb-3 flex items-center justify-between gap-3 px-1">
+        <div>
+          <p className="text-[10px] font-bold tracking-[0.16em] text-white/40 uppercase">
+            Context rail
+          </p>
+          <p className="text-sm font-semibold text-white">
+            {focus ? "Dimmed while you write" : "Reference while you write"}
+          </p>
+        </div>
+        <Badge className="bg-[#df5b3f] text-white">{request.urgency}</Badge>
+      </div>
+      <div className="space-y-3">
+        <FocusRailCard icon={BookOpen} eyebrow="The ask" title="Original question" dimmed={focus}>
+          <p className="text-sm leading-6 text-white/75">“{request.question}”</p>
+          <p className="mt-2 text-[11px] font-medium text-white/40">
+            {request.source} · {request.age}
+          </p>
+        </FocusRailCard>
+        <FocusRailCard icon={Sparkles} eyebrow="Prepared for you" title="Talking points" dimmed={focus}>
+          <ul className="space-y-2">
+            {request.talkingPoints.map((point, index) => (
+              <li key={point.id} className="flex gap-2 text-xs leading-5 text-white/70">
+                <span className="flex size-4.5 shrink-0 items-center justify-center rounded-full bg-[#e6fe55] text-[9px] font-bold text-[#17211b]">
+                  {index + 1}
+                </span>
+                <span>
+                  <span className="font-semibold text-white">{point.title}.</span> {point.detail}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </FocusRailCard>
+        <FocusRailCard icon={Link2} eyebrow="Evidence pack" title="3 verified sources" dimmed={focus}>
+          <ul className="space-y-1.5">
+            {request.research.map((source) => (
+              <li key={source.label} className="flex items-center gap-2 text-xs text-white/70">
+                <Check className="size-3.5 shrink-0 text-emerald-400" />
+                <span className="truncate">{source.label}</span>
+              </li>
+            ))}
+          </ul>
+        </FocusRailCard>
+        <FocusRailCard icon={CircleAlert} eyebrow="Keep in mind" title="Guardrail" dimmed={focus}>
+          <p className="text-xs leading-5 text-white/70">{request.guardrail}</p>
+        </FocusRailCard>
+      </div>
+    </aside>
+  )
+
+  const composer = (
+    <section className="flex min-h-0 flex-1 flex-col bg-[#fbfaf6] text-[#17211b]">
+      <div className="flex items-center justify-between gap-3 border-b border-black/8 px-4 py-3 sm:px-6">
+        <div>
+          <p className="text-[10px] font-bold tracking-[0.16em] text-black/35 uppercase">
+            Founder input
+          </p>
+          <h2 className="text-lg font-semibold tracking-tight">Add what only you know.</h2>
+        </div>
+        <div className="flex items-center gap-3">
+          <SaveStatus state={state.saveState} />
+          <button
+            type="button"
+            onClick={() => setFocus((value) => !value)}
+            aria-pressed={focus}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-semibold transition",
+              focus
+                ? "border-[#17211b] bg-[#17211b] text-white"
+                : "border-black/12 text-black/55 hover:bg-black/5",
+            )}
+          >
+            <Zap className="size-3.5" />
+            {focus ? "Exit focus" : "Focus"}
+          </button>
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
+        <ModeSwitch state={state} />
+        <div
+          className={cn(
+            "mt-4 flex min-h-0 flex-1 flex-col rounded-[26px] border p-5 transition",
+            focus
+              ? "border-[#17211b]/20 bg-white shadow-[0_20px_60px_rgba(23,33,27,0.10)]"
+              : "border-black/8 bg-white",
+          )}
+        >
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-xs font-bold tracking-[0.14em] text-black/35 uppercase">
+              Your perspective
+            </span>
+            <span className="text-xs font-semibold text-[#2e765e]">
+              {state.draft.trim().split(/\s+/).length} words
+            </span>
+          </div>
+          {state.mode === "type" ? (
+            <TextComposer state={state} />
+          ) : (
+            <AudioComposer state={state} />
+          )}
+        </div>
+      </div>
+      <SubmitBar state={state} />
+    </section>
+  )
+
+  return (
+    <main className="flex h-svh min-h-svh flex-col overflow-hidden bg-[#15231d] text-white">
+      <RequestTopBar tone="dark" />
+      <div
+        className={cn(
+          "mx-auto grid min-h-0 w-full max-w-7xl flex-1 overflow-hidden",
+          isMobile
+            ? focus
+              ? "grid-rows-[minmax(4.5rem,auto)_1fr]"
+              : "grid-rows-[minmax(0,42fr)_minmax(0,58fr)]"
+            : "grid-cols-[auto_1fr]",
+        )}
+      >
+        {rail}
+        {composer}
+      </div>
+    </main>
+  )
+}
+
 function PrototypeSwitcher({
   variant,
   onChange,
@@ -1470,6 +2066,9 @@ export function App() {
       {variant === "A" && <VariantA state={state} />}
       {variant === "B" && <VariantB state={state} />}
       {variant === "C" && <VariantC state={state} />}
+      {variant === "D" && <VariantD state={state} />}
+      {variant === "E" && <VariantE state={state} />}
+      {variant === "F" && <VariantF state={state} />}
       {(import.meta.env.DEV || import.meta.env.VITE_PROTOTYPE_BUILD === "true") && (
         <PrototypeSwitcher variant={variant} onChange={changeVariant} state={state} />
       )}
