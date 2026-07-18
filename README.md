@@ -3,11 +3,11 @@
 The production application for turning community questions, journalist requests,
 and digital-PR opportunities into prioritized, research-backed content requests.
 
-This repository is currently at **Ticket 01: production application foundation**.
-It provides the authenticated TanStack Start shell, the WorkOS boundary, the
-Convex principal model, and isolated contract/browser test harnesses. Request
-creation and the approved Variant G editor canvas are intentionally delivered by
-the following tickets in `.scratch/fairlend-content-requests-v1/issues/`.
+Tickets 01 and 02 establish the authenticated production shell and the first
+end-to-end Content Request workflow. Authorized editors can create a Critical
+manual request from the mobile web interface, HTTP API, or CLI, preserve original
+source evidence, find it safely, and open its stable route. The remaining workflow
+is tracked in `.scratch/fairlend-content-requests-v1/issues/`.
 
 ## Stack
 
@@ -55,6 +55,37 @@ as Worker secrets/bindings and configure `VITE_CONVEX_URL` as a Worker variable
 (the server reads it at runtime), then run `bun run deploy`. That command always
 creates a clean production build before Wrangler deploys it; browser-test
 artifacts are isolated and deleted.
+
+## Content Request contracts
+
+Authenticated web users create requests at `/app/new` and open them at the stable
+`/app/requests/:humanId` route. Only `title` is required. Optional source material
+is captured as an immutable snapshot, and manual requests always begin as
+`Critical`.
+
+The initial HTTP contract is available at:
+
+- `GET /api/v1/content-requests` — list requests; add `q` for safe lookup or
+  `limit` for a bounded result.
+- `POST /api/v1/content-requests` — create a manual request.
+- `GET /api/v1/content-requests/:humanId` — retrieve a stable request.
+
+The API accepts the signed-in WorkOS session or a WorkOS bearer access token.
+Every create requires or generates a correlation ID and produces an audit event.
+Fuzzy lookup returns candidates instead of guessing.
+
+Local agents can use the same HTTP contract through the CLI:
+
+```bash
+export CONTENT_REQUESTS_API_URL="https://content-requests.example"
+export CONTENT_REQUESTS_ACCESS_TOKEN="<workos-access-token>"
+bun run content-requests -- create --title "Explain mortgage portability"
+bun run content-requests -- find "mortgage portability"
+bun run content-requests -- get CR-EXAMPLE
+```
+
+CLI exit code `2` means fuzzy lookup requires explicit disambiguation; HTTP or
+authorization failures return exit code `1` with a machine-readable JSON body.
 
 ## Verification
 

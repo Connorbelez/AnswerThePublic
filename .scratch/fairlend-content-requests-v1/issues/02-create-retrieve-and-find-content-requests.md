@@ -4,12 +4,12 @@
 
 **Blocked by:** 01 — Production application foundation
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Manual creation requires only the minimum identity and workflow fields; remaining context is optional.
-- [ ] Manual requests default to Critical and preserve immutable source material.
-- [ ] Created requests are available through the web application, HTTP contract, and CLI contract.
-- [ ] Exact ID outranks exact name, and exact name outranks fuzzy matches.
-- [ ] Ambiguous fuzzy agent lookups return candidates rather than guessing.
-- [ ] Every creation and lookup-sensitive mutation is authorized and audited.
-- [ ] Workflow-contract and browser tests verify the complete creation-to-open journey.
+- [x] Manual creation requires only the minimum identity and workflow fields; remaining context is optional.
+- [x] Manual requests default to Critical and preserve immutable source material.
+- [x] Created requests are available through the web application, HTTP contract, and CLI contract.
+- [x] Exact ID outranks exact name, and exact name outranks fuzzy matches.
+- [x] Ambiguous fuzzy agent lookups return candidates rather than guessing.
+- [x] Every creation and lookup-sensitive mutation is authorized and audited.
+- [x] Workflow-contract and browser tests verify the complete creation-to-open journey.

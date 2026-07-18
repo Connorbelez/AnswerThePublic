@@ -8,8 +8,10 @@ import type {
 import { anyApi } from "convex/server"
 
 import type * as principals from "../principals"
+import type * as contentRequests from "../contentRequests"
 
 const fullApi: ApiFromModules<{
+  contentRequests: typeof contentRequests
   principals: typeof principals
 }> = anyApi as any
 

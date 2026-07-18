@@ -13,8 +13,15 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as UnauthorizedRouteImport } from './routes/unauthorized'
+import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as AppNewRouteImport } from './routes/app.new'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
 import { Route as ApiAuthSignInRouteImport } from './routes/api/auth/sign-in'
+import { Route as ApiV1ContentRequestsRouteImport } from './routes/api/v1/content-requests'
+import { Route as AppRequestsRequestIdRouteImport } from './routes/app.requests.$requestId'
+import { Route as ApiV1CliContentRequestsRouteImport } from './routes/api/v1/cli/content-requests'
+import { Route as ApiV1ContentRequestsRequestIdRouteImport } from './routes/api/v1/content-requests.$requestId'
+import { Route as ApiV1CliContentRequestsRequestIdRouteImport } from './routes/api/v1/cli/content-requests.$requestId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -36,6 +43,16 @@ const UnauthorizedRoute = UnauthorizedRouteImport.update({
   path: '/unauthorized',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNewRoute = AppNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AppRoute,
+} as any)
 const ApiAuthCallbackRoute = ApiAuthCallbackRouteImport.update({
   id: '/api/auth/callback',
   path: '/api/auth/callback',
@@ -46,31 +63,78 @@ const ApiAuthSignInRoute = ApiAuthSignInRouteImport.update({
   path: '/api/auth/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1ContentRequestsRoute = ApiV1ContentRequestsRouteImport.update({
+  id: '/api/v1/content-requests',
+  path: '/api/v1/content-requests',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRequestsRequestIdRoute = AppRequestsRequestIdRouteImport.update({
+  id: '/requests/$requestId',
+  path: '/requests/$requestId',
+  getParentRoute: () => AppRoute,
+} as any)
+const ApiV1CliContentRequestsRoute = ApiV1CliContentRequestsRouteImport.update({
+  id: '/api/v1/cli/content-requests',
+  path: '/api/v1/cli/content-requests',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1ContentRequestsRequestIdRoute =
+  ApiV1ContentRequestsRequestIdRouteImport.update({
+    id: '/$requestId',
+    path: '/$requestId',
+    getParentRoute: () => ApiV1ContentRequestsRoute,
+  } as any)
+const ApiV1CliContentRequestsRequestIdRoute =
+  ApiV1CliContentRequestsRequestIdRouteImport.update({
+    id: '/$requestId',
+    path: '/$requestId',
+    getParentRoute: () => ApiV1CliContentRequestsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/app': typeof AppRoute
+  '/app': typeof AppRouteWithChildren
   '/sign-in': typeof SignInRoute
   '/unauthorized': typeof UnauthorizedRoute
+  '/app/new': typeof AppNewRoute
+  '/app/': typeof AppIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
+  '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
+  '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
+  '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
+  '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRoute
+  '/api/v1/cli/content-requests/$requestId': typeof ApiV1CliContentRequestsRequestIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/app': typeof AppRoute
   '/sign-in': typeof SignInRoute
   '/unauthorized': typeof UnauthorizedRoute
+  '/app/new': typeof AppNewRoute
+  '/app': typeof AppIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
+  '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
+  '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
+  '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
+  '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRoute
+  '/api/v1/cli/content-requests/$requestId': typeof ApiV1CliContentRequestsRequestIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/app': typeof AppRoute
+  '/app': typeof AppRouteWithChildren
   '/sign-in': typeof SignInRoute
   '/unauthorized': typeof UnauthorizedRoute
+  '/app/new': typeof AppNewRoute
+  '/app/': typeof AppIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
+  '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
+  '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
+  '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
+  '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRoute
+  '/api/v1/cli/content-requests/$requestId': typeof ApiV1CliContentRequestsRequestIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -79,33 +143,55 @@ export interface FileRouteTypes {
     | '/app'
     | '/sign-in'
     | '/unauthorized'
+    | '/app/new'
+    | '/app/'
     | '/api/auth/callback'
     | '/api/auth/sign-in'
+    | '/api/v1/content-requests'
+    | '/app/requests/$requestId'
+    | '/api/v1/cli/content-requests'
+    | '/api/v1/content-requests/$requestId'
+    | '/api/v1/cli/content-requests/$requestId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/app'
     | '/sign-in'
     | '/unauthorized'
+    | '/app/new'
+    | '/app'
     | '/api/auth/callback'
     | '/api/auth/sign-in'
+    | '/api/v1/content-requests'
+    | '/app/requests/$requestId'
+    | '/api/v1/cli/content-requests'
+    | '/api/v1/content-requests/$requestId'
+    | '/api/v1/cli/content-requests/$requestId'
   id:
     | '__root__'
     | '/'
     | '/app'
     | '/sign-in'
     | '/unauthorized'
+    | '/app/new'
+    | '/app/'
     | '/api/auth/callback'
     | '/api/auth/sign-in'
+    | '/api/v1/content-requests'
+    | '/app/requests/$requestId'
+    | '/api/v1/cli/content-requests'
+    | '/api/v1/content-requests/$requestId'
+    | '/api/v1/cli/content-requests/$requestId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AppRoute: typeof AppRoute
+  AppRoute: typeof AppRouteWithChildren
   SignInRoute: typeof SignInRoute
   UnauthorizedRoute: typeof UnauthorizedRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiAuthSignInRoute: typeof ApiAuthSignInRoute
+  ApiV1ContentRequestsRoute: typeof ApiV1ContentRequestsRouteWithChildren
+  ApiV1CliContentRequestsRoute: typeof ApiV1CliContentRequestsRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -138,6 +224,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnauthorizedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/': {
+      id: '/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/new': {
+      id: '/app/new'
+      path: '/new'
+      fullPath: '/app/new'
+      preLoaderRoute: typeof AppNewRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/api/auth/callback': {
       id: '/api/auth/callback'
       path: '/api/auth/callback'
@@ -152,16 +252,93 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSignInRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/content-requests': {
+      id: '/api/v1/content-requests'
+      path: '/api/v1/content-requests'
+      fullPath: '/api/v1/content-requests'
+      preLoaderRoute: typeof ApiV1ContentRequestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app/requests/$requestId': {
+      id: '/app/requests/$requestId'
+      path: '/requests/$requestId'
+      fullPath: '/app/requests/$requestId'
+      preLoaderRoute: typeof AppRequestsRequestIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/api/v1/cli/content-requests': {
+      id: '/api/v1/cli/content-requests'
+      path: '/api/v1/cli/content-requests'
+      fullPath: '/api/v1/cli/content-requests'
+      preLoaderRoute: typeof ApiV1CliContentRequestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/content-requests/$requestId': {
+      id: '/api/v1/content-requests/$requestId'
+      path: '/$requestId'
+      fullPath: '/api/v1/content-requests/$requestId'
+      preLoaderRoute: typeof ApiV1ContentRequestsRequestIdRouteImport
+      parentRoute: typeof ApiV1ContentRequestsRoute
+    }
+    '/api/v1/cli/content-requests/$requestId': {
+      id: '/api/v1/cli/content-requests/$requestId'
+      path: '/$requestId'
+      fullPath: '/api/v1/cli/content-requests/$requestId'
+      preLoaderRoute: typeof ApiV1CliContentRequestsRequestIdRouteImport
+      parentRoute: typeof ApiV1CliContentRequestsRoute
+    }
   }
 }
 
+interface AppRouteChildren {
+  AppNewRoute: typeof AppNewRoute
+  AppIndexRoute: typeof AppIndexRoute
+  AppRequestsRequestIdRoute: typeof AppRequestsRequestIdRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppNewRoute: AppNewRoute,
+  AppIndexRoute: AppIndexRoute,
+  AppRequestsRequestIdRoute: AppRequestsRequestIdRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
+interface ApiV1ContentRequestsRouteChildren {
+  ApiV1ContentRequestsRequestIdRoute: typeof ApiV1ContentRequestsRequestIdRoute
+}
+
+const ApiV1ContentRequestsRouteChildren: ApiV1ContentRequestsRouteChildren = {
+  ApiV1ContentRequestsRequestIdRoute: ApiV1ContentRequestsRequestIdRoute,
+}
+
+const ApiV1ContentRequestsRouteWithChildren =
+  ApiV1ContentRequestsRoute._addFileChildren(ApiV1ContentRequestsRouteChildren)
+
+interface ApiV1CliContentRequestsRouteChildren {
+  ApiV1CliContentRequestsRequestIdRoute: typeof ApiV1CliContentRequestsRequestIdRoute
+}
+
+const ApiV1CliContentRequestsRouteChildren: ApiV1CliContentRequestsRouteChildren =
+  {
+    ApiV1CliContentRequestsRequestIdRoute:
+      ApiV1CliContentRequestsRequestIdRoute,
+  }
+
+const ApiV1CliContentRequestsRouteWithChildren =
+  ApiV1CliContentRequestsRoute._addFileChildren(
+    ApiV1CliContentRequestsRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AppRoute: AppRoute,
+  AppRoute: AppRouteWithChildren,
   SignInRoute: SignInRoute,
   UnauthorizedRoute: UnauthorizedRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiAuthSignInRoute: ApiAuthSignInRoute,
+  ApiV1ContentRequestsRoute: ApiV1ContentRequestsRouteWithChildren,
+  ApiV1CliContentRequestsRoute: ApiV1CliContentRequestsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

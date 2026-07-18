@@ -18,7 +18,7 @@ const workosRoleMap = {
   administrator: "administrator",
 } as const
 
-async function requireIdentity(auth: Auth) {
+export async function requireIdentity(auth: Auth) {
   const identity = await auth.getUserIdentity()
   if (!identity) {
     throw new ConvexError({ code: "UNAUTHENTICATED" })
@@ -42,7 +42,9 @@ async function requireIdentity(auth: Auth) {
     throw new ConvexError({ code: "ROLE_ACCESS_DENIED" })
   }
 
-  return { subject: identity.subject, organizationId, role }
+  const credentialId =
+    typeof identity.jti === "string" ? identity.jti : identity.tokenIdentifier
+  return { subject: identity.subject, organizationId, role, credentialId }
 }
 
 export const getCurrent = query({

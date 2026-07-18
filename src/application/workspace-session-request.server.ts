@@ -14,11 +14,8 @@ export async function loadWorkspaceSessionFromRequest(): Promise<WorkspaceSessio
   try {
     const identities = createRequestIdentityProvider()
     let principals: PrincipalRepository
-    if (identities.isFixture) {
-      if (
-        import.meta.env.MODE !== "e2e" ||
-        !identities.fixtureIdentity
-      ) {
+    if (import.meta.env.MODE === "e2e" && identities.isFixture) {
+      if (!identities.fixtureIdentity) {
         throw new Error("Browser-test identity injection is disabled.")
       }
       const { createConvexTestPrincipalRepository } = await import(
@@ -27,6 +24,8 @@ export async function loadWorkspaceSessionFromRequest(): Promise<WorkspaceSessio
       principals = await createConvexTestPrincipalRepository(
         identities.fixtureIdentity
       )
+    } else if (identities.isFixture) {
+      throw new Error("Browser-test identity injection is disabled.")
     } else {
       principals = createConvexPrincipalRepository({
         getAccessToken: () => identities.getAccessToken(),

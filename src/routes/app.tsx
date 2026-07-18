@@ -1,12 +1,10 @@
-import { createFileRoute, redirect } from "@tanstack/react-router"
-import { Inbox, Menu, Plus } from "lucide-react"
+import { Outlet, createFileRoute, redirect } from "@tanstack/react-router"
+import { Menu } from "lucide-react"
 
 import { loadWorkspaceSession } from "@/application/load-workspace-session"
 import type { WorkspaceRole } from "@/application/workspace-session"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 
 const roleLabels = {
@@ -58,35 +56,8 @@ function ApplicationShell() {
           </Avatar>
         </div>
       </header>
-
       <Separator />
-
-      <main className="workspace">
-        <div className="workspace__heading">
-          <div>
-            <Badge variant="secondary">Workspace foundation</Badge>
-            <h1>Content requests</h1>
-            <p>Your prioritized briefs will live here.</p>
-          </div>
-          <Button disabled title="Manual requests arrive in Ticket 02">
-            <Plus data-icon="inline-start" />
-            New request
-          </Button>
-        </div>
-
-        <Card className="empty-queue">
-          <CardContent>
-            <span className="empty-queue__icon" aria-hidden="true">
-              <Inbox />
-            </span>
-            <h2>The application boundary is ready</h2>
-            <p>
-              You are authenticated as <strong>{session.email}</strong>. Request
-              creation and the Variant G canvas are delivered by the next tickets.
-            </p>
-          </CardContent>
-        </Card>
-      </main>
+      <Outlet />
     </div>
   )
 }
