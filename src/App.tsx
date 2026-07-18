@@ -1,6 +1,7 @@
 // THROWAWAY PROTOTYPE — Three variants of the mobile Founder Input composer,
 // switchable via `?variant=A|B|C`, answering how context should stay available while responding.
 import { useEffect, useMemo, useState } from "react"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import {
   ArrowLeft,
   BookOpen,
@@ -16,7 +17,9 @@ import {
   GripHorizontal,
   GripVertical,
   Link2,
+  Maximize2,
   Mic,
+  Minimize2,
   MoreHorizontal,
   Pause,
   Pin,
@@ -33,6 +36,14 @@ import { Group as PanelGroup, Panel, Separator } from "react-resizable-panels"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+  type CarouselApi,
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel"
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -43,7 +54,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 
-type VariantKey = "A" | "B" | "C" | "D" | "E" | "F"
+type VariantKey = "A" | "B" | "C" | "D" | "E" | "F" | "G"
 type ComposerMode = "type" | "record"
 
 const variants: { key: VariantKey; name: string }[] = [
@@ -53,6 +64,7 @@ const variants: { key: VariantKey; name: string }[] = [
   { key: "D", name: "Citation strip" },
   { key: "E", name: "Guided walkthrough" },
   { key: "F", name: "Split-canvas focus" },
+  { key: "G", name: "Unified canvas" },
 ]
 
 const request = {
@@ -741,7 +753,13 @@ function PinnedSpeakingNotes({ state }: { state: PrototypeState }) {
   )
 }
 
-function BriefReferencePane({ state }: { state: PrototypeState }) {
+function BriefReferencePane({
+  state,
+  headerAction,
+}: {
+  state: PrototypeState
+  headerAction?: React.ReactNode
+}) {
   return (
     <section className="h-full overflow-y-auto bg-[#efece3] text-[#17211b]">
       <div className="mx-auto max-w-3xl space-y-8 px-4 py-5 sm:px-7 lg:py-8">
@@ -754,7 +772,17 @@ function BriefReferencePane({ state }: { state: PrototypeState }) {
               Everything you need to answer.
             </h1>
           </div>
-          <Badge className="bg-[#df5b3f] text-white">{request.urgency}</Badge>
+          <div className="flex shrink-0 items-center gap-2">
+            <Badge
+              className={cn(
+                "bg-[#df5b3f] text-white",
+                headerAction && "max-[420px]:hidden",
+              )}
+            >
+              {request.urgency}
+            </Badge>
+            {headerAction}
+          </div>
         </div>
         <QuestionBlock />
         <PinnedSpeakingNotes state={state} />
@@ -785,23 +813,27 @@ function BriefReferencePane({ state }: { state: PrototypeState }) {
 function CompactInputSurface({
   state,
   openEditor,
+  showExpand = true,
 }: {
   state: PrototypeState
   openEditor: () => void
+  showExpand?: boolean
 }) {
   return (
     <section className="flex h-full min-h-0 flex-col bg-white/[0.96] text-[#17211b] shadow-[0_-12px_36px_rgba(23,33,27,0.08)] backdrop-blur-xl">
       <div className="flex shrink-0 items-center gap-2.5 px-3 pt-3">
         <ModeSwitch state={state} className="min-w-0 flex-1 sm:max-w-48" />
         <SaveStatus state={state.saveState} />
-        <Button
-          size="sm"
-          variant="ghost"
-          className="min-h-11 shrink-0 rounded-xl px-3 font-semibold text-[#214f40] active:scale-[0.97]"
-          onClick={openEditor}
-        >
-          Expand
-        </Button>
+        {showExpand && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="min-h-11 shrink-0 rounded-xl px-3 font-semibold text-[#214f40] active:scale-[0.97]"
+            onClick={openEditor}
+          >
+            Expand
+          </Button>
+        )}
       </div>
       <div className="min-h-0 flex-1 p-3 pt-2">
         {state.mode === "type" ? (
@@ -1178,9 +1210,11 @@ function EditorContextDeck({
 function EditorInputPane({
   state,
   presentation = "panel",
+  headerAction,
 }: {
   state: PrototypeState
   presentation?: "panel" | "classic"
+  headerAction?: React.ReactNode
 }) {
   if (presentation === "classic") {
     return (
@@ -1220,7 +1254,10 @@ function EditorInputPane({
           </p>
           <h2 className="text-lg font-semibold tracking-tight">Add what only you know.</h2>
         </div>
-        <SaveStatus state={state.saveState} />
+        <div className="flex items-center gap-2">
+          <SaveStatus state={state.saveState} />
+          {headerAction}
+        </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
         <ModeSwitch state={state} />
@@ -1990,6 +2027,198 @@ function VariantF({ state }: { state: PrototypeState }) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Variant G — Unified canvas. Brief and editor remain in one spatial surface:
+// the brief owns the canvas initially, then contracts into a swipeable card
+// rail while the editor grows into the released space.
+// ---------------------------------------------------------------------------
+
+function UnifiedReferenceCarousel({ state }: { state: PrototypeState }) {
+  const [api, setApi] = useState<CarouselApi>()
+  const [current, setCurrent] = useState(0)
+
+  useEffect(() => {
+    if (!api) return
+    const updateCurrent = () => setCurrent(api.selectedScrollSnap())
+    updateCurrent()
+    api.on("select", updateCurrent)
+    api.on("reInit", updateCurrent)
+    return () => {
+      api.off("select", updateCurrent)
+      api.off("reInit", updateCurrent)
+    }
+  }, [api])
+
+  return (
+    <section className="h-full bg-[#15231d] px-4 pt-3 pb-4 text-white sm:px-6">
+      <div className="mb-2.5 flex min-h-11 items-center justify-between pr-24">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold tracking-[0.16em] text-white/40 uppercase">
+            Reference cards
+          </p>
+          <p className="truncate text-sm font-semibold text-white/85">
+            Swipe through the brief while you write
+          </p>
+        </div>
+        <span className="shrink-0 text-xs font-semibold text-[#e6fe55] tabular-nums">
+          {current + 1} / {contextCards.length}
+        </span>
+      </div>
+
+      <Carousel
+        setApi={setApi}
+        opts={{ align: "start", containScroll: "trimSnaps" }}
+        className="h-[calc(100%-3.375rem)]"
+        aria-label="Brief reference cards"
+      >
+        <CarouselContent className="h-full -ml-3">
+          {contextCards.map((card, index) => (
+            <CarouselItem
+              key={card.id}
+              className="h-full basis-[88%] pl-3 sm:basis-[66%] lg:basis-[44%]"
+              aria-label={`${index + 1} of ${contextCards.length}: ${card.title}`}
+            >
+              <article className="h-full overflow-y-auto rounded-[24px] bg-[#f4f0e4] p-4 text-[#17211b] shadow-[0_14px_36px_rgba(0,0,0,0.18)] sm:p-5">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#17211b] text-[#e6fe55]">
+                    <card.icon className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] font-bold tracking-[0.14em] text-black/40 uppercase">
+                      {card.eyebrow}
+                    </p>
+                    <h2 className="truncate text-sm font-semibold">{card.title}</h2>
+                  </div>
+                </div>
+                <ContextCardBody id={card.id} state={state} />
+              </article>
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+        <CarouselPrevious className="top-[-3.15rem] right-12 bottom-auto left-auto size-11 border-white/10 bg-white/10 text-white hover:bg-white/16 hover:text-white active:scale-[0.94]" />
+        <CarouselNext className="top-[-3.15rem] right-0 bottom-auto left-auto size-11 border-white/10 bg-white/10 text-white hover:bg-white/16 hover:text-white active:scale-[0.94]" />
+      </Carousel>
+    </section>
+  )
+}
+
+function VariantG({ state }: { state: PrototypeState }) {
+  const [expanded, setExpanded] = useState(false)
+  const reduceMotion = useReducedMotion()
+  const layoutTransition = reduceMotion
+    ? { duration: 0.12 }
+    : { type: "spring" as const, bounce: 0, duration: 0.4 }
+
+  const expandButton = (
+    <Button
+      size="sm"
+      className="min-h-11 rounded-full bg-[#17211b] px-3.5 text-white shadow-sm hover:bg-[#243229] active:scale-[0.96]"
+      onClick={() => setExpanded(true)}
+      aria-expanded={expanded}
+      aria-controls="unified-editor"
+    >
+      <Maximize2 className="size-4" />
+      Expand
+    </Button>
+  )
+
+  const collapseButton = (
+    <Button
+      size="sm"
+      variant="outline"
+      className="min-h-11 rounded-full px-3.5 active:scale-[0.96]"
+      onClick={() => setExpanded(false)}
+      aria-expanded={expanded}
+      aria-controls="unified-editor"
+    >
+      <Minimize2 className="size-4" />
+      Collapse
+    </Button>
+  )
+
+  return (
+    <main className="flex h-svh min-h-svh flex-col overflow-hidden bg-[#15231d] text-white">
+      <RequestTopBar tone="dark" />
+      <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden border-x border-white/8">
+        <motion.div
+          layout
+          transition={{ layout: layoutTransition }}
+          className={cn(
+            "min-h-0 overflow-hidden",
+            expanded ? "h-[17rem] shrink-0 sm:h-[19rem]" : "flex-1",
+          )}
+        >
+          <AnimatePresence initial={false} mode="popLayout">
+            {expanded ? (
+              <motion.div
+                key="reference-carousel"
+                className="h-full"
+                initial={{ opacity: 0, scale: 0.985 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.985 }}
+                transition={{ duration: reduceMotion ? 0.08 : 0.2 }}
+              >
+                <UnifiedReferenceCarousel state={state} />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="full-brief"
+                className="h-full"
+                initial={{ opacity: 0, scale: 0.995 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.995 }}
+                transition={{ duration: reduceMotion ? 0.08 : 0.18 }}
+              >
+                <BriefReferencePane state={state} headerAction={expandButton} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        <motion.div
+          id="unified-editor"
+          layout
+          transition={{ layout: layoutTransition }}
+          className={cn(
+            "min-h-0 overflow-hidden",
+            expanded ? "flex-1" : "h-[10.75rem] shrink-0",
+          )}
+        >
+          <AnimatePresence initial={false} mode="popLayout">
+            {expanded ? (
+              <motion.div
+                key="full-editor"
+                className="h-full"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ duration: reduceMotion ? 0.08 : 0.22 }}
+              >
+                <EditorInputPane state={state} headerAction={collapseButton} />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="compact-editor"
+                className="h-full"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: reduceMotion ? 0.08 : 0.18 }}
+              >
+                <CompactInputSurface
+                  state={state}
+                  openEditor={() => setExpanded(true)}
+                  showExpand={false}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </div>
+    </main>
+  )
+}
+
 function PrototypeSwitcher({
   variant,
   onChange,
@@ -2081,6 +2310,7 @@ export function App() {
       {variant === "D" && <VariantD state={state} />}
       {variant === "E" && <VariantE state={state} />}
       {variant === "F" && <VariantF state={state} />}
+      {variant === "G" && <VariantG state={state} />}
       {(import.meta.env.DEV || import.meta.env.VITE_PROTOTYPE_BUILD === "true") && (
         <PrototypeSwitcher variant={variant} onChange={changeVariant} state={state} />
       )}
