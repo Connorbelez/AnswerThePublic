@@ -68,6 +68,12 @@ const request = {
   responseLength: "3–5 min",
   question:
     "We own a detached Toronto home and want to build a laneway suite. Can we use our equity to finance construction without refinancing our existing 2.19% mortgage?",
+  postBody:
+    "We have about $410,000 left on a 2.19% mortgage that renews in 2027. Our architect thinks the laneway suite will cost roughly $300,000–$350,000, and we would rather leave the first mortgage untouched. We can cover the early deposits, but we do not understand how a separate construction facility, staged draws, or lender consent would work.",
+  opFollowUpSummary:
+    "The OP later estimated the property at $1.45M, confirmed there is no other secured debt, and said permits are submitted against a current contractor budget of about $325,000. They expect a 12–14 month build and need financing after the deposit stage through completion.",
+  operatorCue:
+    "Address second-position eligibility, cash needed before the first draw, inspection-based releases, and whether the existing lender must consent.",
   talkingPoints: [
     {
       id: "tp-1",
@@ -1584,13 +1590,46 @@ function VariantC({ state }: { state: PrototypeState }) {
 function ContextCardBody({ id, state }: { id: string; state: PrototypeState }) {
   if (id === "question") {
     return (
-      <div className="relative mt-5">
-        <p className="text-lg font-semibold leading-7 tracking-tight sm:text-xl">
-          “{request.question}”
-        </p>
-        <p className="mt-4 text-xs font-medium text-black/45">
-          {request.source} · {request.age}
-        </p>
+      <div className="relative mt-5 grid gap-3">
+        <section className="rounded-[20px] border border-black/8 bg-white/70 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[10px] font-bold tracking-[0.15em] text-black/40 uppercase">
+              Original post body
+            </p>
+            <span className="shrink-0 text-[10px] font-semibold text-black/40">
+              {request.source}
+            </span>
+          </div>
+          <p className="mt-3 text-sm font-medium leading-6 text-[#17211b]/85 sm:text-base sm:leading-7">
+            {request.postBody}
+          </p>
+          <p className="mt-3 text-xs font-medium text-black/40">{request.age}</p>
+        </section>
+
+        <section className="rounded-[20px] border border-[#2e765e]/18 bg-[#e8f0e9] p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#17211b] text-[#e6fe55]">
+              <ScrollText className="size-4" />
+            </span>
+            <div>
+              <p className="text-[10px] font-bold tracking-[0.15em] text-[#2e765e] uppercase">
+                Thread update
+              </p>
+              <h3 className="text-sm font-semibold">OP clarifications</h3>
+            </div>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-[#17211b]/75">
+            {request.opFollowUpSummary}
+          </p>
+          <div className="mt-3 rounded-2xl bg-white/70 p-3">
+            <p className="text-[9px] font-bold tracking-[0.14em] text-black/40 uppercase">
+              Operator cue
+            </p>
+            <p className="mt-1 text-xs font-semibold leading-5 text-[#17211b]/80">
+              {request.operatorCue}
+            </p>
+          </div>
+        </section>
       </div>
     )
   }
