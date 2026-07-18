@@ -1125,7 +1125,6 @@ const contextCards = [
 function VariantC({ state }: { state: PrototypeState }) {
   const [screen, setScreen] = useState<"brief" | "editor">("brief")
   const isMobile = useIsMobile()
-  const orientation = isMobile ? "vertical" : "horizontal"
 
   return (
     <main className="flex h-svh min-h-svh flex-col overflow-hidden bg-[#15231d] text-white">
@@ -1134,55 +1133,45 @@ function VariantC({ state }: { state: PrototypeState }) {
 
       <div className="mx-auto min-h-0 w-full max-w-7xl flex-1 overflow-hidden border-x border-white/8">
         {screen === "brief" ? (
-          <PanelGroup
-            key={`deck-brief-${orientation}`}
-            orientation={orientation}
-            className="h-full"
-            defaultLayout={{ "deck-brief-reference": 72, "deck-brief-input": 28 }}
-            resizeTargetMinimumSize={{ coarse: 42, fine: 12 }}
+          <div
+            className={cn(
+              "grid h-full min-h-0",
+              isMobile ? "grid-rows-[72fr_28fr]" : "grid-cols-[72fr_28fr]",
+            )}
+            aria-label="Brief and quick capture"
           >
-            <Panel id="deck-brief-reference" minSize="45%" defaultSize="72%">
+            <div className="min-h-0 min-w-0 overflow-hidden">
               <BriefReferencePane state={state} />
-            </Panel>
-            <ResizeHandle orientation={orientation} />
-            <Panel
-              id="deck-brief-input"
-              minSize="18%"
-              maxSize="55%"
-              defaultSize="28%"
+            </div>
+            <div
+              className={cn(
+                "min-h-0 min-w-0 overflow-hidden border-[#17211b]/18",
+                isMobile ? "border-t" : "border-l",
+              )}
             >
               <CompactInputSurface state={state} openEditor={() => setScreen("editor")} />
-            </Panel>
-          </PanelGroup>
+            </div>
+          </div>
         ) : (
-          <PanelGroup
-            key={`deck-editor-${orientation}`}
-            orientation={orientation}
-            className="h-full"
-            defaultLayout={
-              isMobile
-                ? { "deck-editor-reference": 35, "deck-editor-input": 65 }
-                : { "deck-editor-reference": 44, "deck-editor-input": 56 }
-            }
-            resizeTargetMinimumSize={{ coarse: 42, fine: 12 }}
+          <div
+            className={cn(
+              "grid h-full min-h-0",
+              isMobile ? "grid-rows-[35fr_65fr]" : "grid-cols-[44fr_56fr]",
+            )}
+            aria-label="Context deck and editor"
           >
-            <Panel
-              id="deck-editor-reference"
-              minSize="26%"
-              maxSize="70%"
-              defaultSize={isMobile ? "35%" : "44%"}
-            >
+            <div className="min-h-0 min-w-0 overflow-hidden">
               <EditorContextDeck state={state} />
-            </Panel>
-            <ResizeHandle orientation={orientation} />
-            <Panel
-              id="deck-editor-input"
-              minSize="30%"
-              defaultSize={isMobile ? "65%" : "56%"}
+            </div>
+            <div
+              className={cn(
+                "min-h-0 min-w-0 overflow-hidden border-white/10",
+                isMobile ? "border-t" : "border-l",
+              )}
             >
               <EditorInputPane state={state} />
-            </Panel>
-          </PanelGroup>
+            </div>
+          </div>
         )}
       </div>
     </main>
