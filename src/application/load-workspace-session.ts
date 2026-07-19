@@ -7,7 +7,7 @@ export type WorkspaceSessionResult =
   | { status: "unauthenticated" }
   | { status: "forbidden" }
 
-export const loadWorkspaceSession = createServerFn({ method: "GET" }).handler(
+export const loadWorkspaceSession = createServerFn({ method: "POST" }).handler(
   async (): Promise<WorkspaceSessionResult> => {
     const { loadWorkspaceSessionFromRequest } = await import(
       "@/application/workspace-session-request.server"

@@ -1,11 +1,13 @@
+import { useState } from "react"
 import { Link, createFileRoute, getRouteApi } from "@tanstack/react-router"
-import { Inbox, Plus } from "lucide-react"
+import { Inbox, Layers3, LayoutGrid, Plus } from "lucide-react"
 
 import { listContentRequests } from "@/application/content-request-server-functions"
 import { ContentRequestCard } from "@/components/content-request-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 export const Route = createFileRoute("/app/")({
   loader: () => listContentRequests(),
@@ -18,14 +20,26 @@ function RequestLibrary() {
   const requests = Route.useLoaderData()
   const session = appRoute.useLoaderData()
   const canCreate = session.role !== "founder"
+  const isFounder = session.role === "founder"
+  const [view, setView] = useState<"stack" | "grid">("stack")
+
+  function updateView(nextView: "stack" | "grid") {
+    setView(nextView)
+  }
 
   return (
     <main className="workspace">
       <div className="workspace__heading">
         <div>
-          <Badge variant="secondary">Operator workspace</Badge>
+          <Badge variant="secondary">
+            {isFounder ? "Founder library" : "Operator workspace"}
+          </Badge>
           <h1>Content requests</h1>
-          <p>Capture, prioritize, and route expert response opportunities.</p>
+          <p>
+            {isFounder
+              ? "Your prioritized queue of expert response opportunities."
+              : "Capture, prioritize, and route expert response opportunities."}
+          </p>
         </div>
         {canCreate ? (
           <Button render={<Link to="/app/new" />}>
@@ -34,6 +48,32 @@ function RequestLibrary() {
           </Button>
         ) : null}
       </div>
+
+      {requests.length > 0 ? (
+        <div className="library-controls">
+          <span>
+            {requests.length} assigned request{requests.length === 1 ? "" : "s"}
+          </span>
+          <ToggleGroup
+            aria-label="Library view"
+            value={[view]}
+            onValueChange={(values) => {
+              const nextView = values[0]
+              if (nextView === "stack" || nextView === "grid")
+                updateView(nextView)
+            }}
+            variant="outline"
+            spacing={0}
+          >
+            <ToggleGroupItem value="stack" aria-label="Stack view">
+              <Layers3 />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="grid" aria-label="Grid view">
+              <LayoutGrid />
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+      ) : null}
 
       {requests.length === 0 ? (
         <Card className="empty-queue">
@@ -56,7 +96,11 @@ function RequestLibrary() {
           </CardContent>
         </Card>
       ) : (
-        <section className="request-list" aria-label="Content requests">
+        <section
+          className={`request-list request-list--${view}`}
+          aria-label="Content requests"
+          data-view={view}
+        >
           {requests.map((request) => (
             <ContentRequestCard key={request.humanId} request={request} />
           ))}

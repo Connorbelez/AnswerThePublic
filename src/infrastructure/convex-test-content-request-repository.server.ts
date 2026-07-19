@@ -1,5 +1,7 @@
 import { api } from "../../convex/_generated/api"
+import type { Id } from "../../convex/_generated/dataModel"
 import type {
+  AssignRequestInput,
   ContentRequestRepository,
   PersistManualRequestInput,
 } from "@/application/content-requests"
@@ -22,6 +24,32 @@ export async function createConvexTestContentRequestRepository(
     },
     async resolve(query) {
       return backend.query(api.contentRequests.resolve, { query })
+    },
+    async assign(input: AssignRequestInput) {
+      return backend.mutation(api.contentRequests.assign, {
+        ...input,
+        assigneePrincipalId: input.assigneePrincipalId as Id<"principals">,
+        watcherPrincipalIds: input.watcherPrincipalIds?.map(
+          (principalId) => principalId as Id<"principals">
+        ),
+      })
+    },
+    async open(humanId, correlationId) {
+      return backend.mutation(api.contentRequests.open, {
+        humanId,
+        correlationId,
+      })
+    },
+    async listAssignablePrincipals() {
+      return backend.query(api.contentRequests.listAssignablePrincipals, {})
+    },
+    async listMyNotifications() {
+      return backend.query(api.contentRequests.listMyNotifications, {})
+    },
+    async markNotificationRead(notificationId) {
+      await backend.mutation(api.contentRequests.markNotificationRead, {
+        notificationId: notificationId as Id<"notifications">,
+      })
     },
   }
 }

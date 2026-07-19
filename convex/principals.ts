@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values"
 import type { Auth } from "convex/server"
 
-import { mutation, query } from "./_generated/server"
+import { mutation, query, type MutationCtx } from "./_generated/server"
 import { workspaceRoleValidator } from "./schema"
 
 const principalValidator = v.object({
@@ -17,6 +17,39 @@ const workosRoleMap = {
   "agent-editor": "agent_editor",
   administrator: "administrator",
 } as const
+
+async function syncIdentityPrincipal(
+  ctx: MutationCtx,
+  identity: Awaited<ReturnType<typeof requireIdentity>>,
+  verifiedEmail?: string
+) {
+  const existing = await ctx.db
+    .query("principals")
+    .withIndex("by_organization_subject", (index) =>
+      index
+        .eq("organizationId", identity.organizationId)
+        .eq("subject", identity.subject)
+    )
+    .unique()
+  const email = verifiedEmail?.trim() || identity.email || existing?.email
+  const fields = {
+    subject: identity.subject,
+    organizationId: identity.organizationId,
+    role: identity.role,
+    email,
+    updatedAt: Date.now(),
+  }
+  const principalId = existing
+    ? (await ctx.db.patch(existing._id, fields), existing._id)
+    : await ctx.db.insert("principals", fields)
+
+  return {
+    principalId,
+    subject: fields.subject,
+    organizationId: fields.organizationId,
+    role: fields.role,
+  }
+}
 
 export async function requireIdentity(auth: Auth) {
   const identity = await auth.getUserIdentity()
@@ -44,7 +77,14 @@ export async function requireIdentity(auth: Auth) {
 
   const credentialId =
     typeof identity.jti === "string" ? identity.jti : identity.tokenIdentifier
-  return { subject: identity.subject, organizationId, role, credentialId }
+  const email = typeof identity.email === "string" ? identity.email : undefined
+  return {
+    subject: identity.subject,
+    organizationId,
+    role,
+    credentialId,
+    email,
+  }
 }
 
 export const getCurrent = query({
@@ -79,30 +119,26 @@ export const syncCurrent = mutation({
   returns: principalValidator,
   handler: async (ctx) => {
     const identity = await requireIdentity(ctx.auth)
-    const existing = await ctx.db
-      .query("principals")
-      .withIndex("by_organization_subject", (index) =>
-        index
-          .eq("organizationId", identity.organizationId)
-          .eq("subject", identity.subject)
-      )
-      .unique()
-    const fields = {
-      subject: identity.subject,
-      organizationId: identity.organizationId,
-      role: identity.role,
-      updatedAt: Date.now(),
-    }
+    return syncIdentityPrincipal(ctx, identity)
+  },
+})
 
-    const principalId = existing
-      ? (await ctx.db.patch(existing._id, fields), existing._id)
-      : await ctx.db.insert("principals", fields)
-
-    return {
-      principalId,
-      subject: fields.subject,
-      organizationId: fields.organizationId,
-      role: fields.role,
+export const syncCurrentProfile = mutation({
+  args: { verifiedEmail: v.string(), provisioningKey: v.string() },
+  returns: principalValidator,
+  handler: async (ctx, args) => {
+    const expectedKey = process.env.FAIRLEND_PRINCIPAL_PROVISIONING_KEY
+    if (!expectedKey || args.provisioningKey !== expectedKey) {
+      throw new ConvexError({ code: "PRINCIPAL_PROVISIONING_DENIED" })
     }
+    const verifiedEmail = args.verifiedEmail.trim()
+    if (!verifiedEmail) {
+      throw new ConvexError({
+        code: "VALIDATION_FAILED",
+        field: "verifiedEmail",
+      })
+    }
+    const identity = await requireIdentity(ctx.auth)
+    return syncIdentityPrincipal(ctx, identity, verifiedEmail)
   },
 })

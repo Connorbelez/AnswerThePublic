@@ -6,9 +6,11 @@ import { getWorkosServerConfig } from "@/config/workos-runtime-config"
 export async function provisionPrincipalFromWorkos({
   accessToken,
   organizationId,
+  verifiedEmail,
 }: {
   accessToken: string
   organizationId: string | undefined
+  verifiedEmail: string
 }) {
   const workos = getWorkosServerConfig()
   if (organizationId !== workos.organizationId) {
@@ -19,8 +21,17 @@ export async function provisionPrincipalFromWorkos({
   if (!convexUrl) {
     throw new Error("VITE_CONVEX_URL is required to provision a principal.")
   }
+  const provisioningKey = process.env.FAIRLEND_PRINCIPAL_PROVISIONING_KEY
+  if (!provisioningKey) {
+    throw new Error(
+      "FAIRLEND_PRINCIPAL_PROVISIONING_KEY is required to provision a principal."
+    )
+  }
 
   const client = new ConvexHttpClient(convexUrl)
   client.setAuth(accessToken)
-  await client.mutation(api.principals.syncCurrent)
+  await client.mutation(api.principals.syncCurrentProfile, {
+    verifiedEmail,
+    provisioningKey,
+  })
 }

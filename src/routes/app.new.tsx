@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { useHydrated } from "@/hooks/use-hydrated"
 
 export const Route = createFileRoute("/app/new")({
   component: NewRequestPage,
@@ -24,6 +25,7 @@ function NewRequestPage() {
   const navigate = useNavigate()
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const hydrated = useHydrated()
 
   return (
     <main className="workspace workspace--narrow">
@@ -128,7 +130,7 @@ function NewRequestPage() {
               <Button variant="ghost" render={<Link to="/app" />}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={submitting}>
+              <Button type="submit" disabled={submitting || !hydrated}>
                 {submitting ? <LoaderCircle className="animate-spin" /> : null}
                 Create Critical request
               </Button>

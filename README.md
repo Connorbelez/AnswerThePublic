@@ -3,11 +3,26 @@
 The production application for turning community questions, journalist requests,
 and digital-PR opportunities into prioritized, research-backed content requests.
 
-Tickets 01 and 02 establish the authenticated production shell and the first
+Tickets 01 through 03 establish the authenticated production shell and the first
 end-to-end Content Request workflow. Authorized editors can create a Critical
 manual request from the mobile web interface, HTTP API, or CLI, preserve original
 source evidence, find it safely, and open its stable route. The remaining workflow
 is tracked in `.scratch/fairlend-content-requests-v1/issues/`.
+
+Each request has one accountable assignee and optional watchers. Assignment
+changes retain a dedicated history and audit event, while new founder assignments
+and Critical escalations create an in-app notification plus a transactional-email
+outbox item. Elie's assignment-scoped library supports a touch-scroll stack and a
+compact grid without changing the request's stable URL.
+
+Set `FAIRLEND_APP_URL`, `FAIRLEND_PRINCIPAL_PROVISIONING_KEY`, plus the
+transactional-email endpoint and API key in the Convex deployment. Assignment
+writes an in-app notification and durable email outbox record atomically, then
+schedules the provider-agnostic dispatcher. A minute cron recovers queued,
+retryable, and lease-expired sends; claim fencing and the stable provider
+idempotency key prevent stale workers from corrupting the result. Email payloads
+contain only the recipient, template identifier, and authenticated deep link—never
+source or founder content.
 
 ## Stack
 
@@ -35,18 +50,27 @@ source of truth once a deployment is configured.
 
 ## WorkOS roles
 
-| WorkOS role slug | Application role | Intended principal |
-| --- | --- | --- |
-| `founder` | `founder` | Elie / founder workflow |
-| `operator-editor` | `operator_editor` | Operator and editorial workspace |
-| `agent-editor` | `agent_editor` | CLI, API, and ChatGPT agent editors |
-| `administrator` | `administrator` | System administration |
+| WorkOS role slug  | Application role  | Intended principal                  |
+| ----------------- | ----------------- | ----------------------------------- |
+| `founder`         | `founder`         | Elie / founder workflow             |
+| `operator-editor` | `operator_editor` | Operator and editorial workspace    |
+| `agent-editor`    | `agent_editor`    | CLI, API, and ChatGPT agent editors |
+| `administrator`   | `administrator`   | System administration               |
 
 Convex derives the principal role and organization entirely from the signed
-WorkOS token. The WorkOS callback provisions the principal using a zero-argument
-Convex mutation; ordinary application loads are query-only, and profile display
-data comes from the verified WorkOS session rather than caller-controlled
-mutation arguments.
+WorkOS token. The WorkOS callback provisions the principal and verified email
+using a server-only shared provisioning secret; ordinary application loads are
+query-only, and profile display data comes from the verified WorkOS session
+rather than caller-controlled mutation arguments.
+
+### Ticket 03 assignment migration
+
+The first Ticket 03 deployment intentionally keeps assignment and queue-index
+fields optional so the schema accepts Ticket 02 records. After deploying it, run
+`bunx convex run --prod migrations:backfillAssignmentFields '{}'`. The migration is
+idempotent, processes bounded pages, schedules the next page, and initializes the
+creator as accountable assignee. Verify no records are missing the three fields
+before tightening their schema validators in a follow-up deployment.
 
 ## Deployment
 

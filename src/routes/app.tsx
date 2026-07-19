@@ -2,9 +2,11 @@ import { Outlet, createFileRoute, redirect } from "@tanstack/react-router"
 import { Menu } from "lucide-react"
 
 import { loadWorkspaceSession } from "@/application/load-workspace-session"
+import { listMyNotifications } from "@/application/content-request-server-functions"
 import type { WorkspaceRole } from "@/application/workspace-session"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { NotificationCentre } from "@/components/notification-centre"
 import { Separator } from "@/components/ui/separator"
 
 const roleLabels = {
@@ -23,7 +25,10 @@ export const Route = createFileRoute("/app")({
     if (result.status === "forbidden") {
       throw redirect({ to: "/unauthorized" })
     }
-    return result.session
+    return {
+      ...result.session,
+      notifications: await listMyNotifications(),
+    }
   },
   component: ApplicationShell,
 })
@@ -47,6 +52,7 @@ function ApplicationShell() {
           <span className="wordmark">FairLend</span>
         </div>
         <div className="identity">
+          <NotificationCentre notifications={session.notifications} />
           <div className="identity__copy">
             <strong>{session.displayName}</strong>
             <span>{roleLabels[session.role]}</span>

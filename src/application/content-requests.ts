@@ -25,6 +25,12 @@ export type OriginalSource = {
   channel?: string
 }
 
+export type PrincipalSummary = {
+  principalId: string
+  subject: string
+  role: "founder" | "operator_editor" | "agent_editor" | "administrator"
+}
+
 export type ContentRequest = {
   requestId: string
   humanId: string
@@ -36,6 +42,10 @@ export type ContentRequest = {
   disposition: RequestDisposition
   retention: RequestRetention
   aggregateVersion: number
+  assignee: PrincipalSummary
+  watchers: Array<PrincipalSummary>
+  firstOpenedAt: number | null
+  latestOpenedAt: number | null
   source: OriginalSource | null
   createdAt: number
   updatedAt: number
@@ -66,11 +76,41 @@ export type PersistManualRequestInput = CreateManualRequestInput & {
   origin: Exclude<RequestOrigin, "automated_scout">
 }
 
+export type AssignRequestInput = {
+  humanId: string
+  assigneePrincipalId: string
+  watcherPrincipalIds?: Array<string>
+  reason?: string
+  correlationId: string
+}
+
+export type ContentNotification = {
+  notificationId: string
+  requestHumanId: string
+  type:
+    | "request_assigned"
+    | "critical_escalation"
+    | "deadline_approaching"
+    | "response_ready"
+    | "drafting_failed"
+    | "delivery_reopened"
+  emailQueued: boolean
+  emailStatus: "queued" | "sent" | "failed"
+  createdAt: number
+  readAt: number | null
+  deepLink: string
+}
+
 export interface ContentRequestRepository {
   createManual(input: PersistManualRequestInput): Promise<ContentRequest>
   getByHumanId(humanId: string): Promise<ContentRequest | null>
   list(limit?: number): Promise<Array<ContentRequest>>
   resolve(query: string): Promise<RequestResolution>
+  assign(input: AssignRequestInput): Promise<ContentRequest>
+  open(humanId: string, correlationId: string): Promise<ContentRequest>
+  listAssignablePrincipals(): Promise<Array<PrincipalSummary>>
+  listMyNotifications(): Promise<Array<ContentNotification>>
+  markNotificationRead(notificationId: string): Promise<void>
 }
 
 export interface ContentRequestService {
@@ -78,6 +118,11 @@ export interface ContentRequestService {
   getByHumanId(humanId: string): Promise<ContentRequest | null>
   list(limit?: number): Promise<Array<ContentRequest>>
   resolve(query: string): Promise<RequestResolution>
+  assign(input: AssignRequestInput): Promise<ContentRequest>
+  open(humanId: string, correlationId: string): Promise<ContentRequest>
+  listAssignablePrincipals(): Promise<Array<PrincipalSummary>>
+  listMyNotifications(): Promise<Array<ContentNotification>>
+  markNotificationRead(notificationId: string): Promise<void>
 }
 
 export function createContentRequestService(
@@ -90,5 +135,11 @@ export function createContentRequestService(
     getByHumanId: (humanId) => repository.getByHumanId(humanId),
     list: (limit) => repository.list(limit),
     resolve: (query) => repository.resolve(query),
+    assign: (input) => repository.assign(input),
+    open: (humanId, correlationId) => repository.open(humanId, correlationId),
+    listAssignablePrincipals: () => repository.listAssignablePrincipals(),
+    listMyNotifications: () => repository.listMyNotifications(),
+    markNotificationRead: (notificationId) =>
+      repository.markNotificationRead(notificationId),
   }
 }

@@ -11,6 +11,11 @@ function serviceStub(overrides: Partial<ContentRequestService> = {}) {
     getByHumanId: vi.fn(),
     list: vi.fn(),
     resolve: vi.fn(),
+    assign: vi.fn(),
+    open: vi.fn(),
+    listAssignablePrincipals: vi.fn(),
+    listMyNotifications: vi.fn(),
+    markNotificationRead: vi.fn(),
     ...overrides,
   } satisfies ContentRequestService
 }

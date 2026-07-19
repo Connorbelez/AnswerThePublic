@@ -11,6 +11,7 @@ export default defineConfig([
   // not the scaffold's upstream component implementations.
   globalIgnores([
     'dist',
+    'prototype-repo/**',
     'convex/_generated/**',
     'src/routeTree.gen.ts',
     'src/components/ui/**',

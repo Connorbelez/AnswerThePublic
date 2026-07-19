@@ -1,7 +1,9 @@
 import { ConvexHttpClient } from "convex/browser"
 
 import { api } from "../../convex/_generated/api"
+import type { Id } from "../../convex/_generated/dataModel"
 import type {
+  AssignRequestInput,
   ContentRequestRepository,
   PersistManualRequestInput,
 } from "@/application/content-requests"
@@ -41,6 +43,37 @@ export function createConvexContentRequestRepository({
     },
     async resolve(query) {
       return (await client()).query(api.contentRequests.resolve, { query })
+    },
+    async assign(input: AssignRequestInput) {
+      return (await client()).mutation(api.contentRequests.assign, {
+        ...input,
+        assigneePrincipalId: input.assigneePrincipalId as Id<"principals">,
+        watcherPrincipalIds: input.watcherPrincipalIds?.map(
+          (principalId) => principalId as Id<"principals">
+        ),
+      })
+    },
+    async open(humanId, correlationId) {
+      return (await client()).mutation(api.contentRequests.open, {
+        humanId,
+        correlationId,
+      })
+    },
+    async listAssignablePrincipals() {
+      return (await client()).query(
+        api.contentRequests.listAssignablePrincipals,
+        {}
+      )
+    },
+    async listMyNotifications() {
+      return (await client()).query(api.contentRequests.listMyNotifications, {})
+    },
+    async markNotificationRead(notificationId) {
+      await (
+        await client()
+      ).mutation(api.contentRequests.markNotificationRead, {
+        notificationId: notificationId as Id<"notifications">,
+      })
     },
   }
 }

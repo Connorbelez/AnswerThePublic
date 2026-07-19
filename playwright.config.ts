@@ -22,7 +22,7 @@ export default defineConfig({
   ],
   webServer: {
     command:
-      "bun run build && bun run build:e2e && bun run preview:e2e --host 127.0.0.1 --port 43117",
+      "bun run build:e2e && bun run preview:e2e --host 127.0.0.1 --port 43117",
     env: {
       ...process.env,
       FAIRLEND_E2E_AUTH_KEY: "local-playwright-only",

@@ -6,11 +6,14 @@ export const Route = createFileRoute("/api/auth/callback")({
     handlers: {
       GET: handleCallbackRoute({
         errorRedirectUrl: "/sign-in?error=auth_failed",
-        onSuccess: async ({ accessToken, organizationId }) => {
-          const { provisionPrincipalFromWorkos } = await import(
-            "@/infrastructure/provision-principal.server"
-          )
-          await provisionPrincipalFromWorkos({ accessToken, organizationId })
+        onSuccess: async ({ accessToken, organizationId, user }) => {
+          const { provisionPrincipalFromWorkos } =
+            await import("@/infrastructure/provision-principal.server")
+          await provisionPrincipalFromWorkos({
+            accessToken,
+            organizationId,
+            verifiedEmail: user.email,
+          })
         },
       }),
     },

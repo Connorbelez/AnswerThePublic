@@ -17,6 +17,7 @@ import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppNewRouteImport } from './routes/app.new'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
 import { Route as ApiAuthSignInRouteImport } from './routes/api/auth/sign-in'
+import { Route as ApiE2eAutomatedRequestRouteImport } from './routes/api/e2e/automated-request'
 import { Route as ApiV1ContentRequestsRouteImport } from './routes/api/v1/content-requests'
 import { Route as AppRequestsRequestIdRouteImport } from './routes/app.requests.$requestId'
 import { Route as ApiV1CliContentRequestsRouteImport } from './routes/api/v1/cli/content-requests'
@@ -63,6 +64,11 @@ const ApiAuthSignInRoute = ApiAuthSignInRouteImport.update({
   path: '/api/auth/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiE2eAutomatedRequestRoute = ApiE2eAutomatedRequestRouteImport.update({
+  id: '/api/e2e/automated-request',
+  path: '/api/e2e/automated-request',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1ContentRequestsRoute = ApiV1ContentRequestsRouteImport.update({
   id: '/api/v1/content-requests',
   path: '/api/v1/content-requests',
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AppIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
+  '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
   '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
   '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
@@ -114,6 +121,7 @@ export interface FileRoutesByTo {
   '/app': typeof AppIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
+  '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
   '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
   '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   '/app/': typeof AppIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
+  '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
   '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
   '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/api/auth/callback'
     | '/api/auth/sign-in'
+    | '/api/e2e/automated-request'
     | '/api/v1/content-requests'
     | '/app/requests/$requestId'
     | '/api/v1/cli/content-requests'
@@ -161,6 +171,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/api/auth/callback'
     | '/api/auth/sign-in'
+    | '/api/e2e/automated-request'
     | '/api/v1/content-requests'
     | '/app/requests/$requestId'
     | '/api/v1/cli/content-requests'
@@ -176,6 +187,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/api/auth/callback'
     | '/api/auth/sign-in'
+    | '/api/e2e/automated-request'
     | '/api/v1/content-requests'
     | '/app/requests/$requestId'
     | '/api/v1/cli/content-requests'
@@ -190,6 +202,7 @@ export interface RootRouteChildren {
   UnauthorizedRoute: typeof UnauthorizedRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiAuthSignInRoute: typeof ApiAuthSignInRoute
+  ApiE2eAutomatedRequestRoute: typeof ApiE2eAutomatedRequestRoute
   ApiV1ContentRequestsRoute: typeof ApiV1ContentRequestsRouteWithChildren
   ApiV1CliContentRequestsRoute: typeof ApiV1CliContentRequestsRouteWithChildren
 }
@@ -250,6 +263,13 @@ declare module '@tanstack/react-router' {
       path: '/api/auth/sign-in'
       fullPath: '/api/auth/sign-in'
       preLoaderRoute: typeof ApiAuthSignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/e2e/automated-request': {
+      id: '/api/e2e/automated-request'
+      path: '/api/e2e/automated-request'
+      fullPath: '/api/e2e/automated-request'
+      preLoaderRoute: typeof ApiE2eAutomatedRequestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/content-requests': {
@@ -337,6 +357,7 @@ const rootRouteChildren: RootRouteChildren = {
   UnauthorizedRoute: UnauthorizedRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiAuthSignInRoute: ApiAuthSignInRoute,
+  ApiE2eAutomatedRequestRoute: ApiE2eAutomatedRequestRoute,
   ApiV1ContentRequestsRoute: ApiV1ContentRequestsRouteWithChildren,
   ApiV1CliContentRequestsRoute: ApiV1CliContentRequestsRouteWithChildren,
 }

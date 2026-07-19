@@ -46,6 +46,7 @@ export default defineSchema({
     subject: v.string(),
     organizationId: v.string(),
     role: workspaceRoleValidator,
+    email: v.optional(v.string()),
     updatedAt: v.number(),
   }).index("by_organization_subject", ["organizationId", "subject"]),
   contentRequests: defineTable({
@@ -54,6 +55,7 @@ export default defineSchema({
     title: v.string(),
     normalizedTitle: v.string(),
     searchText: v.string(),
+    queueSortKey: v.optional(v.string()),
     aliases: v.array(v.string()),
     origin: requestOriginValidator,
     priority: requestPriorityValidator,
@@ -62,6 +64,10 @@ export default defineSchema({
     retention: requestRetentionValidator,
     aggregateVersion: v.number(),
     sourceSnapshotId: v.optional(v.id("sourceSnapshots")),
+    assigneePrincipalId: v.optional(v.id("principals")),
+    watcherPrincipalIds: v.optional(v.array(v.id("principals"))),
+    firstOpenedAt: v.optional(v.number()),
+    latestOpenedAt: v.optional(v.number()),
     createdByPrincipalId: v.id("principals"),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -72,6 +78,17 @@ export default defineSchema({
       "normalizedTitle",
     ])
     .index("by_organization_created_at", ["organizationId", "createdAt"])
+    .index("by_organization_queue_sort", ["organizationId", "queueSortKey"])
+    .index("by_organization_assignee_created_at", [
+      "organizationId",
+      "assigneePrincipalId",
+      "createdAt",
+    ])
+    .index("by_organization_assignee_queue_sort", [
+      "organizationId",
+      "assigneePrincipalId",
+      "queueSortKey",
+    ])
     .searchIndex("search_content", {
       searchField: "searchText",
       filterFields: ["organizationId"],
@@ -100,5 +117,72 @@ export default defineSchema({
     afterVersion: v.number(),
   })
     .index("by_request_occurred_at", ["requestId", "occurredAt"])
+    .index("by_request_operation_correlation", [
+      "requestId",
+      "operation",
+      "correlationId",
+    ])
     .index("by_organization_occurred_at", ["organizationId", "occurredAt"]),
+  assignmentEvents: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    previousAssigneePrincipalId: v.id("principals"),
+    newAssigneePrincipalId: v.id("principals"),
+    watcherPrincipalIds: v.array(v.id("principals")),
+    actorPrincipalId: v.id("principals"),
+    credentialId: v.string(),
+    reason: v.optional(v.string()),
+    correlationId: v.string(),
+    occurredAt: v.number(),
+  }).index("by_request_occurred_at", ["requestId", "occurredAt"]),
+  notifications: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    recipientPrincipalId: v.id("principals"),
+    type: v.union(
+      v.literal("request_assigned"),
+      v.literal("critical_escalation"),
+      v.literal("deadline_approaching"),
+      v.literal("response_ready"),
+      v.literal("drafting_failed"),
+      v.literal("delivery_reopened")
+    ),
+    emailQueued: v.boolean(),
+    emailStatus: v.union(
+      v.literal("queued"),
+      v.literal("sent"),
+      v.literal("failed")
+    ),
+    createdAt: v.number(),
+    readAt: v.optional(v.number()),
+  })
+    .index("by_recipient_created_at", ["recipientPrincipalId", "createdAt"])
+    .index("by_request_created_at", ["requestId", "createdAt"]),
+  notificationEmailOutbox: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    notificationId: v.id("notifications"),
+    recipientPrincipalId: v.id("principals"),
+    recipientEmail: v.string(),
+    template: v.string(),
+    deepLink: v.string(),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("sending"),
+      v.literal("sent"),
+      v.literal("failed"),
+      v.literal("exhausted")
+    ),
+    attempts: v.number(),
+    leaseExpiresAt: v.optional(v.number()),
+    claimToken: v.optional(v.string()),
+    nextAttemptAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    lastErrorCode: v.optional(v.string()),
+  })
+    .index("by_status_updated_at", ["status", "updatedAt"])
+    .index("by_status_next_attempt", ["status", "nextAttemptAt"])
+    .index("by_status_lease_expiry", ["status", "leaseExpiresAt"])
+    .index("by_notification", ["notificationId"]),
 })

@@ -8,12 +8,15 @@ import {
   type QueryCtx,
 } from "./_generated/server"
 import { requireEditor, requirePrincipal } from "./lib/authorization"
+import { enqueueNotification } from "./lib/notificationOutbox"
+import { requestQueueSortKey } from "./lib/requestOrdering"
 import {
   requestDispositionValidator,
   requestLifecycleValidator,
   requestOriginValidator,
   requestPriorityValidator,
   requestRetentionValidator,
+  workspaceRoleValidator,
 } from "./schema"
 
 const sourceInputValidator = v.object({
@@ -25,6 +28,12 @@ const sourceInputValidator = v.object({
 })
 
 const sourceOutputValidator = v.union(sourceInputValidator, v.null())
+
+const principalSummaryValidator = v.object({
+  principalId: v.id("principals"),
+  subject: v.string(),
+  role: workspaceRoleValidator,
+})
 
 const explicitRequestOriginValidator = v.union(
   v.literal("manual"),
@@ -44,6 +53,10 @@ const contentRequestValidator = v.object({
   disposition: requestDispositionValidator,
   retention: requestRetentionValidator,
   aggregateVersion: v.number(),
+  assignee: principalSummaryValidator,
+  watchers: v.array(principalSummaryValidator),
+  firstOpenedAt: v.union(v.number(), v.null()),
+  latestOpenedAt: v.union(v.number(), v.null()),
   source: sourceOutputValidator,
   createdAt: v.number(),
   updatedAt: v.number(),
@@ -84,6 +97,40 @@ const auditEventValidator = v.object({
   afterVersion: v.number(),
 })
 
+const assignmentEventValidator = v.object({
+  eventId: v.id("assignmentEvents"),
+  previousAssigneePrincipalId: v.id("principals"),
+  newAssigneePrincipalId: v.id("principals"),
+  watcherPrincipalIds: v.array(v.id("principals")),
+  actorPrincipalId: v.id("principals"),
+  credentialId: v.string(),
+  reason: v.union(v.string(), v.null()),
+  correlationId: v.string(),
+  occurredAt: v.number(),
+})
+
+const notificationValidator = v.object({
+  notificationId: v.id("notifications"),
+  requestHumanId: v.string(),
+  type: v.union(
+    v.literal("request_assigned"),
+    v.literal("critical_escalation"),
+    v.literal("deadline_approaching"),
+    v.literal("response_ready"),
+    v.literal("drafting_failed"),
+    v.literal("delivery_reopened")
+  ),
+  emailQueued: v.boolean(),
+  emailStatus: v.union(
+    v.literal("queued"),
+    v.literal("sent"),
+    v.literal("failed")
+  ),
+  createdAt: v.number(),
+  readAt: v.union(v.number(), v.null()),
+  deepLink: v.string(),
+})
+
 type RequestContext = QueryCtx | MutationCtx
 
 function normalizeText(value: string) {
@@ -121,6 +168,15 @@ async function toPublicRequest(
   const source = request.sourceSnapshotId
     ? await ctx.db.get(request.sourceSnapshotId)
     : null
+  const assignee = await ctx.db.get(
+    request.assigneePrincipalId ?? request.createdByPrincipalId
+  )
+  if (!assignee) throw new ConvexError({ code: "ASSIGNEE_NOT_FOUND" })
+  const watchers = await Promise.all(
+    (request.watcherPrincipalIds ?? []).map((principalId) =>
+      ctx.db.get(principalId)
+    )
+  )
   return {
     requestId: request._id,
     humanId: request.humanId,
@@ -132,6 +188,24 @@ async function toPublicRequest(
     disposition: request.disposition,
     retention: request.retention,
     aggregateVersion: request.aggregateVersion,
+    assignee: {
+      principalId: assignee._id,
+      subject: assignee.subject,
+      role: assignee.role,
+    },
+    watchers: watchers.flatMap((watcher) =>
+      watcher
+        ? [
+            {
+              principalId: watcher._id,
+              subject: watcher.subject,
+              role: watcher.role,
+            },
+          ]
+        : []
+    ),
+    firstOpenedAt: request.firstOpenedAt ?? null,
+    latestOpenedAt: request.latestOpenedAt ?? null,
     source: publicSource(source),
     createdAt: request.createdAt,
     updatedAt: request.updatedAt,
@@ -212,6 +286,7 @@ export const createManual = mutation({
       title,
       normalizedTitle: normalizeText(title),
       searchText: searchTextFor(title, aliases, args.source),
+      queueSortKey: requestQueueSortKey(args.origin, "critical", now),
       aliases,
       origin: args.origin,
       priority: "critical",
@@ -219,6 +294,8 @@ export const createManual = mutation({
       disposition: "active",
       retention: "active",
       aggregateVersion: 1,
+      assigneePrincipalId: principal._id,
+      watcherPrincipalIds: [],
       createdByPrincipalId: principal._id,
       createdAt: now,
       updatedAt: now,
@@ -261,7 +338,6 @@ export const getByHumanId = query({
   returns: v.union(contentRequestValidator, v.null()),
   handler: async (ctx, args) => {
     const principal = await requirePrincipal(ctx)
-    requireEditor(principal)
     const request = await ctx.db
       .query("contentRequests")
       .withIndex("by_organization_human_id", (index) =>
@@ -270,6 +346,14 @@ export const getByHumanId = query({
           .eq("humanId", args.humanId.trim().toUpperCase())
       )
       .unique()
+    if (
+      request &&
+      principal.role === "founder" &&
+      (request.assigneePrincipalId ?? request.createdByPrincipalId) !==
+        principal._id
+    ) {
+      throw new ConvexError({ code: "RESOURCE_ACCESS_DENIED" })
+    }
     return request ? toPublicRequest(ctx, request) : null
   },
 })
@@ -279,15 +363,25 @@ export const list = query({
   returns: v.array(contentRequestValidator),
   handler: async (ctx, args) => {
     const principal = await requirePrincipal(ctx)
-    if (principal.role === "founder") return []
     const limit = Math.min(Math.max(Math.trunc(args.limit ?? 50), 1), 100)
-    const requests = await ctx.db
-      .query("contentRequests")
-      .withIndex("by_organization_created_at", (index) =>
-        index.eq("organizationId", principal.organizationId)
-      )
-      .order("desc")
-      .take(limit)
+    const requests =
+      principal.role === "founder"
+        ? await ctx.db
+            .query("contentRequests")
+            .withIndex("by_organization_assignee_queue_sort", (index) =>
+              index
+                .eq("organizationId", principal.organizationId)
+                .eq("assigneePrincipalId", principal._id)
+            )
+            .order("asc")
+            .take(limit)
+        : await ctx.db
+            .query("contentRequests")
+            .withIndex("by_organization_queue_sort", (index) =>
+              index.eq("organizationId", principal.organizationId)
+            )
+            .order("asc")
+            .take(limit)
     return Promise.all(requests.map((request) => toPublicRequest(ctx, request)))
   },
 })
@@ -369,6 +463,262 @@ export const resolve = query({
       return { kind: "not_found" as const, candidates: [] }
     }
     return { kind: "candidates" as const, candidates }
+  },
+})
+
+export const listAssignablePrincipals = query({
+  args: {},
+  returns: v.array(principalSummaryValidator),
+  handler: async (ctx) => {
+    const principal = await requirePrincipal(ctx)
+    if (principal.role === "founder") return []
+    const principals = await ctx.db
+      .query("principals")
+      .withIndex("by_organization_subject", (index) =>
+        index.eq("organizationId", principal.organizationId)
+      )
+      .collect()
+    return principals.map((candidate) => ({
+      principalId: candidate._id,
+      subject: candidate.subject,
+      role: candidate.role,
+    }))
+  },
+})
+
+export const assign = mutation({
+  args: {
+    humanId: v.string(),
+    assigneePrincipalId: v.id("principals"),
+    watcherPrincipalIds: v.optional(v.array(v.id("principals"))),
+    reason: v.optional(v.string()),
+    correlationId: v.string(),
+  },
+  returns: contentRequestValidator,
+  handler: async (ctx, args) => {
+    const actor = await requirePrincipal(ctx)
+    requireEditor(actor)
+    const request = await ctx.db
+      .query("contentRequests")
+      .withIndex("by_organization_human_id", (index) =>
+        index
+          .eq("organizationId", actor.organizationId)
+          .eq("humanId", args.humanId.trim().toUpperCase())
+      )
+      .unique()
+    if (!request) throw new ConvexError({ code: "NOT_FOUND" })
+    const assignee = await ctx.db.get(args.assigneePrincipalId)
+    if (!assignee || assignee.organizationId !== actor.organizationId) {
+      throw new ConvexError({ code: "ASSIGNEE_NOT_FOUND" })
+    }
+    const watcherPrincipalIds = [
+      ...new Set(args.watcherPrincipalIds ?? request.watcherPrincipalIds ?? []),
+    ].filter((principalId) => principalId !== assignee._id)
+    const watchers = await Promise.all(
+      watcherPrincipalIds.map((principalId) => ctx.db.get(principalId))
+    )
+    if (
+      watchers.some(
+        (watcher) => !watcher || watcher.organizationId !== actor.organizationId
+      )
+    ) {
+      throw new ConvexError({ code: "WATCHER_NOT_FOUND" })
+    }
+    const now = Date.now()
+    const afterVersion = request.aggregateVersion + 1
+    await ctx.db.patch(request._id, {
+      assigneePrincipalId: assignee._id,
+      watcherPrincipalIds,
+      aggregateVersion: afterVersion,
+      updatedAt: now,
+    })
+    await ctx.db.insert("assignmentEvents", {
+      organizationId: actor.organizationId,
+      requestId: request._id,
+      previousAssigneePrincipalId:
+        request.assigneePrincipalId ?? request.createdByPrincipalId,
+      newAssigneePrincipalId: assignee._id,
+      watcherPrincipalIds,
+      actorPrincipalId: actor._id,
+      credentialId: actor.credentialId,
+      reason: cleanOptionalText(args.reason),
+      correlationId: cleanRequiredText(args.correlationId, "correlationId"),
+      occurredAt: now,
+    })
+    await ctx.db.insert("auditEvents", {
+      organizationId: actor.organizationId,
+      requestId: request._id,
+      requestHumanId: request.humanId,
+      actorPrincipalId: actor._id,
+      credentialId: actor.credentialId,
+      operation: "content_request.assigned",
+      correlationId: args.correlationId,
+      occurredAt: now,
+      beforeVersion: request.aggregateVersion,
+      afterVersion,
+    })
+    if (
+      (request.assigneePrincipalId ?? request.createdByPrincipalId) !==
+      assignee._id
+    ) {
+      await enqueueNotification(ctx, request, assignee, "request_assigned", now)
+      if (request.priority === "critical") {
+        await enqueueNotification(
+          ctx,
+          request,
+          assignee,
+          "critical_escalation",
+          now
+        )
+      }
+    }
+    const updated = await ctx.db.get(request._id)
+    if (!updated) throw new ConvexError({ code: "WRITE_FAILED" })
+    return toPublicRequest(ctx, updated)
+  },
+})
+
+export const open = mutation({
+  args: { humanId: v.string(), correlationId: v.string() },
+  returns: contentRequestValidator,
+  handler: async (ctx, args) => {
+    const actor = await requirePrincipal(ctx)
+    const request = await ctx.db
+      .query("contentRequests")
+      .withIndex("by_organization_human_id", (index) =>
+        index
+          .eq("organizationId", actor.organizationId)
+          .eq("humanId", args.humanId.trim().toUpperCase())
+      )
+      .unique()
+    if (!request) throw new ConvexError({ code: "NOT_FOUND" })
+    if (
+      actor.role === "founder" &&
+      (request.assigneePrincipalId ?? request.createdByPrincipalId) !==
+        actor._id
+    ) {
+      throw new ConvexError({ code: "RESOURCE_ACCESS_DENIED" })
+    }
+    const correlationId = cleanRequiredText(args.correlationId, "correlationId")
+    const existingOpen = await ctx.db
+      .query("auditEvents")
+      .withIndex("by_request_operation_correlation", (index) =>
+        index
+          .eq("requestId", request._id)
+          .eq("operation", "content_request.opened")
+          .eq("correlationId", correlationId)
+      )
+      .first()
+    if (existingOpen) return toPublicRequest(ctx, request)
+    const now = Date.now()
+    const afterVersion = request.aggregateVersion + 1
+    await ctx.db.patch(request._id, {
+      firstOpenedAt: request.firstOpenedAt ?? now,
+      latestOpenedAt: now,
+      aggregateVersion: afterVersion,
+      updatedAt: now,
+    })
+    await ctx.db.insert("auditEvents", {
+      organizationId: actor.organizationId,
+      requestId: request._id,
+      requestHumanId: request.humanId,
+      actorPrincipalId: actor._id,
+      credentialId: actor.credentialId,
+      operation: "content_request.opened",
+      correlationId,
+      occurredAt: now,
+      beforeVersion: request.aggregateVersion,
+      afterVersion,
+    })
+    const updated = await ctx.db.get(request._id)
+    if (!updated) throw new ConvexError({ code: "WRITE_FAILED" })
+    return toPublicRequest(ctx, updated)
+  },
+})
+
+export const listAssignmentEvents = query({
+  args: { humanId: v.string() },
+  returns: v.array(assignmentEventValidator),
+  handler: async (ctx, args) => {
+    const principal = await requirePrincipal(ctx)
+    requireEditor(principal)
+    const request = await ctx.db
+      .query("contentRequests")
+      .withIndex("by_organization_human_id", (index) =>
+        index
+          .eq("organizationId", principal.organizationId)
+          .eq("humanId", args.humanId.trim().toUpperCase())
+      )
+      .unique()
+    if (!request) return []
+    const events = await ctx.db
+      .query("assignmentEvents")
+      .withIndex("by_request_occurred_at", (index) =>
+        index.eq("requestId", request._id)
+      )
+      .collect()
+    return events.map((event) => ({
+      eventId: event._id,
+      previousAssigneePrincipalId: event.previousAssigneePrincipalId,
+      newAssigneePrincipalId: event.newAssigneePrincipalId,
+      watcherPrincipalIds: event.watcherPrincipalIds,
+      actorPrincipalId: event.actorPrincipalId,
+      credentialId: event.credentialId,
+      reason: event.reason ?? null,
+      correlationId: event.correlationId,
+      occurredAt: event.occurredAt,
+    }))
+  },
+})
+
+export const listMyNotifications = query({
+  args: {},
+  returns: v.array(notificationValidator),
+  handler: async (ctx) => {
+    const principal = await requirePrincipal(ctx)
+    const notifications = await ctx.db
+      .query("notifications")
+      .withIndex("by_recipient_created_at", (index) =>
+        index.eq("recipientPrincipalId", principal._id)
+      )
+      .order("desc")
+      .take(50)
+    return Promise.all(
+      notifications.map(async (notification) => {
+        const request = await ctx.db.get(notification.requestId)
+        if (!request) throw new ConvexError({ code: "NOT_FOUND" })
+        return {
+          notificationId: notification._id,
+          requestHumanId: request.humanId,
+          type: notification.type,
+          emailQueued: notification.emailQueued,
+          emailStatus: notification.emailStatus,
+          createdAt: notification.createdAt,
+          readAt: notification.readAt ?? null,
+          deepLink: `/app/requests/${request.humanId}`,
+        }
+      })
+    )
+  },
+})
+
+export const markNotificationRead = mutation({
+  args: { notificationId: v.id("notifications") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const principal = await requirePrincipal(ctx)
+    const notification = await ctx.db.get(args.notificationId)
+    if (
+      !notification ||
+      notification.organizationId !== principal.organizationId ||
+      notification.recipientPrincipalId !== principal._id
+    ) {
+      throw new ConvexError({ code: "RESOURCE_ACCESS_DENIED" })
+    }
+    if (!notification.readAt) {
+      await ctx.db.patch(notification._id, { readAt: Date.now() })
+    }
+    return null
   },
 })
 
