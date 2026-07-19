@@ -71,7 +71,10 @@ export function aggregateProductMetricEvents(
 ) {
   const truncated = page.length > MAX_EVENTS
   const events = page.slice(0, MAX_EVENTS)
-  const created = firstByRequest(events, operation("content_request.created"))
+  const created = firstByRequest(
+    events,
+    operation("content_request.created", "scout_ingestion.created")
+  )
   const opened = firstByRequest(events, operation("content_request.opened"))
   const submissions = firstByRequest(
     events,

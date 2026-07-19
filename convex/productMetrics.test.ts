@@ -239,6 +239,37 @@ describe("product metrics", () => {
     })
   })
 
+  it("includes automated scout creation in open and submission durations", () => {
+    const requestId = "automated-request" as never
+    expect(
+      aggregateProductMetricEvents(
+        [
+          {
+            requestId,
+            operation: "scout_ingestion.created",
+            occurredAt: 1_000,
+          },
+          {
+            requestId,
+            operation: "content_request.opened",
+            occurredAt: 1_400,
+          },
+          {
+            requestId,
+            operation: "founder_input.submitted",
+            occurredAt: 2_000,
+          },
+        ],
+        { from: 500, to: 2_500, generatedAt: 3_000 }
+      )
+    ).toMatchObject({
+      firstOpens: 1,
+      founderSubmissions: 1,
+      medianCreationToFirstOpenMs: 400,
+      medianCreationToFounderSubmissionMs: 1_000,
+    })
+  })
+
   it("bounds aggregation at 10,000 events and marks the result truncated", () => {
     const page = Array.from({ length: 10_001 }, (_, index) => ({
       requestId: `request-${index}` as never,

@@ -681,8 +681,7 @@ describe("founder submission and agent drafting jobs", () => {
 
   it("measures only a delivered substantial operator rewrite of an agent draft", async () => {
     const from = Date.now() - 1
-    const { workspace, operator, agent, request, job } =
-      await submittedWorkspace()
+    const { operator, agent, request, job } = await submittedWorkspace()
     const claim = await agent.mutation(api.agentJobs.claim, {
       leaseToken: "metrics-agent-lease",
       leaseMs: 30_000,
@@ -708,9 +707,11 @@ describe("founder submission and agent drafting jobs", () => {
       expectedPromotedVersionId: completed.resultVersionId,
       correlationId: "metrics-promote-rewrite",
     })
-    await workspace.run((ctx) =>
-      ctx.db.patch(request.requestId, { expiresAt: Date.now() + 60_000 })
-    )
+    await operator.mutation(api.requestDisposition.setExpiration, {
+      humanId: request.humanId,
+      expiresAt: Date.now() + 60_000,
+      correlationId: "metrics-set-expiration",
+    })
     const [originalTarget] = await operator.query(api.deliveryTracking.list, {
       humanId: request.humanId,
     })

@@ -30,5 +30,6 @@ export function isSubstantialRewrite(original: string, revised: string) {
   let shared = 0
   for (const [token, count] of originalCounts)
     shared += Math.min(count, revisedCounts.get(token) ?? 0)
-  return 1 - shared / comparisonSize >= SUBSTANTIAL_REWRITE_TOKEN_CHANGE_RATE
+  const changed = comparisonSize - shared
+  return changed / comparisonSize >= SUBSTANTIAL_REWRITE_TOKEN_CHANGE_RATE
 }
