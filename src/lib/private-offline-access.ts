@@ -1,15 +1,57 @@
 const PRIVATE_CACHE_PREFIXES = ["fairlend-pages-", "fairlend-owner-metadata-"]
 
-export async function clearPrivateOfflineAccess() {
+function offlineOwnerNamespace(value: string) {
+  let binary = ""
+  for (const byte of new TextEncoder().encode(value)) {
+    binary += String.fromCharCode(byte)
+  }
+  return btoa(binary)
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "")
+}
+
+function deleteDatabase(name: string) {
+  return new Promise<void>((resolve) => {
+    const operation = indexedDB.deleteDatabase(name)
+    operation.onsuccess = () => resolve()
+    operation.onerror = () => resolve()
+    operation.onblocked = () => resolve()
+  })
+}
+
+export async function clearPrivateOfflineAccess(ownerKey?: string) {
   try {
     for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
       const key = window.localStorage.key(index)
       if (key?.startsWith("fairlend:founder-offline-draft:")) {
         window.localStorage.removeItem(key)
       }
+      if (key?.startsWith("fairlend:voice-transcript-appended:")) {
+        window.localStorage.removeItem(key)
+      }
     }
   } catch {
     // Cache and service-worker purging still protects rendered private pages.
+  }
+  if ("indexedDB" in window) {
+    if (ownerKey) {
+      await deleteDatabase(
+        `fairlend-founder-voice-${offlineOwnerNamespace(ownerKey)}`
+      )
+    } else if (typeof window.indexedDB.databases === "function") {
+      const databases = await window.indexedDB.databases()
+      await Promise.all(
+        databases
+          .map((database) => database.name)
+          .filter(
+            (name): name is string =>
+              typeof name === "string" &&
+              name.startsWith("fairlend-founder-voice-")
+          )
+          .map(deleteDatabase)
+      )
+    }
   }
   if ("caches" in window) {
     const cacheNames = await window.caches.keys()

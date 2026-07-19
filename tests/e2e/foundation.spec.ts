@@ -275,12 +275,44 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
   await expect(
     founderPage.getByText("Voice input", { exact: true })
   ).toBeVisible()
-  await founderPage.keyboard.press("ArrowLeft")
+  if (browserName === "chromium") {
+    await founderPage.evaluate(() => {
+      Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+        configurable: true,
+        value: () =>
+          Promise.reject(
+            new DOMException("Permission denied", "NotAllowedError")
+          ),
+      })
+    })
+    await founderPage.getByRole("button", { name: "Start recording" }).click()
+    await expect(
+      founderPage.getByText(
+        "Microphone permission was denied. Typed input was not changed."
+      )
+    ).toBeVisible()
+  }
   const typeMode = founderPage.getByRole("button", { name: "Type input" })
   const typeBounds = await typeMode.boundingBox()
   expect(typeBounds?.height).toBeGreaterThanOrEqual(44)
+  await typeMode.focus()
   await expect(typeMode).toBeFocused()
   await founderPage.keyboard.press("Enter")
+  await expect(
+    founderPage.getByRole("textbox", { name: "Founder input" })
+  ).toBeVisible()
+  await founderPage.addInitScript(() => {
+    Object.defineProperty(window, "MediaRecorder", {
+      configurable: true,
+      value: undefined,
+    })
+  })
+  await founderPage.reload()
+  await founderPage.getByRole("button", { name: "Record input" }).click()
+  await expect(
+    founderPage.getByText("Voice recording unavailable", { exact: true })
+  ).toBeVisible()
+  await founderPage.getByRole("button", { name: "Type input" }).click()
   await expect(
     founderPage.getByRole("textbox", { name: "Founder input" })
   ).toBeVisible()

@@ -9,6 +9,8 @@ import { useServerFn } from "@tanstack/react-start"
 import { ArrowLeft, ExternalLink } from "lucide-react"
 
 import {
+  createFounderVoiceUploadUrl,
+  finalizeFounderVoiceCapture,
   getContentRequest,
   getContentRequestContext,
   getContextDeckPreferences,
@@ -16,11 +18,14 @@ import {
   getFounderVersionHistory,
   listAssignablePrincipals,
   listFounderArchivedVersions,
+  listFounderVoiceCaptures,
   listOpenSemanticConflicts,
   openContentRequest,
+  markFounderVoiceTranscriptMerged,
   pullFounderAutomergeChanges,
   redoFounderInput,
   restoreFounderArchivedVersion,
+  retryFounderVoiceCapture,
   saveContextDeckPreferences,
   submitFounderAutomergeChanges,
   undoFounderInput,
@@ -32,6 +37,7 @@ import { SemanticConflictPanel } from "@/components/semantic-conflict-panel"
 import { UnifiedContextCanvas } from "@/components/unified-context-canvas"
 import type { ContextDeckPreferences } from "@/application/content-requests"
 import { useFounderAutomerge } from "@/hooks/use-founder-automerge"
+import { useFounderVoiceInput } from "@/hooks/use-founder-voice-input"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -295,6 +301,11 @@ function FounderRequestCanvas({
   const loadArchive = useServerFn(listFounderArchivedVersions)
   const restoreArchived = useServerFn(restoreFounderArchivedVersion)
   const assertSynced = useServerFn(assertFounderInputSynced)
+  const createVoiceUpload = useServerFn(createFounderVoiceUploadUrl)
+  const finalizeVoice = useServerFn(finalizeFounderVoiceCapture)
+  const loadVoiceCaptures = useServerFn(listFounderVoiceCaptures)
+  const retryVoiceCapture = useServerFn(retryFounderVoiceCapture)
+  const markVoiceMerged = useServerFn(markFounderVoiceTranscriptMerged)
   const transport = useMemo(
     () => ({
       pull: (documentId: string) =>
@@ -343,6 +354,45 @@ function FounderRequestCanvas({
     initialDocumentId,
     transport,
   })
+  const voiceTransport = useMemo(
+    () => ({
+      createUploadUrl: () =>
+        createVoiceUpload({ data: { humanId: request.humanId } }),
+      finalize: (input: {
+        clientCaptureId: string
+        storageId: string
+        mimeType: string
+        sizeBytes: number
+        durationMs: number
+        recordedAt: number
+        correlationId: string
+      }) => finalizeVoice({ data: { humanId: request.humanId, ...input } }),
+      list: () => loadVoiceCaptures({ data: { humanId: request.humanId } }),
+      retry: (captureId: string) =>
+        retryVoiceCapture({
+          data: { humanId: request.humanId, captureId },
+        }),
+      markMerged: (captureId: string) =>
+        markVoiceMerged({
+          data: { humanId: request.humanId, captureId },
+        }),
+    }),
+    [
+      createVoiceUpload,
+      finalizeVoice,
+      loadVoiceCaptures,
+      markVoiceMerged,
+      request.humanId,
+      retryVoiceCapture,
+    ]
+  )
+  const voiceInput = useFounderVoiceInput({
+    requestHumanId: request.humanId,
+    ownerKey: preferenceOwnerKey,
+    transport: voiceTransport,
+    appendTranscript: founderDocument.appendVoiceTranscript,
+    ensureDurablySynced: founderDocument.ensureDurablySynced,
+  })
 
   return (
     <UnifiedContextCanvas
@@ -365,6 +415,7 @@ function FounderRequestCanvas({
         onRedo: founderDocument.redo,
         onLoadOlderHistory: founderDocument.loadOlderHistory,
         onRestoreArchivedVersion: founderDocument.restoreArchivedVersion,
+        voice: voiceInput,
       }}
     />
   )

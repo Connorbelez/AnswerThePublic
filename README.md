@@ -112,6 +112,17 @@ saving whitespace does not. Only the assigned founder can read or mutate raw
 draft text. Operators and agents receive the minimal `hasFounderDraft` and
 updated-at metadata needed to understand progress, never the private content.
 
+The same input surface can capture voice with explicit record, pause, resume,
+and stop controls. Audio is written to an owner-scoped IndexedDB queue before
+upload, so an offline recording survives reload and synchronizes through Convex
+Storage after connectivity returns. Its storage reference and provider
+transcript remain attached to the same founder-input document. A completed
+transcript is appended to the Automerge text only after the document is durably
+synced; upload and transcription failures expose retry actions without changing
+typed input. Configure the server-side transcription action with
+`FAIRLEND_TRANSCRIPTION_API_URL`, `FAIRLEND_TRANSCRIPTION_API_KEY`, and the
+optional `FAIRLEND_TRANSCRIPTION_MODEL`.
+
 Founder text is an Automerge document persisted through an owner-scoped
 `IndexedDBStorageAdapter`; a same-owner BroadcastChannel merges open tabs, while
 the authenticated Convex transport stores content-addressed binary changes and

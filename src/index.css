@@ -928,6 +928,15 @@
   gap: 0.75rem;
   padding: 1rem;
   color: #214f40;
+  overflow-y: auto;
+  flex-wrap: wrap;
+}
+
+.unified-editor__record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
 }
 
 .unified-editor__record-preview > svg {

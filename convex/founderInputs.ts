@@ -54,6 +54,8 @@ type CanonicalFounderDocument = {
   requestHumanId: string
   schemaVersion: 1
   text: string
+  voiceTranscripts?: Record<string, { text: string; recordedAt: number }>
+  seenVoiceCaptureIds?: Record<string, boolean>
 }
 
 type TimelineDocument = {
@@ -118,16 +120,47 @@ function canonicalFounderDocument(
       Automerge.init<CanonicalFounderDocument>(),
       encodedChanges.map(base64Bytes)
     )
+    const voiceTranscripts = document.voiceTranscripts
     if (
       document.schemaVersion !== 1 ||
       document.requestHumanId !== humanId ||
       typeof document.text !== "string" ||
-      document.text.length > 100_000
+      (voiceTranscripts !== undefined &&
+        (typeof voiceTranscripts !== "object" ||
+          voiceTranscripts === null ||
+          Array.isArray(voiceTranscripts) ||
+          Object.keys(voiceTranscripts).length > 100 ||
+          Object.entries(voiceTranscripts).some(
+            ([captureId, transcript]) =>
+              !captureId ||
+              captureId.length > 100 ||
+              typeof transcript !== "object" ||
+              transcript === null ||
+              typeof transcript.text !== "string" ||
+              transcript.text.length > 25_000 ||
+              !Number.isFinite(transcript.recordedAt)
+          )))
     ) {
       throw new Error("Founder document schema mismatch")
     }
+    const materializedText = [
+      document.text.trimEnd(),
+      ...Object.entries(voiceTranscripts ?? {})
+        .filter(([captureId]) => !document.seenVoiceCaptureIds?.[captureId])
+        .sort(
+          ([leftId, left], [rightId, right]) =>
+            left.recordedAt - right.recordedAt || leftId.localeCompare(rightId)
+        )
+        .map(([, transcript]) => transcript.text.trim())
+        .filter(Boolean),
+    ]
+      .filter((part) => part.trim())
+      .join("\n\n")
+    if (materializedText.length > 100_000) {
+      throw new Error("Founder document length exceeded")
+    }
     return {
-      text: document.text,
+      text: materializedText,
       heads: [...Automerge.getHeads(document)].sort(),
     }
   } catch {

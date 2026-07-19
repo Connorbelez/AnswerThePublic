@@ -19,11 +19,13 @@ import type {
 import { nextDistinctArchivePage } from "@/lib/founder-version-history"
 import {
   applyFounderText,
+  appendFounderVoiceTranscript,
   decodeAutomergeChange,
   encodeAutomergeChange,
   founderDocumentHeads,
   hashAutomergeChange,
   mergeFounderChanges,
+  materializedFounderText,
   partitionAutomergeChanges,
   type FounderAutomergeDocument,
 } from "@/lib/founder-automerge"
@@ -226,7 +228,10 @@ class FounderAutomergeSession {
     }
     writeLocalValue(localDocumentKey, handle.url)
     const stagedText = readLocalValue(localDraftKey)
-    if (stagedText !== null && stagedText !== handle.doc().text) {
+    if (
+      stagedText !== null &&
+      stagedText !== materializedFounderText(handle.doc())
+    ) {
       handle.update((document) =>
         applyFounderText(document, stagedText, "Recover staged offline input")
       )
@@ -247,7 +252,7 @@ class FounderAutomergeSession {
   }
 
   get text() {
-    return this.handle.doc().text
+    return materializedFounderText(this.handle.doc())
   }
 
   get heads() {
@@ -257,6 +262,16 @@ class FounderAutomergeSession {
   setText(text: string, message = "Edit founder input") {
     writeLocalValue(this.localDraftKey, text)
     this.handle.update((document) => applyFounderText(document, text, message))
+  }
+
+  appendVoiceTranscript(
+    captureId: string,
+    transcript: string,
+    recordedAt: number
+  ) {
+    this.handle.update((document) =>
+      appendFounderVoiceTranscript(document, captureId, transcript, recordedAt)
+    )
   }
 
   clearStagedDraft() {
@@ -347,6 +362,9 @@ export function useFounderAutomerge({
   const transportRef = useRef(transport)
   const dirtyRef = useRef(false)
   const pendingTextRef = useRef<string | null>(null)
+  const pendingVoiceRef = useRef<
+    Array<{ captureId: string; transcript: string; recordedAt: number }>
+  >([])
 
   useEffect(() => {
     transportRef.current = transport
@@ -505,6 +523,14 @@ export function useFounderAutomerge({
           pendingTextRef.current = null
           await session.flushLocal()
         }
+        for (const pending of pendingVoiceRef.current) {
+          session.appendVoiceTranscript(
+            pending.captureId,
+            pending.transcript,
+            pending.recordedAt
+          )
+        }
+        pendingVoiceRef.current = []
         if (cancelled) {
           await session.close()
           return
@@ -567,6 +593,26 @@ export function useFounderAutomerge({
       scheduleSync()
     },
     [humanId, ownerKey, scheduleSync]
+  )
+
+  const appendVoiceTranscript = useCallback(
+    (captureId: string, addition: string, recordedAt: number) => {
+      const normalized = addition.trim()
+      if (!normalized) return
+      const session = sessionRef.current
+      if (!session) {
+        pendingVoiceRef.current.push({
+          captureId,
+          transcript: normalized,
+          recordedAt,
+        })
+        return
+      }
+      session.appendVoiceTranscript(captureId, normalized, recordedAt)
+      void session.flushLocal()
+      scheduleSync()
+    },
+    [scheduleSync]
   )
 
   const moveHistory = useCallback(
@@ -651,6 +697,7 @@ export function useFounderAutomerge({
     archiveEntries,
     archiveDone,
     setText: updateText,
+    appendVoiceTranscript,
     syncNow,
     undo: () => moveHistory("undo"),
     redo: () => moveHistory("redo"),

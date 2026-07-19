@@ -11,10 +11,14 @@ import {
   Maximize2,
   Mic,
   Minimize2,
+  Pause,
   Pin,
+  Play,
   Redo2,
+  RotateCcw,
   ScrollText,
   Sparkles,
+  Square,
   Undo2,
 } from "lucide-react"
 
@@ -271,6 +275,30 @@ export function UnifiedContextCanvas({
     onRedo(): void | Promise<void>
     onLoadOlderHistory(): void | Promise<void>
     onRestoreArchivedVersion(versionId: string): void | Promise<void>
+    voice?: {
+      supported: boolean
+      state:
+        | "idle"
+        | "requesting"
+        | "recording"
+        | "paused"
+        | "saving"
+        | "transcribing"
+        | "failed"
+      elapsedMs: number
+      errorCode: string | null
+      queuedCount: number
+      captures: Array<{
+        captureId: string
+        status: "uploaded" | "transcribing" | "transcribed" | "failed"
+        failureCode: string | null
+      }>
+      start(): void | Promise<void>
+      pause(): void
+      resume(): void
+      stop(): void | Promise<void>
+      retry(captureId?: string): void | Promise<void>
+    }
   }
 }) {
   const items = useMemo(
@@ -849,11 +877,121 @@ export function UnifiedContextCanvas({
             />
           ) : (
             <div className="unified-editor__record-preview">
-              <Mic aria-hidden="true" />
-              <div>
-                <strong>Voice input</strong>
-                <span>Ready to record your perspective</span>
-              </div>
+              {!draftController?.voice?.supported ? (
+                <div role="status">
+                  <strong>Voice recording unavailable</strong>
+                  <span>
+                    This browser cannot capture audio. Your typed input is still
+                    available under Type.
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <Mic aria-hidden="true" />
+                  <div aria-live="polite">
+                    <strong>
+                      {draftController.voice.state === "recording"
+                        ? "Recording"
+                        : draftController.voice.state === "paused"
+                          ? "Recording paused"
+                          : draftController.voice.state === "requesting"
+                            ? "Requesting microphone access"
+                            : draftController.voice.state === "saving"
+                              ? "Audio saved locally"
+                              : draftController.voice.state === "transcribing"
+                                ? "Transcribing audio"
+                                : draftController.voice.state === "failed"
+                                  ? "Voice input needs attention"
+                                  : "Voice input"}
+                    </strong>
+                    <span>
+                      {draftController.voice.errorCode === "PERMISSION_DENIED"
+                        ? "Microphone permission was denied. Typed input was not changed."
+                        : draftController.voice.errorCode
+                          ? `Could not finish voice input (${draftController.voice.errorCode}). Typed input is safe.`
+                          : draftController.voice.queuedCount > 0
+                            ? `${draftController.voice.queuedCount} recording queued for upload.`
+                            : `${Math.floor(
+                                draftController.voice.elapsedMs / 60_000
+                              )
+                                .toString()
+                                .padStart(2, "0")}:${Math.floor(
+                                (draftController.voice.elapsedMs % 60_000) /
+                                  1_000
+                              )
+                                .toString()
+                                .padStart(2, "0")}`}
+                    </span>
+                  </div>
+                  <div className="unified-editor__record-actions">
+                    {draftController.voice.state === "recording" ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={draftController.voice.pause}
+                      >
+                        <Pause /> Pause
+                      </Button>
+                    ) : draftController.voice.state === "paused" ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={draftController.voice.resume}
+                      >
+                        <Play /> Resume
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        disabled={[
+                          "requesting",
+                          "saving",
+                          "transcribing",
+                        ].includes(draftController.voice.state)}
+                        onClick={() => void draftController.voice?.start()}
+                      >
+                        <Mic /> Start recording
+                      </Button>
+                    )}
+                    {["recording", "paused"].includes(
+                      draftController.voice.state
+                    ) ? (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={() => void draftController.voice?.stop()}
+                      >
+                        <Square /> Stop
+                      </Button>
+                    ) : null}
+                    {draftController.voice.state === "failed" ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => void draftController.voice?.retry()}
+                      >
+                        <RotateCcw /> Retry upload
+                      </Button>
+                    ) : null}
+                  </div>
+                  {draftController.voice.captures
+                    .filter((capture) => capture.status === "failed")
+                    .map((capture) => (
+                      <Button
+                        key={capture.captureId}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          void draftController.voice?.retry(capture.captureId)
+                        }
+                      >
+                        Retry transcription
+                        {capture.failureCode ? ` (${capture.failureCode})` : ""}
+                      </Button>
+                    ))}
+                </>
+              )}
             </div>
           )}
         </div>

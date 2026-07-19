@@ -5,6 +5,7 @@ import type {
   AssignRequestInput,
   ContextDeckPreferences,
   CreateManualRequestInput,
+  FinalizeFounderVoiceCaptureInput,
 } from "@/application/content-requests"
 
 export const listContentRequests = createServerFn({ method: "POST" }).handler(
@@ -153,6 +154,58 @@ export const restoreFounderArchivedVersion = createServerFn({ method: "POST" })
       data.versionId,
       data.correlationId
     )
+  })
+
+export const createFounderVoiceUploadUrl = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).createFounderVoiceUploadUrl(data.humanId)
+  })
+
+export const finalizeFounderVoiceCapture = createServerFn({ method: "POST" })
+  .validator((data: FinalizeFounderVoiceCaptureInput) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).finalizeFounderVoiceCapture(data)
+  })
+
+export const listFounderVoiceCaptures = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).listFounderVoiceCaptures(data.humanId)
+  })
+
+export const retryFounderVoiceCapture = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string; captureId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).retryFounderVoiceCapture(data.humanId, data.captureId)
+  })
+
+export const markFounderVoiceTranscriptMerged = createServerFn({
+  method: "POST",
+})
+  .validator((data: { humanId: string; captureId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).markFounderVoiceTranscriptMerged(data.humanId, data.captureId)
   })
 
 export const undoFounderInput = createServerFn({ method: "POST" })

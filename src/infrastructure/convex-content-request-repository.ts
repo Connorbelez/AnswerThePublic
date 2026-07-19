@@ -160,6 +160,32 @@ export function createConvexContentRequestRepository({
         }
       )
     },
+    async createFounderVoiceUploadUrl(humanId) {
+      return (await client()).mutation(api.voiceCaptures.createUploadUrl, {
+        humanId,
+      })
+    },
+    async finalizeFounderVoiceCapture(input) {
+      return (await client()).mutation(api.voiceCaptures.finalizeUpload, {
+        ...input,
+        storageId: input.storageId as Id<"_storage">,
+      })
+    },
+    async listFounderVoiceCaptures(humanId) {
+      return (await client()).query(api.voiceCaptures.listMine, { humanId })
+    },
+    async retryFounderVoiceCapture(humanId, captureId) {
+      return (await client()).mutation(api.voiceCaptures.retry, {
+        humanId,
+        captureId: captureId as Id<"founderVoiceCaptures">,
+      })
+    },
+    async markFounderVoiceTranscriptMerged(humanId, captureId) {
+      return (await client()).mutation(api.voiceCaptures.markTranscriptMerged, {
+        humanId,
+        captureId: captureId as Id<"founderVoiceCaptures">,
+      })
+    },
     async undoFounderInput(humanId, correlationId) {
       return (await client()).mutation(api.founderInputs.undo, {
         humanId,

@@ -289,6 +289,38 @@ export default defineSchema({
     "actorPrincipalId",
     "correlationId",
   ]),
+  founderVoiceCaptures: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    documentId: v.id("founderInputDocuments"),
+    founderPrincipalId: v.id("principals"),
+    clientCaptureId: v.string(),
+    storageId: v.id("_storage"),
+    mimeType: v.string(),
+    sizeBytes: v.number(),
+    durationMs: v.number(),
+    recordedAt: v.optional(v.number()),
+    status: v.union(
+      v.literal("uploaded"),
+      v.literal("transcribing"),
+      v.literal("transcribed"),
+      v.literal("failed")
+    ),
+    transcript: v.optional(v.string()),
+    failureCode: v.optional(v.string()),
+    transcriptionLeaseExpiresAt: v.optional(v.number()),
+    attempts: v.number(),
+    retryAttemptCount: v.optional(v.number()),
+    transcriptMergedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_document_created_at", ["documentId", "createdAt"])
+    .index("by_organization_founder_client", [
+      "organizationId",
+      "founderPrincipalId",
+      "clientCaptureId",
+    ]),
   migrationConflicts: defineTable({
     organizationId: v.string(),
     type: v.literal("normalized_source_url_collision"),

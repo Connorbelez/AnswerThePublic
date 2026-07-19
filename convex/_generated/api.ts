@@ -16,6 +16,7 @@ import type * as notifications from "../notifications"
 import type * as migrations from "../migrations"
 import type * as scoutIngestions from "../scoutIngestions"
 import type * as semanticConflicts from "../semanticConflicts"
+import type * as voiceCaptures from "../voiceCaptures"
 
 const fullApi: ApiFromModules<{
   contentRequests: typeof contentRequests
@@ -25,6 +26,7 @@ const fullApi: ApiFromModules<{
   principals: typeof principals
   scoutIngestions: typeof scoutIngestions
   semanticConflicts: typeof semanticConflicts
+  voiceCaptures: typeof voiceCaptures
 }> = anyApi as any
 
 export const api: FilterApi<

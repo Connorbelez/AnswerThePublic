@@ -122,6 +122,30 @@ export async function createConvexTestContentRequestRepository(
         correlationId,
       })
     },
+    async createFounderVoiceUploadUrl(humanId) {
+      return backend.mutation(api.voiceCaptures.createUploadUrl, { humanId })
+    },
+    async finalizeFounderVoiceCapture(input) {
+      return backend.mutation(api.voiceCaptures.finalizeUpload, {
+        ...input,
+        storageId: input.storageId as Id<"_storage">,
+      })
+    },
+    async listFounderVoiceCaptures(humanId) {
+      return backend.query(api.voiceCaptures.listMine, { humanId })
+    },
+    async retryFounderVoiceCapture(humanId, captureId) {
+      return backend.mutation(api.voiceCaptures.retry, {
+        humanId,
+        captureId: captureId as Id<"founderVoiceCaptures">,
+      })
+    },
+    async markFounderVoiceTranscriptMerged(humanId, captureId) {
+      return backend.mutation(api.voiceCaptures.markTranscriptMerged, {
+        humanId,
+        captureId: captureId as Id<"founderVoiceCaptures">,
+      })
+    },
     async undoFounderInput(humanId, correlationId) {
       return backend.mutation(api.founderInputs.undo, {
         humanId,

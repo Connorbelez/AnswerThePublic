@@ -7,6 +7,27 @@ export type FounderAutomergeDocument = {
   requestHumanId: string
   schemaVersion: typeof FOUNDER_AUTOMERGE_SCHEMA_VERSION
   text: string
+  voiceTranscripts?: Record<string, { text: string; recordedAt: number }>
+  seenVoiceCaptureIds?: Record<string, boolean>
+}
+
+export function materializedFounderText(
+  document: Pick<
+    FounderAutomergeDocument,
+    "text" | "voiceTranscripts" | "seenVoiceCaptureIds"
+  >
+) {
+  const transcripts = Object.entries(document.voiceTranscripts ?? {})
+    .filter(([captureId]) => !document.seenVoiceCaptureIds?.[captureId])
+    .sort(
+      ([leftId, left], [rightId, right]) =>
+        left.recordedAt - right.recordedAt || leftId.localeCompare(rightId)
+    )
+    .map(([, transcript]) => transcript.text.trim())
+    .filter(Boolean)
+  return [document.text.trimEnd(), ...transcripts]
+    .filter((part) => part.trim())
+    .join("\n\n")
 }
 
 function initializationActor(requestHumanId: string) {
@@ -54,7 +75,7 @@ export function applyFounderText(
   text: string,
   message = "Edit founder input"
 ) {
-  if (document.text === text) return document
+  if (materializedFounderText(document) === text) return document
   const difference = textDiff(document.text, text)
   return Automerge.change(document, message, (draft) => {
     Automerge.splice(
@@ -64,7 +85,36 @@ export function applyFounderText(
       difference.deleteCount,
       difference.insertion
     )
+    if (!draft.seenVoiceCaptureIds) draft.seenVoiceCaptureIds = {}
+    for (const captureId of Object.keys(draft.voiceTranscripts ?? {})) {
+      draft.seenVoiceCaptureIds[captureId] = true
+      delete draft.voiceTranscripts?.[captureId]
+    }
   })
+}
+
+export function appendFounderVoiceTranscript(
+  document: Automerge.Doc<FounderAutomergeDocument>,
+  captureId: string,
+  transcript: string,
+  recordedAt: number
+) {
+  const normalized = transcript.trim()
+  if (
+    !normalized ||
+    document.seenVoiceCaptureIds?.[captureId] ||
+    document.voiceTranscripts?.[captureId]?.text === normalized
+  ) {
+    return document
+  }
+  return Automerge.change(
+    document,
+    "Append founder voice transcript",
+    (draft) => {
+      if (!draft.voiceTranscripts) draft.voiceTranscripts = {}
+      draft.voiceTranscripts[captureId] = { text: normalized, recordedAt }
+    }
+  )
 }
 
 export function encodeAutomergeChange(change: Uint8Array) {

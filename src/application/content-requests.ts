@@ -179,6 +179,32 @@ export type FounderVersionArchivePage = {
   continueCursor: string
 }
 
+export type FounderVoiceCapture = {
+  captureId: string
+  clientCaptureId: string
+  mimeType: string
+  sizeBytes: number
+  durationMs: number
+  recordedAt: number
+  status: "uploaded" | "transcribing" | "transcribed" | "failed"
+  transcript: string | null
+  failureCode: string | null
+  transcriptMergedAt: number | null
+  createdAt: number
+  updatedAt: number
+}
+
+export type FinalizeFounderVoiceCaptureInput = {
+  humanId: string
+  clientCaptureId: string
+  storageId: string
+  mimeType: string
+  sizeBytes: number
+  durationMs: number
+  recordedAt: number
+  correlationId: string
+}
+
 export type SemanticConflict = {
   conflictId: string
   requestHumanId: string
@@ -253,6 +279,19 @@ export interface ContentRequestRepository {
     versionId: string,
     correlationId: string
   ): Promise<FounderInputDocument>
+  createFounderVoiceUploadUrl(humanId: string): Promise<string>
+  finalizeFounderVoiceCapture(
+    input: FinalizeFounderVoiceCaptureInput
+  ): Promise<FounderVoiceCapture>
+  listFounderVoiceCaptures(humanId: string): Promise<Array<FounderVoiceCapture>>
+  retryFounderVoiceCapture(
+    humanId: string,
+    captureId: string
+  ): Promise<FounderVoiceCapture>
+  markFounderVoiceTranscriptMerged(
+    humanId: string,
+    captureId: string
+  ): Promise<FounderVoiceCapture>
   undoFounderInput(
     humanId: string,
     correlationId: string
@@ -323,6 +362,19 @@ export interface ContentRequestService {
     versionId: string,
     correlationId: string
   ): Promise<FounderInputDocument>
+  createFounderVoiceUploadUrl(humanId: string): Promise<string>
+  finalizeFounderVoiceCapture(
+    input: FinalizeFounderVoiceCaptureInput
+  ): Promise<FounderVoiceCapture>
+  listFounderVoiceCaptures(humanId: string): Promise<Array<FounderVoiceCapture>>
+  retryFounderVoiceCapture(
+    humanId: string,
+    captureId: string
+  ): Promise<FounderVoiceCapture>
+  markFounderVoiceTranscriptMerged(
+    humanId: string,
+    captureId: string
+  ): Promise<FounderVoiceCapture>
   undoFounderInput(
     humanId: string,
     correlationId: string
@@ -388,6 +440,16 @@ export function createContentRequestService(
         versionId,
         correlationId
       ),
+    createFounderVoiceUploadUrl: (humanId) =>
+      repository.createFounderVoiceUploadUrl(humanId),
+    finalizeFounderVoiceCapture: (input) =>
+      repository.finalizeFounderVoiceCapture(input),
+    listFounderVoiceCaptures: (humanId) =>
+      repository.listFounderVoiceCaptures(humanId),
+    retryFounderVoiceCapture: (humanId, captureId) =>
+      repository.retryFounderVoiceCapture(humanId, captureId),
+    markFounderVoiceTranscriptMerged: (humanId, captureId) =>
+      repository.markFounderVoiceTranscriptMerged(humanId, captureId),
     undoFounderInput: (humanId, correlationId) =>
       repository.undoFounderInput(humanId, correlationId),
     redoFounderInput: (humanId, correlationId) =>

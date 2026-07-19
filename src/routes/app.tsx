@@ -54,7 +54,9 @@ function ApplicationShell() {
         </div>
         <div className="identity">
           <NotificationCentre notifications={session.notifications} />
-          <SignOutControl />
+          <SignOutControl
+            ownerKey={`${session.organizationId}:${session.principalId}`}
+          />
           <div className="identity__copy">
             <strong>{session.displayName}</strong>
             <span>{roleLabels[session.role]}</span>
