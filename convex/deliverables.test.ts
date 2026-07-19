@@ -226,12 +226,21 @@ describe("deliverable versions and promotion", () => {
       correlationId: "fresh-promotion",
     })
     expect(applied.outcome).toBe("applied")
-    const stale = await workspace.mutation(api.deliverables.promote, {
+    const promotionApproval = await workspace.query(
+      api.contentRequests.getByHumanId,
+      { humanId: request.humanId }
+    )
+    const stalePromotionCommand = {
       deliverableId: primary.deliverableId,
       versionId: third.currentCandidateVersionId!,
       expectedPromotedVersionId: first.promotedVersionId,
       correlationId: "stale-promotion",
-    })
+      expectedAggregateVersion: promotionApproval!.aggregateVersion,
+    }
+    const stale = await workspace.mutation(
+      api.deliverables.promote,
+      stalePromotionCommand
+    )
     expect(stale).toMatchObject({
       outcome: "attention_required",
       conflict: { field: "promotedVersionId" },
@@ -239,12 +248,10 @@ describe("deliverable versions and promotion", () => {
     expect(stale.deliverable.promotedVersionId).toBe(
       second.currentCandidateVersionId
     )
-    const replay = await workspace.mutation(api.deliverables.promote, {
-      deliverableId: primary.deliverableId,
-      versionId: third.currentCandidateVersionId!,
-      expectedPromotedVersionId: first.promotedVersionId,
-      correlationId: "stale-promotion",
-    })
+    const replay = await workspace.mutation(
+      api.deliverables.promote,
+      stalePromotionCommand
+    )
     expect(replay.conflict?.conflictId).toBe(stale.conflict?.conflictId)
 
     const derivativeOne = await workspace.mutation(
@@ -271,12 +278,21 @@ describe("deliverable versions and promotion", () => {
       expectedPrimaryDeliverableId: primary.deliverableId,
       correlationId: "fresh-primary",
     })
-    const stalePrimary = await workspace.mutation(api.deliverables.setPrimary, {
+    const primaryApproval = await workspace.query(
+      api.contentRequests.getByHumanId,
+      { humanId: request.humanId }
+    )
+    const stalePrimaryCommand = {
       humanId: request.humanId,
       deliverableId: derivativeTwo.deliverableId,
       expectedPrimaryDeliverableId: primary.deliverableId,
       correlationId: "stale-primary",
-    })
+      expectedAggregateVersion: primaryApproval!.aggregateVersion,
+    }
+    const stalePrimary = await workspace.mutation(
+      api.deliverables.setPrimary,
+      stalePrimaryCommand
+    )
     expect(stalePrimary).toMatchObject({
       outcome: "attention_required",
       conflict: { field: "primaryDeliverableId" },
@@ -285,6 +301,13 @@ describe("deliverable versions and promotion", () => {
       stalePrimary.deliverables.find((deliverable) => deliverable.isPrimary)
         ?.deliverableId
     ).toBe(derivativeOne.deliverableId)
+    const primaryReplay = await workspace.mutation(
+      api.deliverables.setPrimary,
+      stalePrimaryCommand
+    )
+    expect(primaryReplay.conflict?.conflictId).toBe(
+      stalePrimary.conflict?.conflictId
+    )
     const conflicts = await workspace.query(api.semanticConflicts.listOpen, {
       humanId: request.humanId,
     })

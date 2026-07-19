@@ -332,4 +332,47 @@ describe("revocable public request views", () => {
     )
     expect(active).toHaveLength(1)
   })
+
+  it("atomically rejects a share when selected context changed after approval", async () => {
+    const workspace = convexTest(schema, modules)
+    const operator = workspace.withIdentity(identity)
+    await operator.mutation(api.principals.syncCurrent)
+    const request = await operator.mutation(api.contentRequests.createManual, {
+      title: "Context-bound public share",
+      origin: "manual",
+      correlationId: "create-context-bound-share",
+    })
+    const first = await operator.mutation(api.scoutIngestions.upsertContext, {
+      humanId: request.humanId,
+      kind: "talking_points",
+      title: "Approved talking points",
+      bulletPoints: ["Original approved point"],
+      citations: [],
+      correlationId: "context-before-approval",
+    })
+    const approved = await operator.query(api.contentRequests.getByHumanId, {
+      humanId: request.humanId,
+    })
+    await operator.mutation(api.scoutIngestions.upsertContext, {
+      humanId: request.humanId,
+      kind: "talking_points",
+      title: "Approved talking points",
+      bulletPoints: ["Changed after approval"],
+      citations: [],
+      correlationId: "context-after-approval",
+    })
+    await expect(
+      operator.mutation(api.publicShares.create, {
+        humanId: request.humanId,
+        contextItemIds: [first.contextId],
+        deliverableIds: [],
+        correlationId: "stale-context-share",
+        expectedAggregateVersion: approved!.aggregateVersion,
+      })
+    ).rejects.toMatchObject({ data: { code: "CONFIRMATION_STALE" } })
+    const shares = await operator.mutation(api.publicShares.list, {
+      humanId: request.humanId,
+    })
+    expect(shares).toEqual([])
+  })
 })

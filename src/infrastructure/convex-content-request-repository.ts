@@ -157,11 +157,12 @@ export function createConvexContentRequestRepository({
         correlationId,
       })
     },
-    async expire(humanId, reason, correlationId) {
+    async expire(humanId, reason, correlationId, expectedAggregateVersion) {
       return (await client()).mutation(api.requestDisposition.expire, {
         humanId,
         reason,
         correlationId,
+        expectedAggregateVersion,
       })
     },
     async restoreExpired(humanId, expiresAt, correlationId) {
@@ -171,10 +172,11 @@ export function createConvexContentRequestRepository({
         correlationId,
       })
     },
-    async archive(humanId, correlationId) {
+    async archive(humanId, correlationId, expectedAggregateVersion) {
       return (await client()).mutation(api.requestDisposition.archive, {
         humanId,
         correlationId,
+        expectedAggregateVersion,
       })
     },
     async restoreArchived(humanId, correlationId) {
@@ -420,7 +422,8 @@ export function createConvexContentRequestRepository({
       errorCode,
       transient,
       correlationId,
-      leaseGeneration
+      leaseGeneration,
+      expectedAggregateVersion
     ) {
       return (await client()).mutation(api.agentJobs.fail, {
         jobId: jobId as Id<"agentJobs">,
@@ -429,6 +432,7 @@ export function createConvexContentRequestRepository({
         transient,
         correlationId,
         leaseGeneration,
+        expectedAggregateVersion,
       })
     },
     async listDeliverables(humanId) {
@@ -503,10 +507,11 @@ export function createConvexContentRequestRepository({
         deliverableIds: input.deliverableIds as Array<Id<"deliverables">>,
       })
     },
-    async revokePublicShare(shareId, correlationId) {
+    async revokePublicShare(shareId, correlationId, expectedAggregateVersion) {
       return (await client()).mutation(api.publicShares.revoke, {
         shareId: shareId as Id<"publicShares">,
         correlationId,
+        expectedAggregateVersion,
       })
     },
     async confirmDeliveryTarget(input) {

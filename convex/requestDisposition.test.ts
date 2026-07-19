@@ -1132,4 +1132,45 @@ describe("expiration, archival, and linked follow-ups", () => {
       })
     ).rejects.toMatchObject({ data: { code: "ROLE_ACCESS_DENIED" } })
   })
+
+  it("enforces confirmation versions atomically while preserving replay", async () => {
+    const { backend } = await operatorBackend()
+    const request = await backend.mutation(api.contentRequests.createManual, {
+      title: "Atomic confirmed archive",
+      origin: "manual",
+      correlationId: "create-atomic-archive",
+    })
+    await backend.run(async (ctx) => {
+      await ctx.db.patch(request.requestId as Id<"contentRequests">, {
+        aggregateVersion: request.aggregateVersion + 1,
+        updatedAt: Date.now(),
+      })
+    })
+    await expect(
+      backend.mutation(api.requestDisposition.archive, {
+        humanId: request.humanId,
+        correlationId: "stale-confirmed-archive",
+        expectedAggregateVersion: request.aggregateVersion,
+      })
+    ).rejects.toMatchObject({ data: { code: "CONFIRMATION_STALE" } })
+
+    const current = await backend.query(api.contentRequests.getByHumanId, {
+      humanId: request.humanId,
+    })
+    const command = {
+      humanId: request.humanId,
+      correlationId: "confirmed-archive-replay",
+      expectedAggregateVersion: current!.aggregateVersion,
+    }
+    const archived = await backend.mutation(
+      api.requestDisposition.archive,
+      command
+    )
+    const replay = await backend.mutation(
+      api.requestDisposition.archive,
+      command
+    )
+    expect(archived.retention).toBe("archived")
+    expect(replay.requestId).toBe(archived.requestId)
+  })
 })

@@ -140,6 +140,7 @@ export const create = mutation({
     deliverableIds: v.array(v.id("deliverables")),
     expiresAt: v.optional(v.number()),
     correlationId: v.string(),
+    expectedAggregateVersion: v.optional(v.number()),
   },
   returns: v.object({ share: shareSummary, token: v.string() }),
   handler: async (ctx, args) => {
@@ -189,6 +190,11 @@ export const create = mutation({
         token: replayToken,
       }
     }
+    if (
+      args.expectedAggregateVersion !== undefined &&
+      request.aggregateVersion !== args.expectedAggregateVersion
+    )
+      throw new ConvexError({ code: "CONFIRMATION_STALE" })
     if (args.contextItemIds.length + args.deliverableIds.length === 0)
       throw new ConvexError({ code: "SHARE_SELECTION_REQUIRED" })
     if (args.contextItemIds.length > 50 || args.deliverableIds.length > 50)
@@ -324,7 +330,11 @@ export const create = mutation({
 })
 
 export const revoke = mutation({
-  args: { shareId: v.id("publicShares"), correlationId: v.string() },
+  args: {
+    shareId: v.id("publicShares"),
+    correlationId: v.string(),
+    expectedAggregateVersion: v.optional(v.number()),
+  },
   returns: shareSummary,
   handler: async (ctx, args) => {
     const principal = await requirePrincipal(ctx)
@@ -335,6 +345,11 @@ export const revoke = mutation({
     if (share.revokedAt) return summary(share)
     const request = await ctx.db.get(share.requestId)
     if (!request) throw new ConvexError({ code: "NOT_FOUND" })
+    if (
+      args.expectedAggregateVersion !== undefined &&
+      request.aggregateVersion !== args.expectedAggregateVersion
+    )
+      throw new ConvexError({ code: "CONFIRMATION_STALE" })
     const now = Date.now()
     await ctx.db.patch(share._id, {
       active: false,

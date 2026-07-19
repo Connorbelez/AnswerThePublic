@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { createContentRequestServiceForApiRequest } from "@/application/content-request-api-service.server"
+import {
+  createContentRequestServiceForAgentApiRequest,
+  createContentRequestServiceForApiRequest,
+} from "@/application/content-request-api-service.server"
 import { createScoutIngestionServiceForRequest } from "@/application/scout-ingestion-service-request.server"
 import { AuthenticationRequiredError } from "@/application/workspace-session"
 
@@ -86,6 +89,34 @@ describe("WorkOS agent installation credential contract", () => {
         new Request("https://fairlend.test/api/v1/cli/scout-ingestions", {
           headers: { authorization: "Bearer revoked_agent_key" },
         }),
+        vi.fn().mockResolvedValue(null)
+      )
+    ).rejects.toBeInstanceOf(AuthenticationRequiredError)
+  })
+
+  it("requires a verified agent installation for the private ChatGPT connector", async () => {
+    process.env.FAIRLEND_CONVEX_AGENT_ADMIN_KEY = "server-only-admin-key"
+    const installation = {
+      subject: "workos-agent:chatgpt_private_app",
+      organizationId: "org_fairlend",
+      credentialId: "workos-registration:agent_reg_chatgpt",
+    }
+    const service = await createContentRequestServiceForAgentApiRequest(
+      new Request("https://fairlend.test/api/chatgpt/mcp", {
+        headers: { authorization: "Bearer wk_agent_chatgpt_secret" },
+      }),
+      "chatgpt_app",
+      vi.fn().mockResolvedValue(installation)
+    )
+    expect(service.createManual).toBeTypeOf("function")
+
+    const humanJwt = `header.${btoa(JSON.stringify({ sub: "user_123" }))}.sig`
+    await expect(
+      createContentRequestServiceForAgentApiRequest(
+        new Request("https://fairlend.test/api/chatgpt/mcp", {
+          headers: { authorization: `Bearer ${humanJwt}` },
+        }),
+        "chatgpt_app",
         vi.fn().mockResolvedValue(null)
       )
     ).rejects.toBeInstanceOf(AuthenticationRequiredError)

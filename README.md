@@ -225,6 +225,10 @@ The initial HTTP contract is available at:
   projection, cursor/limit arguments, and stable per-command
   `idempotencyKey` values. Errors always expose stable `code` and `message`
   fields.
+- `GET|POST /api/chatgpt/mcp` — private, revocation-aware Streamable HTTP MCP
+  adapter for ChatGPT. It exposes the complete shared V1 registry as read,
+  write, and explicitly confirmed consequential tools; see
+  [`docs/private-chatgpt-app.md`](docs/private-chatgpt-app.md).
 
 The API accepts the signed-in WorkOS session or a WorkOS bearer access token.
 Every create requires or generates a correlation ID and produces an audit event.

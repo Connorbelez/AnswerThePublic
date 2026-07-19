@@ -600,13 +600,18 @@ export async function executeAgentControlCommand(
         text(a, "correlationId")
       )
       break
-    case "request.expire":
-      result = await service.expire(
+    case "request.expire": {
+      const args = [
         text(a, "humanId"),
         text(a, "reason"),
-        text(a, "correlationId")
-      )
+        text(a, "correlationId"),
+      ] as const
+      result =
+        typeof a.expectedAggregateVersion === "number"
+          ? await service.expire(...args, a.expectedAggregateVersion)
+          : await service.expire(...args)
       break
+    }
     case "request.restore_expired":
       result = await service.restoreExpired(
         text(a, "humanId"),
@@ -614,12 +619,14 @@ export async function executeAgentControlCommand(
         text(a, "correlationId")
       )
       break
-    case "request.archive":
-      result = await service.archive(
-        text(a, "humanId"),
-        text(a, "correlationId")
-      )
+    case "request.archive": {
+      const args = [text(a, "humanId"), text(a, "correlationId")] as const
+      result =
+        typeof a.expectedAggregateVersion === "number"
+          ? await service.archive(...args, a.expectedAggregateVersion)
+          : await service.archive(...args)
       break
+    }
     case "request.restore_archived":
       result = await service.restoreArchived(
         text(a, "humanId"),
@@ -702,16 +709,21 @@ export async function executeAgentControlCommand(
         finiteNumber(a, "leaseGeneration")
       )
       break
-    case "job.fail":
-      result = await service.failAgentJob(
+    case "job.fail": {
+      const args = [
         text(a, "jobId"),
         text(a, "leaseToken"),
         text(a, "errorCode"),
         a.transient === undefined ? true : boolean(a, "transient"),
         text(a, "correlationId"),
-        finiteNumber(a, "leaseGeneration")
-      )
+        finiteNumber(a, "leaseGeneration"),
+      ] as const
+      result =
+        typeof a.expectedAggregateVersion === "number"
+          ? await service.failAgentJob(...args, a.expectedAggregateVersion)
+          : await service.failAgentJob(...args)
       break
+    }
     case "deliverable.list":
       result = await service.listDeliverables(text(a, "humanId"))
       break
@@ -763,12 +775,14 @@ export async function executeAgentControlCommand(
     case "share.create":
       result = await service.createPublicShare(a as never)
       break
-    case "share.revoke":
-      result = await service.revokePublicShare(
-        text(a, "shareId"),
-        text(a, "correlationId")
-      )
+    case "share.revoke": {
+      const args = [text(a, "shareId"), text(a, "correlationId")] as const
+      result =
+        typeof a.expectedAggregateVersion === "number"
+          ? await service.revokePublicShare(...args, a.expectedAggregateVersion)
+          : await service.revokePublicShare(...args)
       break
+    }
     case "audit.list":
       result = await service.listAuditEvents(
         text(a, "humanId"),

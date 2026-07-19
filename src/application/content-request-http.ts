@@ -63,6 +63,12 @@ export function safeErrorResponse(error: unknown, validationStatus = 400) {
     return jsonError(404, code, "The selected assignee was not found.")
   if (code === "LEASE_LOST")
     return jsonError(409, code, "The job lease is no longer active.")
+  if (code === "CONFIRMATION_STALE")
+    return jsonError(
+      409,
+      code,
+      "The approved request state changed; preview the action again."
+    )
   if (
     code === "DELIVERED_PRIMARY_LOCKED" ||
     code === "DELIVERABLE_ARCHIVED" ||

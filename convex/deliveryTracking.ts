@@ -385,6 +385,7 @@ export const setRequired = mutation({
     targetId: v.id("deliveryTargets"),
     isRequired: v.boolean(),
     correlationId: v.string(),
+    expectedAggregateVersion: v.optional(v.number()),
   },
   returns: targetValidator,
   handler: async (ctx, args) => {
@@ -407,6 +408,11 @@ export const setRequired = mutation({
       fingerprint
     )
     if (replay) return publicTarget(ctx, target)
+    if (
+      args.expectedAggregateVersion !== undefined &&
+      request.aggregateVersion !== args.expectedAggregateVersion
+    )
+      throw new ConvexError({ code: "CONFIRMATION_STALE" })
     requireActiveRequest(request)
     if (target.retention !== "active")
       throw new ConvexError({ code: "NOT_FOUND" })
@@ -447,6 +453,7 @@ export const setRetention = mutation({
     targetId: v.id("deliveryTargets"),
     retention: v.union(v.literal("active"), v.literal("archived")),
     correlationId: v.string(),
+    expectedAggregateVersion: v.optional(v.number()),
   },
   returns: targetValidator,
   handler: async (ctx, args) => {
@@ -473,6 +480,11 @@ export const setRetention = mutation({
         ctx,
         await targetForPrincipal(ctx, principal.organizationId, replay.targetId)
       )
+    if (
+      args.expectedAggregateVersion !== undefined &&
+      request.aggregateVersion !== args.expectedAggregateVersion
+    )
+      throw new ConvexError({ code: "CONFIRMATION_STALE" })
     requireActiveRequest(request)
     if (target.retention === args.retention)
       throw new ConvexError({ code: "DELIVERY_TARGET_RETENTION_UNCHANGED" })
@@ -592,6 +604,7 @@ export const confirm = mutation({
     note: v.optional(v.string()),
     integrationSuccessId: v.optional(v.id("integrationDeliverySuccesses")),
     correlationId: v.string(),
+    expectedAggregateVersion: v.optional(v.number()),
   },
   returns: targetValidator,
   handler: async (ctx, args) => {
@@ -631,6 +644,11 @@ export const confirm = mutation({
         ctx,
         await targetForPrincipal(ctx, principal.organizationId, replay.targetId)
       )
+    if (
+      args.expectedAggregateVersion !== undefined &&
+      request.aggregateVersion !== args.expectedAggregateVersion
+    )
+      throw new ConvexError({ code: "CONFIRMATION_STALE" })
     requireActiveRequest(request)
     if (
       target.retention !== "active" ||
@@ -729,7 +747,11 @@ export const confirm = mutation({
 })
 
 export const reopen = mutation({
-  args: { targetId: v.id("deliveryTargets"), correlationId: v.string() },
+  args: {
+    targetId: v.id("deliveryTargets"),
+    correlationId: v.string(),
+    expectedAggregateVersion: v.optional(v.number()),
+  },
   returns: targetValidator,
   handler: async (ctx, args) => {
     const principal = await requirePrincipal(ctx)
@@ -757,6 +779,11 @@ export const reopen = mutation({
         throw new ConvexError({ code: "IDEMPOTENCY_KEY_REUSED" })
       return publicTarget(ctx, target)
     }
+    if (
+      args.expectedAggregateVersion !== undefined &&
+      request.aggregateVersion !== args.expectedAggregateVersion
+    )
+      throw new ConvexError({ code: "CONFIRMATION_STALE" })
     requireActiveRequest(request)
     if (target.retention !== "active")
       throw new ConvexError({ code: "NOT_FOUND" })

@@ -17,6 +17,10 @@ export type RequestLifecycle =
 export type RequestDisposition = "active" | "expired"
 export type RequestRetention = "active" | "archived"
 
+export type AggregateVersionPrecondition = {
+  expectedAggregateVersion?: number
+}
+
 export type OriginalSource = {
   question?: string
   body?: string
@@ -541,14 +545,19 @@ export interface ContentRequestRepository {
   expire(
     humanId: string,
     reason: string,
-    correlationId: string
+    correlationId: string,
+    expectedAggregateVersion?: number
   ): Promise<ContentRequest>
   restoreExpired(
     humanId: string,
     expiresAt: number | null,
     correlationId: string
   ): Promise<ContentRequest>
-  archive(humanId: string, correlationId: string): Promise<ContentRequest>
+  archive(
+    humanId: string,
+    correlationId: string,
+    expectedAggregateVersion?: number
+  ): Promise<ContentRequest>
   restoreArchived(
     humanId: string,
     correlationId: string
@@ -673,7 +682,8 @@ export interface ContentRequestRepository {
     errorCode: string,
     transient: boolean,
     correlationId: string,
-    leaseGeneration: number
+    leaseGeneration: number,
+    expectedAggregateVersion?: number
   ): Promise<AgentJob>
   listDeliverables(humanId: string): Promise<Array<Deliverable>>
   createDerivativeDeliverable(input: {
@@ -694,12 +704,14 @@ export interface ContentRequestRepository {
     versionId: string
     expectedPromotedVersionId: string | null
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<DeliverablePromotionResult>
   setPrimaryDeliverable(input: {
     humanId: string
     deliverableId: string
     expectedPrimaryDeliverableId: string
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<PrimaryDeliverableResult>
   listDeliveryTargets(humanId: string): Promise<Array<DeliveryTarget>>
   listArchivedDeliveryTargets(
@@ -719,11 +731,13 @@ export interface ContentRequestRepository {
     targetId: string
     isRequired: boolean
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<DeliveryTarget>
   setDeliveryTargetRetention(input: {
     targetId: string
     retention: "active" | "archived"
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<DeliveryTarget>
   listPublicShares(humanId: string): Promise<Array<PublicShareSummary>>
   createPublicShare(input: {
@@ -732,10 +746,12 @@ export interface ContentRequestRepository {
     deliverableIds: Array<string>
     expiresAt?: number
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<{ share: PublicShareSummary; token: string }>
   revokePublicShare(
     shareId: string,
-    correlationId: string
+    correlationId: string,
+    expectedAggregateVersion?: number
   ): Promise<PublicShareSummary>
   confirmDeliveryTarget(input: {
     targetId: string
@@ -743,10 +759,12 @@ export interface ContentRequestRepository {
     note?: string
     integrationSuccessId?: string
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<DeliveryTarget>
   reopenDeliveryTarget(input: {
     targetId: string
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<DeliveryTarget>
   proposeAssigneeChange(
     input: AssigneeChangeProposal
@@ -756,6 +774,7 @@ export interface ContentRequestRepository {
     conflictId: string
     selectedValue: string
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<SemanticConflict>
 }
 
@@ -782,14 +801,19 @@ export interface ContentRequestService {
   expire(
     humanId: string,
     reason: string,
-    correlationId: string
+    correlationId: string,
+    expectedAggregateVersion?: number
   ): Promise<ContentRequest>
   restoreExpired(
     humanId: string,
     expiresAt: number | null,
     correlationId: string
   ): Promise<ContentRequest>
-  archive(humanId: string, correlationId: string): Promise<ContentRequest>
+  archive(
+    humanId: string,
+    correlationId: string,
+    expectedAggregateVersion?: number
+  ): Promise<ContentRequest>
   restoreArchived(
     humanId: string,
     correlationId: string
@@ -914,7 +938,8 @@ export interface ContentRequestService {
     errorCode: string,
     transient: boolean,
     correlationId: string,
-    leaseGeneration: number
+    leaseGeneration: number,
+    expectedAggregateVersion?: number
   ): Promise<AgentJob>
   listDeliverables(humanId: string): Promise<Array<Deliverable>>
   createDerivativeDeliverable(input: {
@@ -935,12 +960,14 @@ export interface ContentRequestService {
     versionId: string
     expectedPromotedVersionId: string | null
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<DeliverablePromotionResult>
   setPrimaryDeliverable(input: {
     humanId: string
     deliverableId: string
     expectedPrimaryDeliverableId: string
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<PrimaryDeliverableResult>
   listDeliveryTargets(humanId: string): Promise<Array<DeliveryTarget>>
   listArchivedDeliveryTargets(
@@ -960,11 +987,13 @@ export interface ContentRequestService {
     targetId: string
     isRequired: boolean
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<DeliveryTarget>
   setDeliveryTargetRetention(input: {
     targetId: string
     retention: "active" | "archived"
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<DeliveryTarget>
   listPublicShares(humanId: string): Promise<Array<PublicShareSummary>>
   createPublicShare(input: {
@@ -973,10 +1002,12 @@ export interface ContentRequestService {
     deliverableIds: Array<string>
     expiresAt?: number
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<{ share: PublicShareSummary; token: string }>
   revokePublicShare(
     shareId: string,
-    correlationId: string
+    correlationId: string,
+    expectedAggregateVersion?: number
   ): Promise<PublicShareSummary>
   confirmDeliveryTarget(input: {
     targetId: string
@@ -984,10 +1015,12 @@ export interface ContentRequestService {
     note?: string
     integrationSuccessId?: string
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<DeliveryTarget>
   reopenDeliveryTarget(input: {
     targetId: string
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<DeliveryTarget>
   proposeAssigneeChange(
     input: AssigneeChangeProposal
@@ -997,6 +1030,7 @@ export interface ContentRequestService {
     conflictId: string
     selectedValue: string
     correlationId: string
+    expectedAggregateVersion?: number
   }): Promise<SemanticConflict>
 }
 
@@ -1017,12 +1051,17 @@ export function createContentRequestService(
     open: (humanId, correlationId) => repository.open(humanId, correlationId),
     setExpiration: (humanId, expiresAt, correlationId) =>
       repository.setExpiration(humanId, expiresAt, correlationId),
-    expire: (humanId, reason, correlationId) =>
-      repository.expire(humanId, reason, correlationId),
+    expire: (humanId, reason, correlationId, expectedAggregateVersion) =>
+      repository.expire(
+        humanId,
+        reason,
+        correlationId,
+        expectedAggregateVersion
+      ),
     restoreExpired: (humanId, expiresAt, correlationId) =>
       repository.restoreExpired(humanId, expiresAt, correlationId),
-    archive: (humanId, correlationId) =>
-      repository.archive(humanId, correlationId),
+    archive: (humanId, correlationId, expectedAggregateVersion) =>
+      repository.archive(humanId, correlationId, expectedAggregateVersion),
     restoreArchived: (humanId, correlationId) =>
       repository.restoreArchived(humanId, correlationId),
     createFollowUp: (input) => repository.createFollowUp(input),
@@ -1112,7 +1151,8 @@ export function createContentRequestService(
       errorCode,
       transient,
       correlationId,
-      leaseGeneration
+      leaseGeneration,
+      expectedAggregateVersion
     ) =>
       repository.failAgentJob(
         jobId,
@@ -1120,7 +1160,8 @@ export function createContentRequestService(
         errorCode,
         transient,
         correlationId,
-        leaseGeneration
+        leaseGeneration,
+        expectedAggregateVersion
       ),
     listDeliverables: (humanId) => repository.listDeliverables(humanId),
     createDerivativeDeliverable: (input) =>
@@ -1140,8 +1181,12 @@ export function createContentRequestService(
       repository.setDeliveryTargetRetention(input),
     listPublicShares: (humanId) => repository.listPublicShares(humanId),
     createPublicShare: (input) => repository.createPublicShare(input),
-    revokePublicShare: (shareId, correlationId) =>
-      repository.revokePublicShare(shareId, correlationId),
+    revokePublicShare: (shareId, correlationId, expectedAggregateVersion) =>
+      repository.revokePublicShare(
+        shareId,
+        correlationId,
+        expectedAggregateVersion
+      ),
     confirmDeliveryTarget: (input) => repository.confirmDeliveryTarget(input),
     reopenDeliveryTarget: (input) => repository.reopenDeliveryTarget(input),
     proposeAssigneeChange: (input) => repository.proposeAssigneeChange(input),

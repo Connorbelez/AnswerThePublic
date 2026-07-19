@@ -19,6 +19,7 @@ import { Route as AppNewRouteImport } from './routes/app.new'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
 import { Route as ApiAuthSignInRouteImport } from './routes/api/auth/sign-in'
+import { Route as ApiChatgptMcpRouteImport } from './routes/api/chatgpt/mcp'
 import { Route as ApiE2eAutomatedRequestRouteImport } from './routes/api/e2e/automated-request'
 import { Route as ApiE2ePublicShareRouteImport } from './routes/api/e2e/public-share'
 import { Route as ApiV1AgentJobsRouteImport } from './routes/api/v1/agent-jobs'
@@ -87,6 +88,11 @@ const ApiAuthCallbackRoute = ApiAuthCallbackRouteImport.update({
 const ApiAuthSignInRoute = ApiAuthSignInRouteImport.update({
   id: '/api/auth/sign-in',
   path: '/api/auth/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiChatgptMcpRoute = ApiChatgptMcpRouteImport.update({
+  id: '/api/chatgpt/mcp',
+  path: '/api/chatgpt/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiE2eAutomatedRequestRoute = ApiE2eAutomatedRequestRouteImport.update({
@@ -204,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AppIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
+  '/api/chatgpt/mcp': typeof ApiChatgptMcpRoute
   '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
   '/api/e2e/public-share': typeof ApiE2ePublicShareRoute
   '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
@@ -234,6 +241,7 @@ export interface FileRoutesByTo {
   '/app': typeof AppIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
+  '/api/chatgpt/mcp': typeof ApiChatgptMcpRoute
   '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
   '/api/e2e/public-share': typeof ApiE2ePublicShareRoute
   '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
@@ -266,6 +274,7 @@ export interface FileRoutesById {
   '/app/': typeof AppIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
+  '/api/chatgpt/mcp': typeof ApiChatgptMcpRoute
   '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
   '/api/e2e/public-share': typeof ApiE2ePublicShareRoute
   '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
@@ -299,6 +308,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/api/auth/callback'
     | '/api/auth/sign-in'
+    | '/api/chatgpt/mcp'
     | '/api/e2e/automated-request'
     | '/api/e2e/public-share'
     | '/api/v1/agent-jobs'
@@ -329,6 +339,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/api/auth/callback'
     | '/api/auth/sign-in'
+    | '/api/chatgpt/mcp'
     | '/api/e2e/automated-request'
     | '/api/e2e/public-share'
     | '/api/v1/agent-jobs'
@@ -360,6 +371,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/api/auth/callback'
     | '/api/auth/sign-in'
+    | '/api/chatgpt/mcp'
     | '/api/e2e/automated-request'
     | '/api/e2e/public-share'
     | '/api/v1/agent-jobs'
@@ -390,6 +402,7 @@ export interface RootRouteChildren {
   ShareTokenRoute: typeof ShareTokenRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiAuthSignInRoute: typeof ApiAuthSignInRoute
+  ApiChatgptMcpRoute: typeof ApiChatgptMcpRoute
   ApiE2eAutomatedRequestRoute: typeof ApiE2eAutomatedRequestRoute
   ApiE2ePublicShareRoute: typeof ApiE2ePublicShareRoute
   ApiV1AgentJobsRoute: typeof ApiV1AgentJobsRouteWithChildren
@@ -474,6 +487,13 @@ declare module '@tanstack/react-router' {
       path: '/api/auth/sign-in'
       fullPath: '/api/auth/sign-in'
       preLoaderRoute: typeof ApiAuthSignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chatgpt/mcp': {
+      id: '/api/chatgpt/mcp'
+      path: '/api/chatgpt/mcp'
+      fullPath: '/api/chatgpt/mcp'
+      preLoaderRoute: typeof ApiChatgptMcpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/e2e/automated-request': {
@@ -695,6 +715,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShareTokenRoute: ShareTokenRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiAuthSignInRoute: ApiAuthSignInRoute,
+  ApiChatgptMcpRoute: ApiChatgptMcpRoute,
   ApiE2eAutomatedRequestRoute: ApiE2eAutomatedRequestRoute,
   ApiE2ePublicShareRoute: ApiE2ePublicShareRoute,
   ApiV1AgentJobsRoute: ApiV1AgentJobsRouteWithChildren,

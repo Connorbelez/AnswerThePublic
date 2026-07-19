@@ -277,6 +277,7 @@ export const resolve = mutation({
     conflictId: v.id("semanticConflicts"),
     selectedValue: v.string(),
     correlationId: v.string(),
+    expectedAggregateVersion: v.optional(v.number()),
   },
   returns: conflictValidator,
   handler: async (ctx, args) => {
@@ -333,6 +334,11 @@ export const resolve = mutation({
     if (!request || request.organizationId !== actor.organizationId) {
       throw new ConvexError({ code: "NOT_FOUND" })
     }
+    if (
+      args.expectedAggregateVersion !== undefined &&
+      request.aggregateVersion !== args.expectedAggregateVersion
+    )
+      throw new ConvexError({ code: "CONFIRMATION_STALE" })
     requireActiveRequest(request)
     const resolveSingleton = async (
       currentValue: string,

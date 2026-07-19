@@ -254,25 +254,16 @@ async function findOrCreateConflict(
   expectedValue: string,
   correlationId: string
 ) {
-  const replay = await ctx.db
-    .query("semanticConflicts")
-    .withIndex("by_organization_creator_correlation", (q) =>
-      q
-        .eq("organizationId", principal.organizationId)
-        .eq("createdByPrincipalId", principal._id)
-        .eq("correlationId", correlationId)
-    )
-    .unique()
-  if (replay) {
-    if (
-      replay.requestId !== request._id ||
-      replay.field !== field ||
-      replay.proposedValue !== proposedValue ||
-      replay.expectedValue !== expectedValue
-    )
-      throw new ConvexError({ code: "IDEMPOTENCY_KEY_REUSED" })
-    return replay
-  }
+  const replay = await findConflictReplay(
+    ctx,
+    request,
+    principal,
+    field,
+    proposedValue,
+    expectedValue,
+    correlationId
+  )
+  if (replay) return replay
   const now = Date.now()
   const conflictId = await ctx.db.insert("semanticConflicts", {
     organizationId: principal.organizationId,
@@ -297,6 +288,37 @@ async function findOrCreateConflict(
   const conflict = await ctx.db.get(conflictId)
   if (!conflict) throw new ConvexError({ code: "WRITE_FAILED" })
   return conflict
+}
+
+async function findConflictReplay(
+  ctx: MutationCtx,
+  request: Doc<"contentRequests">,
+  principal: Awaited<ReturnType<typeof requirePrincipal>>,
+  field: "primaryDeliverableId" | "promotedVersionId",
+  proposedValue: string,
+  expectedValue: string,
+  correlationId: string
+) {
+  const replay = await ctx.db
+    .query("semanticConflicts")
+    .withIndex("by_organization_creator_correlation", (q) =>
+      q
+        .eq("organizationId", principal.organizationId)
+        .eq("createdByPrincipalId", principal._id)
+        .eq("correlationId", correlationId)
+    )
+    .unique()
+  if (replay) {
+    if (
+      replay.requestId !== request._id ||
+      replay.field !== field ||
+      replay.proposedValue !== proposedValue ||
+      replay.expectedValue !== expectedValue
+    )
+      throw new ConvexError({ code: "IDEMPOTENCY_KEY_REUSED" })
+    return replay
+  }
+  return null
 }
 
 export const list = query({
@@ -532,6 +554,7 @@ export const promote = mutation({
     versionId: v.id("deliverableVersions"),
     expectedPromotedVersionId: v.union(v.id("deliverableVersions"), v.null()),
     correlationId: v.string(),
+    expectedAggregateVersion: v.optional(v.number()),
   },
   returns: promotionResultValidator,
   handler: async (ctx, args) => {
@@ -571,6 +594,26 @@ export const promote = mutation({
         conflict: null,
       }
     }
+    const replayedConflict = await findConflictReplay(
+      ctx,
+      request,
+      principal,
+      "promotedVersionId",
+      version._id,
+      args.expectedPromotedVersionId ?? "",
+      correlationId
+    )
+    if (replayedConflict)
+      return {
+        outcome: "attention_required" as const,
+        deliverable: await publicDeliverable(ctx, deliverable),
+        conflict: publicConflict(request.humanId, replayedConflict),
+      }
+    if (
+      args.expectedAggregateVersion !== undefined &&
+      request.aggregateVersion !== args.expectedAggregateVersion
+    )
+      throw new ConvexError({ code: "CONFIRMATION_STALE" })
     requireActiveRequest(request)
     if ((deliverable.retention ?? "active") !== "active")
       throw new ConvexError({ code: "DELIVERABLE_ARCHIVED" })
@@ -644,6 +687,7 @@ export const setPrimary = mutation({
     deliverableId: v.id("deliverables"),
     expectedPrimaryDeliverableId: v.id("deliverables"),
     correlationId: v.string(),
+    expectedAggregateVersion: v.optional(v.number()),
   },
   returns: primaryResultValidator,
   handler: async (ctx, args) => {
@@ -684,6 +728,26 @@ export const setPrimary = mutation({
         deliverables: await listRequestDeliverables(ctx, request._id),
         conflict: null,
       }
+    const replayedConflict = await findConflictReplay(
+      ctx,
+      request,
+      principal,
+      "primaryDeliverableId",
+      selected._id,
+      args.expectedPrimaryDeliverableId,
+      correlationId
+    )
+    if (replayedConflict)
+      return {
+        outcome: "attention_required" as const,
+        deliverables: await listRequestDeliverables(ctx, request._id),
+        conflict: publicConflict(request.humanId, replayedConflict),
+      }
+    if (
+      args.expectedAggregateVersion !== undefined &&
+      request.aggregateVersion !== args.expectedAggregateVersion
+    )
+      throw new ConvexError({ code: "CONFIRMATION_STALE" })
     requireActiveRequest(request)
     if (request.lifecycle === "responded")
       throw new ConvexError({ code: "DELIVERED_PRIMARY_LOCKED" })

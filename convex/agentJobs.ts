@@ -731,6 +731,7 @@ export const fail = mutation({
     transient: v.boolean(),
     correlationId: v.string(),
     leaseGeneration: v.number(),
+    expectedAggregateVersion: v.optional(v.number()),
   },
   returns: jobValidator,
   handler: async (ctx, args) => {
@@ -769,6 +770,11 @@ export const fail = mutation({
     )
       throw new ConvexError({ code: "LEASE_LOST" })
     const request = await requestAcceptingAgentWork(ctx, job)
+    if (
+      args.expectedAggregateVersion !== undefined &&
+      request.aggregateVersion !== args.expectedAggregateVersion
+    )
+      throw new ConvexError({ code: "CONFIRMATION_STALE" })
     const retry = args.transient && job.attempts < job.maxAttempts
     await ctx.db.patch(job._id, {
       status: retry ? "retry_wait" : "failed",

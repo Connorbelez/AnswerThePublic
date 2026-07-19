@@ -786,6 +786,7 @@ export const expire = mutation({
     humanId: v.string(),
     reason: v.string(),
     correlationId: v.string(),
+    expectedAggregateVersion: v.optional(v.number()),
   },
   returns: contentRequestValidator,
   handler: async (ctx, args) => {
@@ -807,6 +808,11 @@ export const expire = mutation({
       if (!replay) throw new ConvexError({ code: "WRITE_FAILED" })
       return toPublicRequest(ctx, replay)
     }
+    if (
+      args.expectedAggregateVersion !== undefined &&
+      request.aggregateVersion !== args.expectedAggregateVersion
+    )
+      throw new ConvexError({ code: "CONFIRMATION_STALE" })
     if (request.retention !== "active") {
       throw new ConvexError({ code: "ARCHIVED_REQUEST" })
     }
@@ -938,7 +944,11 @@ export const restoreExpired = mutation({
 })
 
 export const archive = mutation({
-  args: { humanId: v.string(), correlationId: v.string() },
+  args: {
+    humanId: v.string(),
+    correlationId: v.string(),
+    expectedAggregateVersion: v.optional(v.number()),
+  },
   returns: contentRequestValidator,
   handler: async (ctx, args) => {
     const { actor, request } = await requestForEditor(ctx, args.humanId)
@@ -958,6 +968,11 @@ export const archive = mutation({
       if (!replay) throw new ConvexError({ code: "WRITE_FAILED" })
       return toPublicRequest(ctx, replay)
     }
+    if (
+      args.expectedAggregateVersion !== undefined &&
+      request.aggregateVersion !== args.expectedAggregateVersion
+    )
+      throw new ConvexError({ code: "CONFIRMATION_STALE" })
     if (request.retention === "archived")
       throw new ConvexError({ code: "REQUEST_ALREADY_ARCHIVED" })
     if (request.archiveTransitionToken)
