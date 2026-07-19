@@ -51,3 +51,4 @@ pnpm-workspace.yaml
 # iCloud conflict copies; canonical files omit the " 2" suffix
 * 2.ts
 * 2.tsx
+.vercel
