@@ -12,10 +12,7 @@ function stripConvexTestFallbackGlob(): Plugin {
     transform(code, id) {
       if (!id.includes("/convex-test/dist/index.js")) return null
 
-      return code.replace(
-        'import.meta.glob("../../../convex/**/*.*s")',
-        "{}"
-      )
+      return code.replace('import.meta.glob("../../../convex/**/*.*s")', "{}")
     },
   }
 }
@@ -34,8 +31,7 @@ export default defineConfig(({ mode }) => {
         config: isE2eBuild
           ? {
               vars: {
-                FAIRLEND_E2E_AUTH_KEY:
-                  process.env.FAIRLEND_E2E_AUTH_KEY ?? "",
+                FAIRLEND_E2E_AUTH_KEY: process.env.FAIRLEND_E2E_AUTH_KEY ?? "",
                 FAIRLEND_E2E_ORGANIZATION_ID:
                   process.env.FAIRLEND_E2E_ORGANIZATION_ID ?? "",
               },

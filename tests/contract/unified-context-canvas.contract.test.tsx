@@ -108,6 +108,88 @@ const context = [
 ] satisfies Array<ContentContextItem>
 
 describe("Variant G Unified Context Canvas", () => {
+  it("uses one controlled offline editor with component-backed undo and redo", () => {
+    const onTextChange = vi.fn()
+    const onUndo = vi.fn()
+    const onRedo = vi.fn()
+    const onLoadOlderHistory = vi.fn()
+    const onRestoreArchivedVersion = vi.fn()
+    const view = render(
+      <UnifiedContextCanvas
+        request={{ ...request, humanId: "CR-OFFLINE-CONTROLLED" }}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+        draftController={{
+          text: "Recovered offline input",
+          status: "Offline",
+          canUndo: true,
+          canRedo: false,
+          history: {
+            canUndo: true,
+            canRedo: false,
+            position: 0,
+            length: 1,
+            entries: [
+              {
+                position: 0,
+                state: {
+                  actorPrincipalId: "founder-1",
+                  actorSubject: "Elie",
+                  correlationId: "durable-edit-1",
+                  occurredAt: Date.UTC(2026, 6, 18, 12, 0),
+                },
+              },
+            ],
+          },
+          archiveEntries: [
+            {
+              versionId: "archived-version-1",
+              revision: 1,
+              actorPrincipalId: "founder-1",
+              actorSubject: "Elie",
+              correlationId: "archived-edit-1",
+              occurredAt: Date.UTC(2026, 6, 17, 12, 0),
+            },
+          ],
+          archiveDone: false,
+          onTextChange,
+          onUndo,
+          onRedo,
+          onLoadOlderHistory,
+          onRestoreArchivedVersion,
+        }}
+      />
+    )
+
+    const editor = screen.getByRole("textbox", { name: "Founder input" })
+    expect((editor as HTMLTextAreaElement).value).toBe(
+      "Recovered offline input"
+    )
+    expect(screen.getByRole("status").textContent).toBe("Offline")
+    fireEvent.change(editor, { target: { value: "Local edit" } })
+    expect(onTextChange).toHaveBeenCalledWith("Local edit")
+    fireEvent.click(screen.getByRole("button", { name: "Undo founder input" }))
+    expect(onUndo).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole("button", { name: "History (1)" }))
+    expect(
+      screen.getByRole("list", { name: "Founder input version history" })
+        .textContent
+    ).toContain("Elie · version 1")
+    fireEvent.click(screen.getByRole("button", { name: "Restore" }))
+    expect(onRestoreArchivedVersion).toHaveBeenCalledWith("archived-version-1")
+    fireEvent.click(screen.getByRole("button", { name: "Load older versions" }))
+    expect(onLoadOlderHistory).toHaveBeenCalledOnce()
+    expect(
+      screen
+        .getByRole("button", { name: "Redo founder input" })
+        .hasAttribute("disabled")
+    ).toBe(true)
+    expect(
+      screen.getAllByRole("textbox", { name: "Founder input" })
+    ).toHaveLength(1)
+    view.unmount()
+  })
+
   it("toggles and pins complete context while preserving one mounted editor", () => {
     render(
       <UnifiedContextCanvas

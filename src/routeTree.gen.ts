@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
+import { Route as LogoutRouteImport } from './routes/logout'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as UnauthorizedRouteImport } from './routes/unauthorized'
 import { Route as AppIndexRouteImport } from './routes/app.index'
@@ -34,6 +35,11 @@ const IndexRoute = IndexRouteImport.update({
 const AppRoute = AppRouteImport.update({
   id: '/app',
   path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LogoutRoute = LogoutRouteImport.update({
+  id: '/logout',
+  path: '/logout',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignInRoute = SignInRouteImport.update({
@@ -112,6 +118,7 @@ const ApiV1CliContentRequestsRequestIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
+  '/logout': typeof LogoutRoute
   '/sign-in': typeof SignInRoute
   '/unauthorized': typeof UnauthorizedRoute
   '/app/new': typeof AppNewRoute
@@ -129,6 +136,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/logout': typeof LogoutRoute
   '/sign-in': typeof SignInRoute
   '/unauthorized': typeof UnauthorizedRoute
   '/app/new': typeof AppNewRoute
@@ -148,6 +156,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
+  '/logout': typeof LogoutRoute
   '/sign-in': typeof SignInRoute
   '/unauthorized': typeof UnauthorizedRoute
   '/app/new': typeof AppNewRoute
@@ -168,6 +177,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/app'
+    | '/logout'
     | '/sign-in'
     | '/unauthorized'
     | '/app/new'
@@ -185,6 +195,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/logout'
     | '/sign-in'
     | '/unauthorized'
     | '/app/new'
@@ -203,6 +214,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/app'
+    | '/logout'
     | '/sign-in'
     | '/unauthorized'
     | '/app/new'
@@ -222,6 +234,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
+  LogoutRoute: typeof LogoutRoute
   SignInRoute: typeof SignInRoute
   UnauthorizedRoute: typeof UnauthorizedRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
@@ -247,6 +260,13 @@ declare module '@tanstack/react-router' {
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/logout': {
+      id: '/logout'
+      path: '/logout'
+      fullPath: '/logout'
+      preLoaderRoute: typeof LogoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sign-in': {
@@ -393,6 +413,7 @@ const ApiV1CliContentRequestsRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
+  LogoutRoute: LogoutRoute,
   SignInRoute: SignInRoute,
   UnauthorizedRoute: UnauthorizedRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,

@@ -1,0 +1,9 @@
+{
+  "name": "FairLend Content Requests",
+  "short_name": "Content Requests",
+  "description": "Offline-first founder response workspace",
+  "theme_color": "#f4f0e7",
+  "background_color": "#f4f0e7",
+  "display": "standalone",
+  "start_url": "/app"
+}

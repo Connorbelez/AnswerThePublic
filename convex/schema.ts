@@ -192,15 +192,97 @@ export default defineSchema({
     text: v.string(),
     revision: v.number(),
     hasMeaningfulDraft: v.boolean(),
+    automergeDocumentId: v.optional(v.string()),
+    durableHeads: v.optional(v.array(v.string())),
+    lastSyncedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_request", ["requestId"]),
+  automergeChanges: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    documentId: v.string(),
+    hash: v.string(),
+    data: v.string(),
+    actorPrincipalId: v.id("principals"),
+    correlationId: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_document_created_at", ["documentId", "createdAt"])
+    .index("by_document_hash", ["documentId", "hash"]),
+  automergeDocuments: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    founderPrincipalId: v.id("principals"),
+    documentId: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_document_id", ["documentId"])
+    .index("by_request", ["requestId"]),
   founderInputSaveOperations: defineTable({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),
     actorPrincipalId: v.id("principals"),
     correlationId: v.string(),
     inputFingerprint: v.string(),
+    createdAt: v.number(),
+  }).index("by_organization_actor_correlation", [
+    "organizationId",
+    "actorPrincipalId",
+    "correlationId",
+  ]),
+  founderInputTimelineOperations: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    documentId: v.id("founderInputDocuments"),
+    actorPrincipalId: v.id("principals"),
+    direction: v.union(v.literal("undo"), v.literal("redo")),
+    correlationId: v.string(),
+    result: v.object({
+      text: v.string(),
+      revision: v.number(),
+      hasMeaningfulDraft: v.boolean(),
+      automergeDocumentId: v.optional(v.string()),
+      durableHeads: v.array(v.string()),
+      lastSyncedAt: v.optional(v.number()),
+      updatedAt: v.number(),
+    }),
+    createdAt: v.number(),
+  }).index("by_organization_actor_correlation", [
+    "organizationId",
+    "actorPrincipalId",
+    "correlationId",
+  ]),
+  founderInputVersions: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    documentId: v.id("founderInputDocuments"),
+    text: v.string(),
+    heads: v.array(v.string()),
+    revision: v.number(),
+    actorPrincipalId: v.id("principals"),
+    actorSubject: v.string(),
+    correlationId: v.string(),
+    occurredAt: v.number(),
+  })
+    .index("by_request_occurred_at", ["requestId", "occurredAt"])
+    .index("by_request_correlation", ["requestId", "correlationId"]),
+  founderInputVersionRestoreOperations: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    documentId: v.id("founderInputDocuments"),
+    versionId: v.id("founderInputVersions"),
+    actorPrincipalId: v.id("principals"),
+    correlationId: v.string(),
+    result: v.object({
+      text: v.string(),
+      revision: v.number(),
+      hasMeaningfulDraft: v.boolean(),
+      automergeDocumentId: v.optional(v.string()),
+      durableHeads: v.array(v.string()),
+      lastSyncedAt: v.optional(v.number()),
+      updatedAt: v.number(),
+    }),
     createdAt: v.number(),
   }).index("by_organization_actor_correlation", [
     "organizationId",
@@ -218,6 +300,56 @@ export default defineSchema({
   })
     .index("by_request_type", ["requestId", "type"])
     .index("by_organization_resolved", ["organizationId", "resolved"]),
+  semanticConflicts: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    field: v.union(
+      v.literal("assigneePrincipalId"),
+      v.literal("primaryDeliverableId"),
+      v.literal("promotedVersionId")
+    ),
+    currentValue: v.string(),
+    proposedValue: v.string(),
+    expectedValue: v.string(),
+    status: v.union(v.literal("open"), v.literal("resolved")),
+    createdByPrincipalId: v.id("principals"),
+    correlationId: v.string(),
+    createdAt: v.number(),
+    resolvedByPrincipalId: v.optional(v.id("principals")),
+    resolvedValue: v.optional(v.string()),
+    resolvedAt: v.optional(v.number()),
+  })
+    .index("by_request_status", ["requestId", "status"])
+    .index("by_organization_status", ["organizationId", "status"])
+    .index("by_organization_creator_correlation", [
+      "organizationId",
+      "createdByPrincipalId",
+      "correlationId",
+    ]),
+  semanticConflictOperations: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    actorPrincipalId: v.id("principals"),
+    operation: v.union(v.literal("propose_assignee"), v.literal("resolve")),
+    correlationId: v.string(),
+    expectedValue: v.optional(v.string()),
+    proposedValue: v.optional(v.string()),
+    selectedValue: v.optional(v.string()),
+    sourceConflictId: v.optional(v.id("semanticConflicts")),
+    watcherPrincipalIds: v.optional(v.array(v.id("principals"))),
+    reason: v.optional(v.string()),
+    conflictId: v.optional(v.id("semanticConflicts")),
+    outcome: v.union(
+      v.literal("applied"),
+      v.literal("attention_required"),
+      v.literal("resolved")
+    ),
+    createdAt: v.number(),
+  }).index("by_organization_actor_correlation", [
+    "organizationId",
+    "actorPrincipalId",
+    "correlationId",
+  ]),
   auditEvents: defineTable({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),

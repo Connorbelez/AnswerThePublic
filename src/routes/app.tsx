@@ -7,6 +7,7 @@ import type { WorkspaceRole } from "@/application/workspace-session"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { NotificationCentre } from "@/components/notification-centre"
+import { SignOutControl } from "@/components/sign-out-control"
 import { Separator } from "@/components/ui/separator"
 
 const roleLabels = {
@@ -53,6 +54,7 @@ function ApplicationShell() {
         </div>
         <div className="identity">
           <NotificationCentre notifications={session.notifications} />
+          <SignOutControl />
           <div className="identity__copy">
             <strong>{session.displayName}</strong>
             <span>{roleLabels[session.role]}</span>

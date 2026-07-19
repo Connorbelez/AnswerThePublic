@@ -26,13 +26,34 @@ export async function createConvexTestContentRequestRepository(
       return backend.query(api.contentRequests.resolve, { query })
     },
     async assign(input: AssignRequestInput) {
-      return backend.mutation(api.contentRequests.assign, {
-        ...input,
-        assigneePrincipalId: input.assigneePrincipalId as Id<"principals">,
-        watcherPrincipalIds: input.watcherPrincipalIds?.map(
-          (principalId) => principalId as Id<"principals">
-        ),
+      const current = await backend.query(api.contentRequests.getByHumanId, {
+        humanId: input.humanId,
       })
+      if (!current) throw new Error("Content Request not found")
+      const result = await backend.mutation(
+        api.semanticConflicts.proposeAssigneeChange,
+        {
+          humanId: input.humanId,
+          expectedAssigneePrincipalId: current.assignee
+            .principalId as Id<"principals">,
+          proposedAssigneePrincipalId:
+            input.assigneePrincipalId as Id<"principals">,
+          watcherPrincipalIds: input.watcherPrincipalIds?.map(
+            (principalId) => principalId as Id<"principals">
+          ),
+          reason: input.reason,
+          correlationId: input.correlationId,
+        }
+      )
+      if (result.outcome === "attention_required") {
+        throw new Error(`Attention required: ${result.conflict.conflictId}`)
+      }
+      const saved = await backend.query(api.contentRequests.getByHumanId, {
+        humanId: input.humanId,
+      })
+      if (!saved)
+        throw new Error("Content Request disappeared after assignment")
+      return saved
     },
     async open(humanId, correlationId) {
       return backend.mutation(api.contentRequests.open, {
@@ -74,6 +95,70 @@ export async function createConvexTestContentRequestRepository(
         humanId,
         text,
         correlationId,
+      })
+    },
+    async pullFounderAutomergeChanges(humanId, documentId) {
+      return backend.query(api.founderInputs.pullAutomergeChanges, {
+        humanId,
+        documentId,
+      })
+    },
+    async submitFounderAutomergeChanges(input) {
+      return backend.mutation(api.founderInputs.submitAutomergeChanges, input)
+    },
+    async getFounderVersionHistory(humanId) {
+      return backend.query(api.founderInputs.getVersionHistory, { humanId })
+    },
+    async listFounderArchivedVersions(humanId, cursor) {
+      return backend.query(api.founderInputs.listArchivedVersions, {
+        humanId,
+        paginationOpts: { numItems: 20, cursor },
+      })
+    },
+    async restoreFounderArchivedVersion(humanId, versionId, correlationId) {
+      return backend.mutation(api.founderInputs.restoreArchivedVersion, {
+        humanId,
+        versionId: versionId as Id<"founderInputVersions">,
+        correlationId,
+      })
+    },
+    async undoFounderInput(humanId, correlationId) {
+      return backend.mutation(api.founderInputs.undo, {
+        humanId,
+        correlationId,
+      })
+    },
+    async redoFounderInput(humanId, correlationId) {
+      return backend.mutation(api.founderInputs.redo, {
+        humanId,
+        correlationId,
+      })
+    },
+    async assertFounderInputSynced(humanId, heads) {
+      return backend.query(api.founderInputs.assertDurablySynced, {
+        humanId,
+        heads,
+      })
+    },
+    async proposeAssigneeChange(input) {
+      return backend.mutation(api.semanticConflicts.proposeAssigneeChange, {
+        ...input,
+        expectedAssigneePrincipalId:
+          input.expectedAssigneePrincipalId as Id<"principals">,
+        proposedAssigneePrincipalId:
+          input.proposedAssigneePrincipalId as Id<"principals">,
+        watcherPrincipalIds: input.watcherPrincipalIds?.map(
+          (principalId) => principalId as Id<"principals">
+        ),
+      })
+    },
+    async listOpenSemanticConflicts(humanId) {
+      return backend.query(api.semanticConflicts.listOpen, { humanId })
+    },
+    async resolveSemanticConflict(input) {
+      return backend.mutation(api.semanticConflicts.resolve, {
+        ...input,
+        conflictId: input.conflictId as Id<"semanticConflicts">,
       })
     },
   }

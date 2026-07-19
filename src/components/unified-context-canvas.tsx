@@ -12,14 +12,18 @@ import {
   Mic,
   Minimize2,
   Pin,
+  Redo2,
   ScrollText,
   Sparkles,
+  Undo2,
 } from "lucide-react"
 
 import type {
   ContentContextItem,
   ContentRequest,
   ContextDeckPreferences,
+  FounderArchivedVersion,
+  FounderVersionHistory,
 } from "@/application/content-requests"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -242,6 +246,7 @@ export function UnifiedContextCanvas({
   initialPreferences,
   onPreferencesChange,
   onDraftSave,
+  draftController,
 }: {
   request: ContentRequest
   contextItems: Array<ContentContextItem>
@@ -253,6 +258,20 @@ export function UnifiedContextCanvas({
     correlationId: string
   ) => void | Promise<void>
   onDraftSave?: (text: string, correlationId: string) => Promise<unknown>
+  draftController?: {
+    text: string
+    status: "Saved" | "Saving" | "Offline" | "Save pending" | "Save blocked"
+    canUndo: boolean
+    canRedo: boolean
+    history: FounderVersionHistory | null
+    archiveEntries: Array<FounderArchivedVersion>
+    archiveDone: boolean
+    onTextChange(text: string): void
+    onUndo(): void | Promise<void>
+    onRedo(): void | Promise<void>
+    onLoadOlderHistory(): void | Promise<void>
+    onRestoreArchivedVersion(versionId: string): void | Promise<void>
+  }
 }) {
   const items = useMemo(
     () => contextItemsFor(request, contextItems),
@@ -276,11 +295,14 @@ export function UnifiedContextCanvas({
           .map((item) => item.id)
   )
   const [expanded, setExpanded] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [inputMode, setInputMode] = useState<"type" | "record">("type")
   const [draft, setDraft] = useState(initialDraft)
   const [saveStatus, setSaveStatus] = useState<
     "Saved" | "Saving" | "Offline" | "Save pending" | "Save blocked"
   >("Saved")
+  const displayedSaveStatus = draftController?.status ?? saveStatus
+  const displayedDraft = draftController?.text ?? draft
   const editorRef = useRef<HTMLTextAreaElement>(null)
   const filterPinRefs = useRef(new Map<string, HTMLButtonElement>())
   const preferencesMounted = useRef(false)
@@ -680,12 +702,52 @@ export function UnifiedContextCanvas({
           </ToggleGroup>
           <span
             className="unified-editor__save-status"
-            data-state={saveStatus.toLowerCase()}
+            data-state={displayedSaveStatus.toLowerCase()}
             role="status"
             aria-live="polite"
           >
-            {saveStatus}
+            {displayedSaveStatus}
           </span>
+          {draftController ? (
+            <div
+              className="unified-editor__history-controls"
+              aria-label="Version history"
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Undo founder input"
+                disabled={!draftController.canUndo}
+                onClick={() => void draftController.onUndo()}
+              >
+                <Undo2 />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Redo founder input"
+                disabled={!draftController.canRedo}
+                onClick={() => void draftController.onRedo()}
+              >
+                <Redo2 />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-expanded={historyOpen}
+                aria-controls="founder-version-history"
+                onClick={() => {
+                  setHistoryOpen((current) => !current)
+                  setExpanded(true)
+                }}
+              >
+                <ScrollText /> History ({draftController.history?.length ?? 0})
+              </Button>
+            </div>
+          ) : null}
           <Button
             type="button"
             variant="ghost"
@@ -699,12 +761,80 @@ export function UnifiedContextCanvas({
             {expanded ? "Collapse" : "Expand"}
           </Button>
         </div>
+        {draftController && historyOpen ? (
+          <ol
+            id="founder-version-history"
+            className="unified-editor__version-history"
+            aria-label="Founder input version history"
+          >
+            {draftController.history?.entries.map((entry) => (
+              <li
+                key={`${entry.position}-${entry.state.correlationId}`}
+                aria-current={
+                  draftController.history?.position === entry.position
+                    ? "step"
+                    : undefined
+                }
+              >
+                <span>
+                  {entry.state.actorSubject} · version {entry.position + 1}
+                </span>
+                <time dateTime={new Date(entry.state.occurredAt).toISOString()}>
+                  {new Intl.DateTimeFormat(undefined, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }).format(entry.state.occurredAt)}
+                </time>
+              </li>
+            ))}
+            {draftController.history?.entries.length === 0 ? (
+              <li>No durable versions yet.</li>
+            ) : null}
+            {draftController.archiveEntries.map((entry) => (
+              <li key={`archive-${entry.versionId}`}>
+                <span>
+                  {entry.actorSubject} · archived revision {entry.revision}
+                </span>
+                <time dateTime={new Date(entry.occurredAt).toISOString()}>
+                  {new Intl.DateTimeFormat(undefined, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }).format(entry.occurredAt)}
+                </time>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    void draftController.onRestoreArchivedVersion(
+                      entry.versionId
+                    )
+                  }
+                >
+                  Restore
+                </Button>
+              </li>
+            ))}
+            {!draftController.archiveDone ? (
+              <li>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void draftController.onLoadOlderHistory()}
+                >
+                  Load older versions
+                </Button>
+              </li>
+            ) : null}
+          </ol>
+        ) : null}
         <div className="unified-editor__input">
           {inputMode === "type" ? (
             <Textarea
               ref={editorRef}
               aria-label="Founder input"
-              value={draft}
+              value={displayedDraft}
               onChange={(event) => {
                 if (draftRetryTimer.current !== null) {
                   window.clearTimeout(draftRetryTimer.current)
@@ -712,6 +842,7 @@ export function UnifiedContextCanvas({
                 }
                 draftVersion.current += 1
                 setDraft(event.target.value)
+                draftController?.onTextChange(event.target.value)
                 setSaveStatus(window.navigator.onLine ? "Saving" : "Offline")
               }}
               placeholder="Add your perspective…"

@@ -24,7 +24,10 @@ export const Route = createRootRoute({
         content: "FairLend's content opportunity and response workspace.",
       },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+    ],
   }),
   component: RootComponent,
   shellComponent: RootDocument,

@@ -6,6 +6,8 @@ import type {
   FunctionReference,
 } from "convex/server"
 import { anyApi } from "convex/server"
+import { componentsGeneric } from "convex/server"
+import type { ComponentApi as TimelineComponentApi } from "convex-timeline/_generated/component.js"
 
 import type * as principals from "../principals"
 import type * as contentRequests from "../contentRequests"
@@ -13,6 +15,7 @@ import type * as founderInputs from "../founderInputs"
 import type * as notifications from "../notifications"
 import type * as migrations from "../migrations"
 import type * as scoutIngestions from "../scoutIngestions"
+import type * as semanticConflicts from "../semanticConflicts"
 
 const fullApi: ApiFromModules<{
   contentRequests: typeof contentRequests
@@ -21,6 +24,7 @@ const fullApi: ApiFromModules<{
   migrations: typeof migrations
   principals: typeof principals
   scoutIngestions: typeof scoutIngestions
+  semanticConflicts: typeof semanticConflicts
 }> = anyApi as any
 
 export const api: FilterApi<
@@ -32,3 +36,7 @@ export const internal: FilterApi<
   typeof fullApi,
   FunctionReference<any, "internal">
 > = anyApi as any
+
+export const components = componentsGeneric() as unknown as {
+  timeline: TimelineComponentApi
+}

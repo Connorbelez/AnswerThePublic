@@ -217,7 +217,7 @@ describe("Content Request workflow contract", () => {
       correlationId: "corr-assignment-create",
     })
 
-    const assigned = await operator.mutation(api.contentRequests.assign, {
+    const assigned = await operator.mutation(internal.contentRequests.assign, {
       humanId: created.humanId,
       assigneePrincipalId: founderPrincipal.principalId,
       watcherPrincipalIds: [watcherPrincipal.principalId],
@@ -378,7 +378,7 @@ describe("Content Request workflow contract", () => {
       })
     })
     for (const request of [manual, automated]) {
-      await operator.mutation(api.contentRequests.assign, {
+      await operator.mutation(internal.contentRequests.assign, {
         humanId: request.humanId,
         assigneePrincipalId: founderPrincipal.principalId,
         correlationId: `corr-order-${request.humanId}`,
@@ -440,7 +440,7 @@ describe("Content Request workflow contract", () => {
       origin: "manual",
       correlationId: "corr-open-create-1",
     })
-    await operator.mutation(api.contentRequests.assign, {
+    await operator.mutation(internal.contentRequests.assign, {
       humanId: assigned.humanId,
       assigneePrincipalId: founderPrincipal.principalId,
       correlationId: "corr-open-assign",
@@ -488,7 +488,7 @@ describe("Content Request workflow contract", () => {
     ).toHaveLength(1)
 
     await expect(
-      founder.mutation(api.contentRequests.assign, {
+      founder.mutation(internal.contentRequests.assign, {
         humanId: assigned.humanId,
         assigneePrincipalId: founderPrincipal.principalId,
         correlationId: "corr-founder-denied",
@@ -531,7 +531,7 @@ describe("Content Request workflow contract", () => {
       origin: "manual",
       correlationId: "corr-founder-draft-create",
     })
-    await operator.mutation(api.contentRequests.assign, {
+    await operator.mutation(internal.contentRequests.assign, {
       humanId: created.humanId,
       assigneePrincipalId: founderPrincipal.principalId,
       correlationId: "corr-founder-draft-assign",
@@ -589,7 +589,7 @@ describe("Content Request workflow contract", () => {
       })
     ).rejects.toMatchObject({ data: { code: "ROLE_ACCESS_DENIED" } })
     await expect(
-      operator.mutation(api.contentRequests.assign, {
+      operator.mutation(internal.contentRequests.assign, {
         humanId: created.humanId,
         assigneePrincipalId: otherFounderPrincipal.principalId,
         correlationId: "corr-founder-draft-reassignment",

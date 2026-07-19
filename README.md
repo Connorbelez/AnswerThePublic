@@ -3,7 +3,7 @@
 The production application for turning community questions, journalist requests,
 and digital-PR opportunities into prioritized, research-backed content requests.
 
-Tickets 01 through 06 establish the authenticated production shell and the first
+Tickets 01 through 07 establish the authenticated production shell and the first
 end-to-end Content Request workflow. Authorized editors can create a Critical
 manual request from the mobile web interface, HTTP API, or CLI, preserve original
 source evidence, find it safely, and open its stable route. The remaining workflow
@@ -111,8 +111,36 @@ second editor. Meaningful text advances Pending work to In progress; opening or
 saving whitespace does not. Only the assigned founder can read or mutate raw
 draft text. Operators and agents receive the minimal `hasFounderDraft` and
 updated-at metadata needed to understand progress, never the private content.
-Ticket 07 adds Automerge-backed reload-safe offline editing and version history
-on top of this authorization and lifecycle boundary.
+
+Founder text is an Automerge document persisted through an owner-scoped
+`IndexedDBStorageAdapter`; a same-owner BroadcastChannel merges open tabs, while
+the authenticated Convex transport stores content-addressed binary changes and
+reconstructs the canonical document server-side instead of trusting submitted
+text or heads. Long offline histories are synchronized in bounded batches with
+automatic backoff, and a synchronous owner-scoped write-ahead draft protects
+edits made during initialization or immediately before a reload. A service
+worker keeps the current founder route, build assets, and Automerge WASM
+available after connectivity is lost. Its page cache is namespaced to the active
+verified principal, evicts a different owner's page cache before use, and is
+purged on sign-out or an authentication response. Local heads are compared to
+Convex's durable heads, so downstream submission can call the shared durable-sync
+guard and wait without discarding local work.
+
+Each durable materialization is also pushed to the dedicated `convex-timeline`
+component with actor, correlation, and timestamp attribution. Undo and redo
+remain founder-only, idempotent, audited, and visible in the founder's version
+history panel. The timeline retains 50 bounded instant-undo snapshots and
+projects only attribution metadata to the browser. Every durable materialization
+also enters a paginated immutable archive, so Elie can enumerate and restore
+versions older than the timeline window without loading unbounded full-text
+snapshots; the content-addressed Automerge stream remains the canonical merge
+history. Ordinary text concurrency is merged by Automerge character operations.
+Incompatible singleton updates use the shared semantic-conflict
+workflow instead: both the durable current value and proposed value are
+preserved as `Attention required`, and only an editor can resolve one of those
+recorded values through the operator panel and audited mutation. If the current
+value changes again before resolution, the workflow rebases to a new conflict
+instead of overwriting the third value.
 
 ## Deployment
 

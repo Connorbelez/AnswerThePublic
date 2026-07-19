@@ -1,4 +1,5 @@
 import { ConvexHttpClient } from "convex/browser"
+import { ConvexError } from "convex/values"
 
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
@@ -45,13 +46,37 @@ export function createConvexContentRequestRepository({
       return (await client()).query(api.contentRequests.resolve, { query })
     },
     async assign(input: AssignRequestInput) {
-      return (await client()).mutation(api.contentRequests.assign, {
-        ...input,
-        assigneePrincipalId: input.assigneePrincipalId as Id<"principals">,
-        watcherPrincipalIds: input.watcherPrincipalIds?.map(
-          (principalId) => principalId as Id<"principals">
-        ),
+      const convex = await client()
+      const current = await convex.query(api.contentRequests.getByHumanId, {
+        humanId: input.humanId,
       })
+      if (!current) throw new ConvexError({ code: "NOT_FOUND" })
+      const result = await convex.mutation(
+        api.semanticConflicts.proposeAssigneeChange,
+        {
+          humanId: input.humanId,
+          expectedAssigneePrincipalId: current.assignee
+            .principalId as Id<"principals">,
+          proposedAssigneePrincipalId:
+            input.assigneePrincipalId as Id<"principals">,
+          watcherPrincipalIds: input.watcherPrincipalIds?.map(
+            (principalId) => principalId as Id<"principals">
+          ),
+          reason: input.reason,
+          correlationId: input.correlationId,
+        }
+      )
+      if (result.outcome === "attention_required") {
+        throw new ConvexError({
+          code: "SEMANTIC_CONFLICT",
+          conflict: result.conflict,
+        })
+      }
+      const saved = await convex.query(api.contentRequests.getByHumanId, {
+        humanId: input.humanId,
+      })
+      if (!saved) throw new ConvexError({ code: "WRITE_FAILED" })
+      return saved
     },
     async open(humanId, correlationId) {
       return (await client()).mutation(api.contentRequests.open, {
@@ -100,6 +125,81 @@ export function createConvexContentRequestRepository({
         humanId,
         text,
         correlationId,
+      })
+    },
+    async pullFounderAutomergeChanges(humanId, documentId) {
+      return (await client()).query(api.founderInputs.pullAutomergeChanges, {
+        humanId,
+        documentId,
+      })
+    },
+    async submitFounderAutomergeChanges(input) {
+      return (await client()).mutation(
+        api.founderInputs.submitAutomergeChanges,
+        input
+      )
+    },
+    async getFounderVersionHistory(humanId) {
+      return (await client()).query(api.founderInputs.getVersionHistory, {
+        humanId,
+      })
+    },
+    async listFounderArchivedVersions(humanId, cursor) {
+      return (await client()).query(api.founderInputs.listArchivedVersions, {
+        humanId,
+        paginationOpts: { numItems: 20, cursor },
+      })
+    },
+    async restoreFounderArchivedVersion(humanId, versionId, correlationId) {
+      return (await client()).mutation(
+        api.founderInputs.restoreArchivedVersion,
+        {
+          humanId,
+          versionId: versionId as Id<"founderInputVersions">,
+          correlationId,
+        }
+      )
+    },
+    async undoFounderInput(humanId, correlationId) {
+      return (await client()).mutation(api.founderInputs.undo, {
+        humanId,
+        correlationId,
+      })
+    },
+    async redoFounderInput(humanId, correlationId) {
+      return (await client()).mutation(api.founderInputs.redo, {
+        humanId,
+        correlationId,
+      })
+    },
+    async assertFounderInputSynced(humanId, heads) {
+      return (await client()).query(api.founderInputs.assertDurablySynced, {
+        humanId,
+        heads,
+      })
+    },
+    async proposeAssigneeChange(input) {
+      return (await client()).mutation(
+        api.semanticConflicts.proposeAssigneeChange,
+        {
+          ...input,
+          expectedAssigneePrincipalId:
+            input.expectedAssigneePrincipalId as Id<"principals">,
+          proposedAssigneePrincipalId:
+            input.proposedAssigneePrincipalId as Id<"principals">,
+          watcherPrincipalIds: input.watcherPrincipalIds?.map(
+            (principalId) => principalId as Id<"principals">
+          ),
+        }
+      )
+    },
+    async listOpenSemanticConflicts(humanId) {
+      return (await client()).query(api.semanticConflicts.listOpen, { humanId })
+    },
+    async resolveSemanticConflict(input) {
+      return (await client()).mutation(api.semanticConflicts.resolve, {
+        ...input,
+        conflictId: input.conflictId as Id<"semanticConflicts">,
       })
     },
   }

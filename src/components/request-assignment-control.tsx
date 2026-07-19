@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useRouter } from "@tanstack/react-router"
 import { useServerFn } from "@tanstack/react-start"
 
-import { assignContentRequest } from "@/application/content-request-server-functions"
+import { proposeAssigneeChange } from "@/application/content-request-server-functions"
 import type {
   ContentRequest,
   PrincipalSummary,
@@ -20,7 +20,7 @@ export function RequestAssignmentControl({
   request: ContentRequest
   principals: Array<PrincipalSummary>
 }) {
-  const assign = useServerFn(assignContentRequest)
+  const proposeAssignment = useServerFn(proposeAssigneeChange)
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -34,10 +34,11 @@ export function RequestAssignmentControl({
         setError(null)
         const form = new FormData(event.currentTarget)
         try {
-          await assign({
+          const result = await proposeAssignment({
             data: {
               humanId: request.humanId,
-              assigneePrincipalId: String(form.get("assignee")),
+              expectedAssigneePrincipalId: request.assignee.principalId,
+              proposedAssigneePrincipalId: String(form.get("assignee")),
               watcherPrincipalIds: form
                 .getAll("watchers")
                 .map((value) => String(value)),
@@ -46,6 +47,11 @@ export function RequestAssignmentControl({
             },
           })
           await router.invalidate()
+          if (result.outcome === "attention_required") {
+            setError(
+              "Attention required: another editor changed the assignee. Choose between the preserved values in the conflict panel."
+            )
+          }
         } catch (assignmentError) {
           setError(
             assignmentError instanceof Error

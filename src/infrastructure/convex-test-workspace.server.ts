@@ -1,4 +1,5 @@
 import { convexTest } from "convex-test"
+import timelineTest from "convex-timeline/test"
 
 import { api } from "../../convex/_generated/api"
 import { requestQueueSortKey } from "../../convex/lib/requestOrdering"
@@ -14,6 +15,7 @@ const modules = import.meta.glob([
 ])
 
 const workspace = convexTest(schema, modules)
+timelineTest.register(workspace)
 
 export async function getConvexTestWorkspace(
   identity: ExternalIdentity,

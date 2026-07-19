@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test"
 
+test.setTimeout(60_000)
+
 test("an unauthenticated visitor is sent to the sign-in boundary", async ({
   page,
 }) => {
@@ -306,16 +308,96 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
   await founderInput.fill(founderText)
   await expect(founderPage.getByText("Saving", { exact: true })).toBeVisible()
   await expect(founderPage.getByText("Saved", { exact: true })).toBeVisible()
+  await expect(
+    founderPage.getByRole("button", { name: /History \([1-9]\d*\)/ })
+  ).toBeVisible()
+  await founderPage
+    .getByRole("button", { name: /History \([1-9]\d*\)/ })
+    .click()
+  await expect(
+    founderPage.getByRole("list", { name: "Founder input version history" })
+  ).toContainText("user_elie")
   const requestPath = new URL(founderPage.url()).pathname
   await founderPage.reload()
   await expect(
     founderPage.getByRole("textbox", { name: "Founder input" })
   ).toHaveValue(founderText)
 
+  await founderPage.evaluate(() => navigator.serviceWorker.ready)
+  await expect
+    .poll(() =>
+      founderPage.evaluate(() => Boolean(navigator.serviceWorker.controller))
+    )
+    .toBe(true)
+  await expect(founderPage.locator("html")).toHaveAttribute(
+    "data-offline-ready",
+    "true"
+  )
+  const offlineText = `${founderText} Added without connectivity.`
+  await founderContext.setOffline(true)
+  await founderInput.fill(offlineText)
+  await expect(founderPage.getByText("Offline", { exact: true })).toBeVisible()
+  await founderPage.waitForTimeout(150)
+  if (browserName === "webkit") {
+    await founderPage.evaluate(() => {
+      window.setTimeout(() => window.location.reload(), 0)
+    })
+    await founderPage.waitForLoadState("domcontentloaded")
+  } else {
+    await founderPage.reload()
+  }
+  await expect(
+    founderPage.getByRole("textbox", { name: "Founder input" })
+  ).toHaveValue(offlineText)
+  await expect(founderPage.getByText("Offline", { exact: true })).toBeVisible()
+  await founderContext.setOffline(false)
+  await expect(founderPage.getByText("Saved", { exact: true })).toBeVisible()
+
   await operatorPage.goto(requestPath)
   await expect(operatorPage.getByText("Founder draft saved")).toBeVisible()
   await expect(operatorPage.getByText("In progress")).toBeVisible()
   await expect(operatorPage.getByText(founderText)).toHaveCount(0)
+
+  await founderContext.setOffline(true)
+  const offlineSignOut = await founderPage.evaluate(async () => {
+    const stagedDraftKey = "fairlend:founder-offline-draft:privacy-test"
+    localStorage.setItem(stagedDraftKey, "private founder draft")
+    const cache = await caches.open("fairlend-pages-privacy-test")
+    await cache.put("/private-test", new Response("private"))
+    return new Promise<{
+      pageCachePresent: boolean
+      stagedDraft: string | null
+    }>((resolve, reject) => {
+      const timeout = window.setTimeout(
+        () => reject(new Error("Offline sign-out purge timed out")),
+        5_000
+      )
+      window.addEventListener(
+        "fairlend:private-offline-cleared",
+        () => {
+          void (async () => {
+            window.clearTimeout(timeout)
+            resolve({
+              pageCachePresent: (await caches.keys()).some((name) =>
+                name.startsWith("fairlend-pages-")
+              ),
+              stagedDraft: localStorage.getItem(stagedDraftKey),
+            })
+          })()
+        },
+        { once: true }
+      )
+      const signOut = document.querySelector<HTMLButtonElement>(
+        'button[aria-label="Sign out"]'
+      )
+      if (!signOut) reject(new Error("Sign-out control is missing"))
+      else signOut.click()
+    })
+  })
+  expect(offlineSignOut).toEqual({
+    pageCachePresent: false,
+    stagedDraft: null,
+  })
 
   await operatorContext.close()
   await founderContext.close()

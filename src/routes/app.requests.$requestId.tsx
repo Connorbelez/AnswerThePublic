@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import {
   Link,
   createFileRoute,
@@ -13,15 +13,25 @@ import {
   getContentRequestContext,
   getContextDeckPreferences,
   getFounderInput,
+  getFounderVersionHistory,
   listAssignablePrincipals,
+  listFounderArchivedVersions,
+  listOpenSemanticConflicts,
   openContentRequest,
+  pullFounderAutomergeChanges,
+  redoFounderInput,
+  restoreFounderArchivedVersion,
   saveContextDeckPreferences,
-  saveFounderText,
+  submitFounderAutomergeChanges,
+  undoFounderInput,
+  assertFounderInputSynced,
 } from "@/application/content-request-server-functions"
 import { loadWorkspaceSession } from "@/application/load-workspace-session"
 import { RequestAssignmentControl } from "@/components/request-assignment-control"
+import { SemanticConflictPanel } from "@/components/semantic-conflict-panel"
 import { UnifiedContextCanvas } from "@/components/unified-context-canvas"
 import type { ContextDeckPreferences } from "@/application/content-requests"
+import { useFounderAutomerge } from "@/hooks/use-founder-automerge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -39,6 +49,7 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       contextItems,
       contextDeckPreferences,
       founderInput,
+      semanticConflicts,
     ] = await Promise.all([
       getContentRequest({ data: { humanId: params.requestId } }),
       listAssignablePrincipals(),
@@ -47,6 +58,9 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       session.status === "authenticated" && session.session.role === "founder"
         ? getFounderInput({ data: { humanId: params.requestId } })
         : Promise.resolve(null),
+      session.status === "authenticated" && session.session.role !== "founder"
+        ? listOpenSemanticConflicts({ data: { humanId: params.requestId } })
+        : Promise.resolve([]),
     ])
     if (!request) throw notFound()
     return {
@@ -55,6 +69,7 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       contextItems,
       contextDeckPreferences,
       founderInput,
+      semanticConflicts,
     }
   },
   component: ContentRequestPage,
@@ -89,11 +104,11 @@ function ContentRequestPage() {
     contextItems,
     contextDeckPreferences,
     founderInput,
+    semanticConflicts,
   } = Route.useLoaderData()
   const session = appRoute.useLoaderData()
   const recordOpen = useServerFn(openContentRequest)
   const persistContextDeckPreferences = useServerFn(saveContextDeckPreferences)
-  const persistFounderText = useServerFn(saveFounderText)
   const handleContextDeckPreferences = useCallback(
     async (preferences: ContextDeckPreferences, correlationId: string) => {
       await persistContextDeckPreferences({
@@ -101,14 +116,6 @@ function ContentRequestPage() {
       })
     },
     [persistContextDeckPreferences, request.humanId]
-  )
-  const handleFounderText = useCallback(
-    async (text: string, correlationId: string) => {
-      await persistFounderText({
-        data: { humanId: request.humanId, text, correlationId },
-      })
-    },
-    [persistFounderText, request.humanId]
   )
   const openRecordingState = useRef<{
     requestId: string
@@ -179,15 +186,15 @@ function ContentRequestPage() {
   }, [recordOpen, request.humanId])
   if (session.role === "founder") {
     return (
-      <UnifiedContextCanvas
+      <FounderRequestCanvas
         key={request.humanId}
         request={request}
         contextItems={contextItems}
         preferenceOwnerKey={`${session.organizationId}:${session.principalId}`}
         initialDraft={founderInput?.text ?? ""}
+        initialDocumentId={founderInput?.automergeDocumentId ?? null}
         initialPreferences={contextDeckPreferences}
         onPreferencesChange={handleContextDeckPreferences}
-        onDraftSave={handleFounderText}
       />
     )
   }
@@ -240,6 +247,10 @@ function ContentRequestPage() {
           ) : null}
         </CardContent>
       </Card>
+      <SemanticConflictPanel
+        conflicts={semanticConflicts}
+        principals={principals}
+      />
       <Card>
         <CardHeader>
           <CardTitle>Assignment</CardTitle>
@@ -253,5 +264,108 @@ function ContentRequestPage() {
         </CardContent>
       </Card>
     </main>
+  )
+}
+
+function FounderRequestCanvas({
+  request,
+  contextItems,
+  preferenceOwnerKey,
+  initialDraft,
+  initialDocumentId,
+  initialPreferences,
+  onPreferencesChange,
+}: {
+  request: ReturnType<typeof Route.useLoaderData>["request"]
+  contextItems: ReturnType<typeof Route.useLoaderData>["contextItems"]
+  preferenceOwnerKey: string
+  initialDraft: string
+  initialDocumentId: string | null
+  initialPreferences: ContextDeckPreferences | null
+  onPreferencesChange: (
+    preferences: ContextDeckPreferences,
+    correlationId: string
+  ) => Promise<void>
+}) {
+  const pull = useServerFn(pullFounderAutomergeChanges)
+  const submit = useServerFn(submitFounderAutomergeChanges)
+  const loadHistory = useServerFn(getFounderVersionHistory)
+  const undo = useServerFn(undoFounderInput)
+  const redo = useServerFn(redoFounderInput)
+  const loadArchive = useServerFn(listFounderArchivedVersions)
+  const restoreArchived = useServerFn(restoreFounderArchivedVersion)
+  const assertSynced = useServerFn(assertFounderInputSynced)
+  const transport = useMemo(
+    () => ({
+      pull: (documentId: string) =>
+        pull({ data: { humanId: request.humanId, documentId } }),
+      submit: (input: {
+        documentId: string
+        changes: Array<{ hash: string; data: string }>
+        heads: Array<string>
+        text: string
+        correlationId: string
+      }) => submit({ data: { humanId: request.humanId, ...input } }),
+      history: () => loadHistory({ data: { humanId: request.humanId } }),
+      archive: (cursor: string | null) =>
+        loadArchive({ data: { humanId: request.humanId, cursor } }),
+      restoreArchived: (versionId: string, correlationId: string) =>
+        restoreArchived({
+          data: { humanId: request.humanId, versionId, correlationId },
+        }),
+      undo: (correlationId: string) =>
+        undo({
+          data: { humanId: request.humanId, correlationId },
+        }),
+      redo: (correlationId: string) =>
+        redo({
+          data: { humanId: request.humanId, correlationId },
+        }),
+      assertSynced: (heads: Array<string>) =>
+        assertSynced({ data: { humanId: request.humanId, heads } }),
+    }),
+    [
+      assertSynced,
+      loadArchive,
+      loadHistory,
+      pull,
+      redo,
+      request.humanId,
+      restoreArchived,
+      submit,
+      undo,
+    ]
+  )
+  const founderDocument = useFounderAutomerge({
+    humanId: request.humanId,
+    ownerKey: preferenceOwnerKey,
+    initialText: initialDraft,
+    initialDocumentId,
+    transport,
+  })
+
+  return (
+    <UnifiedContextCanvas
+      request={request}
+      contextItems={contextItems}
+      preferenceOwnerKey={preferenceOwnerKey}
+      initialDraft={initialDraft}
+      initialPreferences={initialPreferences}
+      onPreferencesChange={onPreferencesChange}
+      draftController={{
+        text: founderDocument.text,
+        status: founderDocument.status,
+        canUndo: founderDocument.history?.canUndo ?? false,
+        canRedo: founderDocument.history?.canRedo ?? false,
+        history: founderDocument.history,
+        archiveEntries: founderDocument.archiveEntries,
+        archiveDone: founderDocument.archiveDone,
+        onTextChange: founderDocument.setText,
+        onUndo: founderDocument.undo,
+        onRedo: founderDocument.redo,
+        onLoadOlderHistory: founderDocument.loadOlderHistory,
+        onRestoreArchivedVersion: founderDocument.restoreArchivedVersion,
+      }}
+    />
   )
 }

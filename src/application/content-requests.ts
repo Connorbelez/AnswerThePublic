@@ -134,8 +134,77 @@ export type FounderInputDocument = {
   text: string
   revision: number
   hasMeaningfulDraft: boolean
+  automergeDocumentId: string | null
+  durableHeads: Array<string>
+  lastSyncedAt: number | null
   updatedAt: number
 }
+
+export type FounderAutomergeChange = { hash: string; data: string }
+
+export type FounderAutomergePull = {
+  changes: Array<FounderAutomergeChange>
+  durableHeads: Array<string>
+  materializedText: string | null
+}
+
+export type FounderVersionHistory = {
+  canUndo: boolean
+  canRedo: boolean
+  position: number | null
+  length: number
+  entries: Array<{
+    position: number
+    state: {
+      actorPrincipalId: string
+      actorSubject: string
+      correlationId: string
+      occurredAt: number
+    }
+  }>
+}
+
+export type FounderArchivedVersion = {
+  versionId: string
+  revision: number
+  actorPrincipalId: string
+  actorSubject: string
+  correlationId: string
+  occurredAt: number
+}
+
+export type FounderVersionArchivePage = {
+  page: Array<FounderArchivedVersion>
+  isDone: boolean
+  continueCursor: string
+}
+
+export type SemanticConflict = {
+  conflictId: string
+  requestHumanId: string
+  field: "assigneePrincipalId" | "primaryDeliverableId" | "promotedVersionId"
+  currentValue: string
+  proposedValue: string
+  expectedValue: string
+  status: "open" | "resolved"
+  correlationId: string
+  createdAt: number
+  resolvedValue: string | null
+  resolvedAt: number | null
+}
+
+export type AssigneeChangeProposal = {
+  humanId: string
+  expectedAssigneePrincipalId: string
+  proposedAssigneePrincipalId: string
+  watcherPrincipalIds?: Array<string>
+  reason?: string
+  correlationId: string
+}
+
+export type AssigneeChangeResult =
+  | { outcome: "applied"; conflict: null }
+  | { outcome: "attention_required"; conflict: SemanticConflict }
 
 export interface ContentRequestRepository {
   createManual(input: PersistManualRequestInput): Promise<ContentRequest>
@@ -162,6 +231,49 @@ export interface ContentRequestRepository {
     text: string,
     correlationId: string
   ): Promise<FounderInputDocument>
+  pullFounderAutomergeChanges(
+    humanId: string,
+    documentId: string
+  ): Promise<FounderAutomergePull>
+  submitFounderAutomergeChanges(input: {
+    humanId: string
+    documentId: string
+    changes: Array<FounderAutomergeChange>
+    heads: Array<string>
+    text: string
+    correlationId: string
+  }): Promise<FounderInputDocument>
+  getFounderVersionHistory(humanId: string): Promise<FounderVersionHistory>
+  listFounderArchivedVersions(
+    humanId: string,
+    cursor: string | null
+  ): Promise<FounderVersionArchivePage>
+  restoreFounderArchivedVersion(
+    humanId: string,
+    versionId: string,
+    correlationId: string
+  ): Promise<FounderInputDocument>
+  undoFounderInput(
+    humanId: string,
+    correlationId: string
+  ): Promise<FounderInputDocument>
+  redoFounderInput(
+    humanId: string,
+    correlationId: string
+  ): Promise<FounderInputDocument>
+  assertFounderInputSynced(
+    humanId: string,
+    heads: Array<string>
+  ): Promise<{ synced: boolean; durableHeads: Array<string> }>
+  proposeAssigneeChange(
+    input: AssigneeChangeProposal
+  ): Promise<AssigneeChangeResult>
+  listOpenSemanticConflicts(humanId: string): Promise<Array<SemanticConflict>>
+  resolveSemanticConflict(input: {
+    conflictId: string
+    selectedValue: string
+    correlationId: string
+  }): Promise<SemanticConflict>
 }
 
 export interface ContentRequestService {
@@ -189,6 +301,49 @@ export interface ContentRequestService {
     text: string,
     correlationId: string
   ): Promise<FounderInputDocument>
+  pullFounderAutomergeChanges(
+    humanId: string,
+    documentId: string
+  ): Promise<FounderAutomergePull>
+  submitFounderAutomergeChanges(input: {
+    humanId: string
+    documentId: string
+    changes: Array<FounderAutomergeChange>
+    heads: Array<string>
+    text: string
+    correlationId: string
+  }): Promise<FounderInputDocument>
+  getFounderVersionHistory(humanId: string): Promise<FounderVersionHistory>
+  listFounderArchivedVersions(
+    humanId: string,
+    cursor: string | null
+  ): Promise<FounderVersionArchivePage>
+  restoreFounderArchivedVersion(
+    humanId: string,
+    versionId: string,
+    correlationId: string
+  ): Promise<FounderInputDocument>
+  undoFounderInput(
+    humanId: string,
+    correlationId: string
+  ): Promise<FounderInputDocument>
+  redoFounderInput(
+    humanId: string,
+    correlationId: string
+  ): Promise<FounderInputDocument>
+  assertFounderInputSynced(
+    humanId: string,
+    heads: Array<string>
+  ): Promise<{ synced: boolean; durableHeads: Array<string> }>
+  proposeAssigneeChange(
+    input: AssigneeChangeProposal
+  ): Promise<AssigneeChangeResult>
+  listOpenSemanticConflicts(humanId: string): Promise<Array<SemanticConflict>>
+  resolveSemanticConflict(input: {
+    conflictId: string
+    selectedValue: string
+    correlationId: string
+  }): Promise<SemanticConflict>
 }
 
 export function createContentRequestService(
@@ -219,5 +374,30 @@ export function createContentRequestService(
     getFounderInput: (humanId) => repository.getFounderInput(humanId),
     saveFounderText: (humanId, text, correlationId) =>
       repository.saveFounderText(humanId, text, correlationId),
+    pullFounderAutomergeChanges: (humanId, documentId) =>
+      repository.pullFounderAutomergeChanges(humanId, documentId),
+    submitFounderAutomergeChanges: (input) =>
+      repository.submitFounderAutomergeChanges(input),
+    getFounderVersionHistory: (humanId) =>
+      repository.getFounderVersionHistory(humanId),
+    listFounderArchivedVersions: (humanId, cursor) =>
+      repository.listFounderArchivedVersions(humanId, cursor),
+    restoreFounderArchivedVersion: (humanId, versionId, correlationId) =>
+      repository.restoreFounderArchivedVersion(
+        humanId,
+        versionId,
+        correlationId
+      ),
+    undoFounderInput: (humanId, correlationId) =>
+      repository.undoFounderInput(humanId, correlationId),
+    redoFounderInput: (humanId, correlationId) =>
+      repository.redoFounderInput(humanId, correlationId),
+    assertFounderInputSynced: (humanId, heads) =>
+      repository.assertFounderInputSynced(humanId, heads),
+    proposeAssigneeChange: (input) => repository.proposeAssigneeChange(input),
+    listOpenSemanticConflicts: (humanId) =>
+      repository.listOpenSemanticConflicts(humanId),
+    resolveSemanticConflict: (input) =>
+      repository.resolveSemanticConflict(input),
   }
 }

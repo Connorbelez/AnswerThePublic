@@ -422,6 +422,20 @@
   font-size: 0.85rem;
 }
 
+.semantic-conflict {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid currentColor;
+}
+
+.semantic-conflict__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .request-detail__header {
   padding-block: 1.5rem;
 }
@@ -841,6 +855,49 @@
   color: #b42318;
 }
 
+.unified-editor__history-controls {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.unified-editor__version-history {
+  display: grid;
+  width: calc(100% - 1.5rem);
+  max-height: 8rem;
+  flex: none;
+  gap: 0.25rem;
+  margin: 0.35rem auto 0;
+  padding: 0.5rem;
+  overflow-y: auto;
+  border: 1px solid rgb(23 33 27 / 9%);
+  border-radius: 1rem;
+  background: #fbfaf6;
+  list-style: none;
+}
+
+.unified-editor__version-history li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.65rem;
+  color: rgb(23 33 27 / 72%);
+  font-size: 0.72rem;
+}
+
+.unified-editor__version-history li[aria-current="step"] {
+  background: rgb(46 118 94 / 10%);
+  color: #214f40;
+  font-weight: 700;
+}
+
+.unified-editor__version-history time {
+  flex: none;
+}
+
 .unified-editor__input {
   display: flex;
   min-height: 0;
@@ -910,7 +967,8 @@
   }
 
   .unified-editor__toolbar,
-  .unified-editor__input {
+  .unified-editor__input,
+  .unified-editor__version-history {
     width: min(100% - 2rem, 52rem);
     margin-inline: auto;
   }

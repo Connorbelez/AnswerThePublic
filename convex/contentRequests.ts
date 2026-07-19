@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values"
 
 import type { Doc, Id } from "./_generated/dataModel"
 import {
+  internalMutation,
   mutation,
   query,
   type MutationCtx,
@@ -639,7 +640,7 @@ export const listAssignablePrincipals = query({
   },
 })
 
-export const assign = mutation({
+export const assign = internalMutation({
   args: {
     humanId: v.string(),
     assigneePrincipalId: v.id("principals"),

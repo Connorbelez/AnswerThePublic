@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 
 import type {
+  AssigneeChangeProposal,
   AssignRequestInput,
   ContextDeckPreferences,
   CreateManualRequestInput,
@@ -86,6 +87,140 @@ export const saveFounderText = createServerFn({ method: "POST" })
       data.text,
       data.correlationId
     )
+  })
+
+export const pullFounderAutomergeChanges = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string; documentId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).pullFounderAutomergeChanges(data.humanId, data.documentId)
+  })
+
+export const submitFounderAutomergeChanges = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      humanId: string
+      documentId: string
+      changes: Array<{ hash: string; data: string }>
+      heads: Array<string>
+      text: string
+      correlationId: string
+    }) => data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).submitFounderAutomergeChanges(data)
+  })
+
+export const getFounderVersionHistory = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).getFounderVersionHistory(data.humanId)
+  })
+
+export const listFounderArchivedVersions = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string; cursor: string | null }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).listFounderArchivedVersions(data.humanId, data.cursor)
+  })
+
+export const restoreFounderArchivedVersion = createServerFn({ method: "POST" })
+  .validator(
+    (data: { humanId: string; versionId: string; correlationId: string }) =>
+      data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).restoreFounderArchivedVersion(
+      data.humanId,
+      data.versionId,
+      data.correlationId
+    )
+  })
+
+export const undoFounderInput = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string; correlationId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).undoFounderInput(
+      data.humanId,
+      data.correlationId
+    )
+  })
+
+export const redoFounderInput = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string; correlationId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).redoFounderInput(
+      data.humanId,
+      data.correlationId
+    )
+  })
+
+export const assertFounderInputSynced = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string; heads: Array<string> }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).assertFounderInputSynced(data.humanId, data.heads)
+  })
+
+export const proposeAssigneeChange = createServerFn({ method: "POST" })
+  .validator((data: AssigneeChangeProposal) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).proposeAssigneeChange(data)
+  })
+
+export const listOpenSemanticConflicts = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).listOpenSemanticConflicts(data.humanId)
+  })
+
+export const resolveSemanticConflict = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      conflictId: string
+      selectedValue: string
+      correlationId: string
+    }) => data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).resolveSemanticConflict(data)
   })
 
 export const createManualContentRequest = createServerFn({ method: "POST" })
