@@ -102,9 +102,13 @@ function report(overrides: Partial<typeof opportunity> = {}) {
 }
 
 async function backend() {
-  const value = convexTest(schema, modules).withIdentity(identity)
+  const workspace = convexTest(schema, modules)
+  const value = workspace.withIdentity(identity)
   await value.mutation(api.principals.syncCurrent)
-  return value
+  return Object.assign(value, {
+    withOtherIdentity: (nextIdentity: typeof identity) =>
+      workspace.withIdentity(nextIdentity),
+  })
 }
 
 describe("Scout ingestion workflow contract", () => {
@@ -160,6 +164,98 @@ describe("Scout ingestion workflow contract", () => {
         }),
       ])
     )
+  })
+
+  it("persists context deck visibility and pin preferences by principal/request", async () => {
+    const app = await backend()
+    const result = await app.mutation(api.scoutIngestions.apply, {
+      idempotencyKey: "preferences-source",
+      markdown: report(),
+    })
+    const humanId = result.requestHumanIds[0]
+    const context = await app.query(api.scoutIngestions.listContext, {
+      humanId,
+    })
+    const contextId = context.find(
+      (item) => item.kind === "talking_points"
+    )?.contextId
+    if (!contextId) throw new Error("Missing talking-points context")
+    const preferences = {
+      visibleContextIds: ["original-question", contextId],
+      pinnedContextIds: [contextId],
+      knownContextIds: ["original-question", contextId],
+    }
+    await expect(
+      app.mutation(api.scoutIngestions.saveContextDeckPreferences, {
+        humanId,
+        ...preferences,
+        correlationId: "save-context-preferences",
+      })
+    ).resolves.toEqual(preferences)
+    const events = await app.query(api.contentRequests.listAuditEvents, {
+      humanId,
+    })
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operation: "context_deck.preferences_saved",
+          correlationId: "save-context-preferences",
+        }),
+      ])
+    )
+    await expect(
+      app.query(api.scoutIngestions.getContextDeckPreferences, { humanId })
+    ).resolves.toEqual(preferences)
+    await expect(
+      app.mutation(api.scoutIngestions.saveContextDeckPreferences, {
+        humanId,
+        ...preferences,
+        correlationId: "save-context-preferences",
+      })
+    ).resolves.toEqual(preferences)
+    await expect(
+      app.mutation(api.scoutIngestions.saveContextDeckPreferences, {
+        humanId,
+        ...preferences,
+        pinnedContextIds: [],
+        correlationId: "save-context-preferences",
+      })
+    ).rejects.toMatchObject({ data: { code: "IDEMPOTENCY_KEY_REUSED" } })
+    const rawAudit = await app.run(async (ctx) => {
+      const request = await ctx.db
+        .query("contentRequests")
+        .withIndex("by_organization_human_id", (index) =>
+          index.eq("organizationId", identity.org_id).eq("humanId", humanId)
+        )
+        .unique()
+      if (!request) throw new Error("Missing ingested request")
+      return ctx.db
+        .query("auditEvents")
+        .withIndex("by_request_operation_correlation", (index) =>
+          index
+            .eq("requestId", request._id)
+            .eq("operation", "context_deck.preferences_saved")
+            .eq("correlationId", "save-context-preferences")
+        )
+        .unique()
+    })
+    expect(rawAudit?.inputFingerprint).toMatch(/^fnv1a32:/)
+    expect(rawAudit?.inputFingerprint).not.toContain(contextId)
+
+    const otherEditor = app.withOtherIdentity({
+      ...identity,
+      subject: "agent_scout_two",
+      jti: "credential_scout_two",
+    })
+    await otherEditor.mutation(api.principals.syncCurrent)
+    await expect(
+      otherEditor.mutation(api.scoutIngestions.saveContextDeckPreferences, {
+        humanId,
+        ...preferences,
+        pinnedContextIds: [],
+        correlationId: "save-context-preferences",
+      })
+    ).resolves.toEqual({ ...preferences, pinnedContextIds: [] })
   })
 
   it("replays identical Markdown and rejects key reuse for changed content", async () => {

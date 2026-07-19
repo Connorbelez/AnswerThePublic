@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 
 import type {
   AssignRequestInput,
+  ContextDeckPreferences,
   CreateManualRequestInput,
 } from "@/application/content-requests"
 
@@ -20,6 +21,46 @@ export const getContentRequest = createServerFn({ method: "POST" })
       await import("@/application/content-request-service-request.server")
     return (await createContentRequestServiceFromRequest()).getByHumanId(
       data.humanId
+    )
+  })
+
+export const getContentRequestContext = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).listContext(
+      data.humanId
+    )
+  })
+
+export const getContextDeckPreferences = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).getContextDeckPreferences(data.humanId)
+  })
+
+export const saveContextDeckPreferences = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      humanId: string
+      preferences: ContextDeckPreferences
+      correlationId: string
+    }) => data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).saveContextDeckPreferences(
+      data.humanId,
+      data.preferences,
+      data.correlationId
     )
   })
 

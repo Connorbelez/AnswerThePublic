@@ -16,6 +16,9 @@ function serviceStub(overrides: Partial<ContentRequestService> = {}) {
     listAssignablePrincipals: vi.fn(),
     listMyNotifications: vi.fn(),
     markNotificationRead: vi.fn(),
+    listContext: vi.fn(),
+    getContextDeckPreferences: vi.fn(),
+    saveContextDeckPreferences: vi.fn(),
     ...overrides,
   } satisfies ContentRequestService
 }

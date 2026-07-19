@@ -1,7 +1,12 @@
 import { ConvexError, v } from "convex/values"
 
 import type { Id } from "./_generated/dataModel"
-import { mutation, query } from "./_generated/server"
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server"
 import { requireEditor, requirePrincipal } from "./lib/authorization"
 import { requestQueueSortKey } from "./lib/requestOrdering"
 import { parseScoutReport } from "../src/domain/scout-report"
@@ -23,8 +28,10 @@ const resultValidator = v.object({
 
 const contextKindValidator = v.union(
   v.literal("source_metadata"),
+  v.literal("source_summary"),
   v.literal("talking_points"),
   v.literal("research_requirements"),
+  v.literal("missing_research"),
   v.literal("citations"),
   v.literal("guardrails"),
   v.literal("operator_cue"),
@@ -333,6 +340,7 @@ export const listContext = query({
   args: { humanId: v.string() },
   returns: v.array(
     v.object({
+      contextId: v.string(),
       kind: contextKindValidator,
       title: v.string(),
       bulletPoints: v.array(v.string()),
@@ -341,7 +349,6 @@ export const listContext = query({
   ),
   handler: async (ctx, args) => {
     const principal = await requirePrincipal(ctx)
-    requireEditor(principal)
     const request = await ctx.db
       .query("contentRequests")
       .withIndex("by_organization_human_id", (index) =>
@@ -351,6 +358,13 @@ export const listContext = query({
       )
       .unique()
     if (!request) return []
+    if (
+      principal.role === "founder" &&
+      (request.assigneePrincipalId ?? request.createdByPrincipalId) !==
+        principal._id
+    ) {
+      throw new ConvexError({ code: "RESOURCE_ACCESS_DENIED" })
+    }
     const items = await ctx.db
       .query("contextItems")
       .withIndex("by_request_kind", (index) =>
@@ -358,10 +372,168 @@ export const listContext = query({
       )
       .collect()
     return items.map((item) => ({
+      contextId: item._id,
       kind: item.kind,
       title: item.title,
       bulletPoints: item.bulletPoints,
       citations: item.citations,
     }))
+  },
+})
+
+const contextDeckPreferencesValidator = v.object({
+  visibleContextIds: v.array(v.string()),
+  pinnedContextIds: v.array(v.string()),
+  knownContextIds: v.array(v.string()),
+})
+
+async function contextRequestForPrincipal(
+  ctx: QueryCtx | MutationCtx,
+  humanId: string
+) {
+  const principal = await requirePrincipal(ctx)
+  const request = await ctx.db
+    .query("contentRequests")
+    .withIndex("by_organization_human_id", (index) =>
+      index
+        .eq("organizationId", principal.organizationId)
+        .eq("humanId", humanId)
+    )
+    .unique()
+  if (!request) throw new ConvexError({ code: "NOT_FOUND" })
+  if (
+    principal.role === "founder" &&
+    (request.assigneePrincipalId ?? request.createdByPrincipalId) !==
+      principal._id
+  ) {
+    throw new ConvexError({ code: "RESOURCE_ACCESS_DENIED" })
+  }
+  return { principal, request }
+}
+
+export const getContextDeckPreferences = query({
+  args: { humanId: v.string() },
+  returns: v.union(contextDeckPreferencesValidator, v.null()),
+  handler: async (ctx, args) => {
+    const { principal, request } = await contextRequestForPrincipal(
+      ctx,
+      args.humanId
+    )
+    const preferences = await ctx.db
+      .query("contextDeckPreferences")
+      .withIndex("by_request_principal", (index) =>
+        index.eq("requestId", request._id).eq("principalId", principal._id)
+      )
+      .unique()
+    return preferences
+      ? {
+          visibleContextIds: preferences.visibleContextIds,
+          pinnedContextIds: preferences.pinnedContextIds,
+          knownContextIds: preferences.knownContextIds,
+        }
+      : null
+  },
+})
+
+export const saveContextDeckPreferences = mutation({
+  args: {
+    humanId: v.string(),
+    visibleContextIds: v.array(v.string()),
+    pinnedContextIds: v.array(v.string()),
+    knownContextIds: v.array(v.string()),
+    correlationId: v.string(),
+  },
+  returns: contextDeckPreferencesValidator,
+  handler: async (ctx, args) => {
+    const { principal, request } = await contextRequestForPrincipal(
+      ctx,
+      args.humanId
+    )
+    const context = await ctx.db
+      .query("contextItems")
+      .withIndex("by_request_kind", (index) =>
+        index.eq("requestId", request._id)
+      )
+      .collect()
+    const source = request.sourceSnapshotId
+      ? await ctx.db.get(request.sourceSnapshotId)
+      : null
+    const allowed = new Set(context.map((item) => String(item._id)))
+    if (source?.question) allowed.add("original-question")
+    if (source?.body) allowed.add("original-source-body")
+    if (source?.url && !source.body) allowed.add("original-source-link")
+    const sanitize = (ids: Array<string>) => [
+      ...new Set(ids.filter((id) => allowed.has(id))),
+    ]
+    const value = {
+      visibleContextIds: sanitize(args.visibleContextIds),
+      pinnedContextIds: sanitize(args.pinnedContextIds),
+      knownContextIds: sanitize(args.knownContextIds),
+    }
+    const inputFingerprint = contentChecksum(
+      JSON.stringify({
+        visibleContextIds: [...value.visibleContextIds].sort(),
+        pinnedContextIds: [...value.pinnedContextIds].sort(),
+        knownContextIds: [...value.knownContextIds].sort(),
+      })
+    )
+    const existing = await ctx.db
+      .query("contextDeckPreferences")
+      .withIndex("by_request_principal", (index) =>
+        index.eq("requestId", request._id).eq("principalId", principal._id)
+      )
+      .unique()
+    const correlationId = args.correlationId.trim()
+    if (!correlationId) {
+      throw new ConvexError({
+        code: "VALIDATION_FAILED",
+        field: "correlationId",
+      })
+    }
+    const priorAudit = await ctx.db
+      .query("auditEvents")
+      .withIndex("by_organization_actor_operation_correlation", (index) =>
+        index
+          .eq("organizationId", principal.organizationId)
+          .eq("actorPrincipalId", principal._id)
+          .eq("operation", "context_deck.preferences_saved")
+          .eq("correlationId", correlationId)
+      )
+      .unique()
+    if (priorAudit) {
+      if (
+        priorAudit.requestId !== request._id ||
+        priorAudit.inputFingerprint !== inputFingerprint
+      ) {
+        throw new ConvexError({ code: "IDEMPOTENCY_KEY_REUSED" })
+      }
+      return value
+    }
+    const now = Date.now()
+    if (existing) {
+      await ctx.db.patch(existing._id, { ...value, updatedAt: now })
+    } else {
+      await ctx.db.insert("contextDeckPreferences", {
+        organizationId: principal.organizationId,
+        requestId: request._id,
+        principalId: principal._id,
+        ...value,
+        updatedAt: now,
+      })
+    }
+    await ctx.db.insert("auditEvents", {
+      organizationId: principal.organizationId,
+      requestId: request._id,
+      requestHumanId: request.humanId,
+      actorPrincipalId: principal._id,
+      credentialId: principal.credentialId,
+      operation: "context_deck.preferences_saved",
+      correlationId,
+      occurredAt: now,
+      beforeVersion: request.aggregateVersion,
+      afterVersion: request.aggregateVersion,
+      inputFingerprint,
+    })
+    return value
   },
 })

@@ -51,5 +51,20 @@ export async function createConvexTestContentRequestRepository(
         notificationId: notificationId as Id<"notifications">,
       })
     },
+    async listContext(humanId) {
+      return backend.query(api.scoutIngestions.listContext, { humanId })
+    },
+    async getContextDeckPreferences(humanId) {
+      return backend.query(api.scoutIngestions.getContextDeckPreferences, {
+        humanId,
+      })
+    },
+    async saveContextDeckPreferences(humanId, preferences, correlationId) {
+      return backend.mutation(api.scoutIngestions.saveContextDeckPreferences, {
+        humanId,
+        ...preferences,
+        correlationId,
+      })
+    },
   }
 }

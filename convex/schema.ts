@@ -158,8 +158,10 @@ export default defineSchema({
     requestId: v.id("contentRequests"),
     kind: v.union(
       v.literal("source_metadata"),
+      v.literal("source_summary"),
       v.literal("talking_points"),
       v.literal("research_requirements"),
+      v.literal("missing_research"),
       v.literal("citations"),
       v.literal("guardrails"),
       v.literal("operator_cue"),
@@ -174,6 +176,15 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_request_kind", ["requestId", "kind"]),
+  contextDeckPreferences: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    principalId: v.id("principals"),
+    visibleContextIds: v.array(v.string()),
+    pinnedContextIds: v.array(v.string()),
+    knownContextIds: v.array(v.string()),
+    updatedAt: v.number(),
+  }).index("by_request_principal", ["requestId", "principalId"]),
   migrationConflicts: defineTable({
     organizationId: v.string(),
     type: v.literal("normalized_source_url_collision"),

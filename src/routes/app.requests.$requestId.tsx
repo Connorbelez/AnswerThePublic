@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import {
   Link,
   createFileRoute,
@@ -10,10 +10,15 @@ import { ArrowLeft, ExternalLink } from "lucide-react"
 
 import {
   getContentRequest,
+  getContentRequestContext,
+  getContextDeckPreferences,
   listAssignablePrincipals,
   openContentRequest,
+  saveContextDeckPreferences,
 } from "@/application/content-request-server-functions"
 import { RequestAssignmentControl } from "@/components/request-assignment-control"
+import { UnifiedContextCanvas } from "@/components/unified-context-canvas"
+import type { ContextDeckPreferences } from "@/application/content-requests"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,12 +29,15 @@ import {
 
 export const Route = createFileRoute("/app/requests/$requestId")({
   loader: async ({ params }) => {
-    const [request, principals] = await Promise.all([
-      getContentRequest({ data: { humanId: params.requestId } }),
-      listAssignablePrincipals(),
-    ])
+    const [request, principals, contextItems, contextDeckPreferences] =
+      await Promise.all([
+        getContentRequest({ data: { humanId: params.requestId } }),
+        listAssignablePrincipals(),
+        getContentRequestContext({ data: { humanId: params.requestId } }),
+        getContextDeckPreferences({ data: { humanId: params.requestId } }),
+      ])
     if (!request) throw notFound()
-    return { request, principals }
+    return { request, principals, contextItems, contextDeckPreferences }
   },
   component: ContentRequestPage,
 })
@@ -57,9 +65,19 @@ function isRetryableOpenError(error: unknown) {
 }
 
 function ContentRequestPage() {
-  const { request, principals } = Route.useLoaderData()
+  const { request, principals, contextItems, contextDeckPreferences } =
+    Route.useLoaderData()
   const session = appRoute.useLoaderData()
   const recordOpen = useServerFn(openContentRequest)
+  const persistContextDeckPreferences = useServerFn(saveContextDeckPreferences)
+  const handleContextDeckPreferences = useCallback(
+    async (preferences: ContextDeckPreferences, correlationId: string) => {
+      await persistContextDeckPreferences({
+        data: { humanId: request.humanId, preferences, correlationId },
+      })
+    },
+    [persistContextDeckPreferences, request.humanId]
+  )
   const openRecordingState = useRef<{
     requestId: string
     status: "pending" | "recorded" | "failed"
@@ -127,6 +145,18 @@ function ContentRequestPage() {
       }
     }
   }, [recordOpen, request.humanId])
+  if (session.role === "founder") {
+    return (
+      <UnifiedContextCanvas
+        key={request.humanId}
+        request={request}
+        contextItems={contextItems}
+        preferenceOwnerKey={`${session.organizationId}:${session.principalId}`}
+        initialPreferences={contextDeckPreferences}
+        onPreferencesChange={handleContextDeckPreferences}
+      />
+    )
+  }
   return (
     <main className="workspace workspace--narrow request-detail">
       <Button variant="ghost" render={<Link to="/app" />}>
@@ -170,20 +200,18 @@ function ContentRequestPage() {
           ) : null}
         </CardContent>
       </Card>
-      {session.role !== "founder" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Assignment</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RequestAssignmentControl
-              key={`${request.humanId}:${request.aggregateVersion}`}
-              request={request}
-              principals={principals}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
+      <Card>
+        <CardHeader>
+          <CardTitle>Assignment</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RequestAssignmentControl
+            key={`${request.humanId}:${request.aggregateVersion}`}
+            request={request}
+            principals={principals}
+          />
+        </CardContent>
+      </Card>
     </main>
   )
 }

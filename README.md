@@ -3,7 +3,7 @@
 The production application for turning community questions, journalist requests,
 and digital-PR opportunities into prioritized, research-backed content requests.
 
-Tickets 01 through 04 establish the authenticated production shell and the first
+Tickets 01 through 05 establish the authenticated production shell and the first
 end-to-end Content Request workflow. Authorized editors can create a Critical
 manual request from the mobile web interface, HTTP API, or CLI, preserve original
 source evidence, find it safely, and open its stable route. The remaining workflow
@@ -86,6 +86,26 @@ source snapshots so pre-ingestion records participate in URL deduplication.
 Canonical collisions are not guessed: the migration records an unresolved
 `normalized_source_url_collision` remediation item and leaves the duplicate
 aggregate untouched for operator resolution.
+
+## Founder context experience
+
+Assigned founder routes use the approved Variant G Unified Canvas. The Context
+Deck remains the dominant reading surface and combines immutable original
+question/source material with available operator cues, talking points, research,
+citations, missing research, guardrails, and delivery hints. Each context item
+can be hidden or restored independently; pinning keeps it mounted even when its
+visibility toggle is off, and pinned content is never line-clamped.
+Deck preferences are stored per principal and request in Convex, use immutable
+context identities rather than display categories, and automatically reveal new
+context items that were not present when the preference set was last saved.
+
+The founder-input surface remains mounted beneath the deck at a compact fixed
+height and expands only through its explicit control to approximately half the
+mobile viewport. It is intentionally not draggable or user-resizable. Expansion
+focuses the text field, native controls preserve keyboard and touch semantics,
+and the height transition is disabled for reduced-motion preferences. Durable
+draft persistence and offline collaboration begin in Tickets 06 and 07; this
+ticket does not claim a false saved state.
 
 ## Deployment
 

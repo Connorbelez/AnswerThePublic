@@ -107,6 +107,7 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
 }) => {
   const founderSubject = `user_elie_${browserName}`
   const founderContext = await browser.newContext({
+    reducedMotion: "reduce",
     extraHTTPHeaders: {
       "x-fairlend-e2e-key": "local-playwright-only",
       "x-fairlend-e2e-user": JSON.stringify({
@@ -137,6 +138,12 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
   const title = `Assigned founder request ${browserName}`
   await operatorPage.goto("/app/new")
   await operatorPage.getByLabel("Title").fill(title)
+  await operatorPage
+    .getByLabel("Original question")
+    .fill("Can I preserve my mortgage while financing a laneway suite?")
+  const completeSource =
+    "The complete source explains the existing low-rate first mortgage, construction budget, permits, staged draw requirements, lender consent, and the cash-flow gap before inspection-based releases."
+  await operatorPage.getByLabel("Original source material").fill(completeSource)
   await operatorPage
     .getByRole("button", { name: "Create Critical request" })
     .click()
@@ -214,6 +221,82 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
   )
   await founderPage.getByText(title, { exact: true }).click()
   await expect(founderPage.getByRole("heading", { name: title })).toBeVisible()
+  await expect(
+    founderPage.getByRole("region", { name: "Context deck" })
+  ).toBeVisible()
+  await expect(founderPage.getByText(completeSource)).toBeVisible()
+  const cards = founderPage.locator(".unified-context-deck__cards")
+  const collapsedDisplay = await cards.evaluate(
+    (element) => getComputedStyle(element).display
+  )
+  expect(collapsedDisplay).toBe(browserName === "webkit" ? "block" : "grid")
+  await founderPage
+    .getByRole("button", { name: "Hide Original source" })
+    .click()
+  await expect(
+    founderPage.getByRole("article", { name: "Original source" })
+  ).toHaveCount(0)
+  const filterPin = founderPage.getByRole("button", {
+    name: "Pin Original source",
+  })
+  const pinBounds = await filterPin.boundingBox()
+  expect(pinBounds?.width).toBeGreaterThanOrEqual(44)
+  expect(pinBounds?.height).toBeGreaterThanOrEqual(44)
+  await filterPin.click()
+  await expect(
+    founderPage.getByRole("article", { name: "Original source" })
+  ).toHaveAttribute("data-pinned", "true")
+  await expect(founderPage.getByText(completeSource)).toBeVisible()
+  const backAction = founderPage.getByRole("button", {
+    name: "Back to content requests",
+  })
+  const backBounds = await backAction.boundingBox()
+  expect(backBounds?.width).toBeGreaterThanOrEqual(44)
+  expect(backBounds?.height).toBeGreaterThanOrEqual(44)
+  const cardPin = founderPage.getByRole("button", {
+    name: "Unpin Original source card",
+  })
+  const cardPinBounds = await cardPin.boundingBox()
+  expect(cardPinBounds?.width).toBeGreaterThanOrEqual(44)
+  expect(cardPinBounds?.height).toBeGreaterThanOrEqual(44)
+  const editor = founderPage.getByTestId("founder-editor")
+  await expect(editor).toHaveAttribute("data-expanded", "false")
+  const transitionDuration = await editor.evaluate(
+    (element) => getComputedStyle(element).transitionDuration
+  )
+  expect(Number.parseFloat(transitionDuration)).toBeLessThanOrEqual(0.001)
+  const recordMode = founderPage.getByRole("button", { name: "Record input" })
+  const recordBounds = await recordMode.boundingBox()
+  expect(recordBounds?.height).toBeGreaterThanOrEqual(44)
+  await recordMode.focus()
+  await founderPage.keyboard.press("Enter")
+  await expect(
+    founderPage.getByText("Voice input", { exact: true })
+  ).toBeVisible()
+  await founderPage.keyboard.press("ArrowLeft")
+  const typeMode = founderPage.getByRole("button", { name: "Type input" })
+  const typeBounds = await typeMode.boundingBox()
+  expect(typeBounds?.height).toBeGreaterThanOrEqual(44)
+  await expect(typeMode).toBeFocused()
+  await founderPage.keyboard.press("Enter")
+  await expect(
+    founderPage.getByRole("textbox", { name: "Founder input" })
+  ).toBeVisible()
+  await founderPage.getByRole("button", { name: "Expand editor" }).click()
+  await expect(editor).toHaveAttribute("data-expanded", "true")
+  await expect(
+    founderPage.getByRole("textbox", { name: "Founder input" })
+  ).toBeFocused()
+  const expandedDeck = await cards.evaluate((element) => ({
+    display: getComputedStyle(element).display,
+    scrollSnapType: getComputedStyle(element).scrollSnapType,
+    overflow: element.scrollWidth - element.clientWidth,
+  }))
+  expect(expandedDeck.display).toBe("flex")
+  expect(expandedDeck.scrollSnapType).toContain("x")
+  if (browserName === "webkit") {
+    expect(expandedDeck.overflow).toBeGreaterThan(0)
+  }
 
   await operatorContext.close()
   await founderContext.close()

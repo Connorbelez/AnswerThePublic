@@ -101,6 +101,31 @@ export type ContentNotification = {
   deepLink: string
 }
 
+export type ContentContextKind =
+  | "source_metadata"
+  | "source_summary"
+  | "talking_points"
+  | "research_requirements"
+  | "missing_research"
+  | "citations"
+  | "guardrails"
+  | "operator_cue"
+  | "delivery_hint"
+
+export type ContentContextItem = {
+  contextId: string
+  kind: ContentContextKind
+  title: string
+  bulletPoints: Array<string>
+  citations: Array<{ label: string; url: string; supports: string }>
+}
+
+export type ContextDeckPreferences = {
+  visibleContextIds: Array<string>
+  pinnedContextIds: Array<string>
+  knownContextIds: Array<string>
+}
+
 export interface ContentRequestRepository {
   createManual(input: PersistManualRequestInput): Promise<ContentRequest>
   getByHumanId(humanId: string): Promise<ContentRequest | null>
@@ -111,6 +136,15 @@ export interface ContentRequestRepository {
   listAssignablePrincipals(): Promise<Array<PrincipalSummary>>
   listMyNotifications(): Promise<Array<ContentNotification>>
   markNotificationRead(notificationId: string): Promise<void>
+  listContext(humanId: string): Promise<Array<ContentContextItem>>
+  getContextDeckPreferences(
+    humanId: string
+  ): Promise<ContextDeckPreferences | null>
+  saveContextDeckPreferences(
+    humanId: string,
+    preferences: ContextDeckPreferences,
+    correlationId: string
+  ): Promise<ContextDeckPreferences>
 }
 
 export interface ContentRequestService {
@@ -123,6 +157,15 @@ export interface ContentRequestService {
   listAssignablePrincipals(): Promise<Array<PrincipalSummary>>
   listMyNotifications(): Promise<Array<ContentNotification>>
   markNotificationRead(notificationId: string): Promise<void>
+  listContext(humanId: string): Promise<Array<ContentContextItem>>
+  getContextDeckPreferences(
+    humanId: string
+  ): Promise<ContextDeckPreferences | null>
+  saveContextDeckPreferences(
+    humanId: string,
+    preferences: ContextDeckPreferences,
+    correlationId: string
+  ): Promise<ContextDeckPreferences>
 }
 
 export function createContentRequestService(
@@ -141,5 +184,14 @@ export function createContentRequestService(
     listMyNotifications: () => repository.listMyNotifications(),
     markNotificationRead: (notificationId) =>
       repository.markNotificationRead(notificationId),
+    listContext: (humanId) => repository.listContext(humanId),
+    getContextDeckPreferences: (humanId) =>
+      repository.getContextDeckPreferences(humanId),
+    saveContextDeckPreferences: (humanId, preferences, correlationId) =>
+      repository.saveContextDeckPreferences(
+        humanId,
+        preferences,
+        correlationId
+      ),
   }
 }
