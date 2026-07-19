@@ -10,8 +10,28 @@ import {
   safeErrorResponse,
   type ContentRequestServiceFactory,
 } from "@/application/content-request-http"
+import { emitOperationalTelemetry } from "@/infrastructure/operational-telemetry"
 
 const maximumBulkCommands = 25
+
+function observedResponse(
+  response: Response,
+  startedAt: number,
+  operation?: string,
+  itemCount?: number
+) {
+  emitOperationalTelemetry(
+    response.status < 400 ? "agent_control.completed" : "agent_control.failed",
+    {
+      operation,
+      outcome: response.status < 400 ? "ok" : "error",
+      status: response.status,
+      durationMs: Date.now() - startedAt,
+      itemCount,
+    }
+  )
+  return response
+}
 
 function parseCommand(input: unknown): AgentControlCommand | null {
   if (typeof input !== "object" || input === null || Array.isArray(input))
@@ -99,11 +119,15 @@ export function createAgentControlHandler(
       }
     },
     POST: async ({ request }: { request: Request }) => {
+      const startedAt = Date.now()
       let input: unknown
       try {
         input = await request.json()
       } catch {
-        return jsonError(400, "INVALID_JSON", "A JSON body is required.")
+        return observedResponse(
+          jsonError(400, "INVALID_JSON", "A JSON body is required."),
+          startedAt
+        )
       }
       const envelope =
         typeof input === "object" && input !== null && !Array.isArray(input)
@@ -114,9 +138,10 @@ export function createAgentControlHandler(
         ? (envelope?.commands as Array<unknown>)
         : [envelope?.command ?? input]
       if (rawCommands.length === 0 || rawCommands.length > maximumBulkCommands)
-        return validationError()
+        return observedResponse(validationError(), startedAt)
       const commands = rawCommands.map(parseCommand)
-      if (commands.some((command) => command === null)) return validationError()
+      if (commands.some((command) => command === null))
+        return observedResponse(validationError(), startedAt)
       let normalized: Array<AgentControlCommand>
       try {
         normalized = (commands as Array<AgentControlCommand>).map(
@@ -126,14 +151,19 @@ export function createAgentControlHandler(
             )
         )
       } catch {
-        return validationError()
+        return observedResponse(validationError(), startedAt)
       }
       try {
         const service = await serviceForRequest(request)
         if (!isBulk) {
-          return Response.json({
-            data: await executeAgentControlCommand(service, normalized[0]!),
-          })
+          return observedResponse(
+            Response.json({
+              data: await executeAgentControlCommand(service, normalized[0]!),
+            }),
+            startedAt,
+            normalized[0]!.operation,
+            1
+          )
         }
         // Authenticate and authorize the whole envelope before executing any
         // commands. Otherwise a lazy repository can turn a global 401/403 into
@@ -158,9 +188,14 @@ export function createAgentControlHandler(
             data.push({ index, ok: false, status: response.status, ...payload })
           }
         }
-        return Response.json(
-          { data },
-          { status: data.some((item) => item.ok === false) ? 207 : 200 }
+        return observedResponse(
+          Response.json(
+            { data },
+            { status: data.some((item) => item.ok === false) ? 207 : 200 }
+          ),
+          startedAt,
+          undefined,
+          normalized.length
         )
       } catch (error) {
         if (
@@ -168,8 +203,8 @@ export function createAgentControlHandler(
           (error.message === "UNKNOWN_AGENT_OPERATION" ||
             error.message.startsWith("INVALID_ARGUMENT:"))
         )
-          return validationError()
-        return safeErrorResponse(error)
+          return observedResponse(validationError(), startedAt)
+        return observedResponse(safeErrorResponse(error), startedAt)
       }
     },
   }

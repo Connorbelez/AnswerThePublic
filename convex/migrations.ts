@@ -1,7 +1,7 @@
 import { v } from "convex/values"
 
 import { internal } from "./_generated/api"
-import { internalMutation } from "./_generated/server"
+import { internalMutation, internalQuery } from "./_generated/server"
 import { requestQueueSortKey } from "./lib/requestOrdering"
 import { lifecycleForPrimary } from "./lib/deliverableLifecycle"
 import { projectDeliveryLifecycle } from "./lib/deliveryLifecycle"
@@ -477,5 +477,113 @@ export const recountActiveVoiceCaptures = internalMutation({
     }
     await ctx.db.patch(request._id, { activeVoiceCaptureCount: count })
     return null
+  },
+})
+
+const invariantIssueValidator = v.object({
+  humanId: v.string(),
+  code: v.string(),
+})
+
+/**
+ * Read-only deployment gate for the V1 backfills. Run it page-by-page after
+ * migrations; production is ready only when every page returns zero issues.
+ */
+export const validateV1Invariants = internalQuery({
+  args: { cursor: v.optional(v.string()) },
+  returns: v.object({
+    checked: v.number(),
+    done: v.boolean(),
+    continueCursor: v.union(v.string(), v.null()),
+    issues: v.array(invariantIssueValidator),
+  }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("contentRequests").paginate({
+      cursor: args.cursor ?? null,
+      numItems: 50,
+    })
+    const issues: Array<{ humanId: string; code: string }> = []
+    for (const request of page.page) {
+      if (
+        !request.assigneePrincipalId ||
+        request.watcherPrincipalIds === undefined ||
+        !request.queueSortKey
+      )
+        issues.push({ humanId: request.humanId, code: "assignment_fields" })
+      if (request.activeVoiceCaptureCount === undefined)
+        issues.push({ humanId: request.humanId, code: "voice_capture_count" })
+
+      const [deliverables, targets, projection, jobs] = await Promise.all([
+        ctx.db
+          .query("deliverables")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", request._id)
+          )
+          .collect(),
+        ctx.db
+          .query("deliveryTargets")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", request._id)
+          )
+          .collect(),
+        ctx.db
+          .query("operatorWorkspaceItems")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", request._id)
+          )
+          .unique(),
+        ctx.db
+          .query("agentJobs")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", request._id)
+          )
+          .collect(),
+      ])
+      const primaryDeliverables = deliverables.filter(
+        (deliverable) =>
+          (deliverable.retention ?? "active") === "active" &&
+          deliverable.isPrimary
+      )
+      if (primaryDeliverables.length !== 1)
+        issues.push({ humanId: request.humanId, code: "primary_deliverable" })
+      const originalTargets = targets.filter(
+        (target) =>
+          target.retention === "active" &&
+          target.isOriginal &&
+          target.isRequired
+      )
+      if (originalTargets.length !== 1)
+        issues.push({ humanId: request.humanId, code: "original_target" })
+      if (!projection)
+        issues.push({ humanId: request.humanId, code: "operator_projection" })
+
+      for (const job of jobs) {
+        const claimableAt =
+          job.status === "queued"
+            ? (job.nextAttemptAt ?? job.createdAt)
+            : job.status === "retry_wait"
+              ? (job.nextAttemptAt ?? job.updatedAt)
+              : job.status === "running"
+                ? (job.leaseExpiresAt ?? job.updatedAt)
+                : undefined
+        const reapableAt =
+          job.status === "running" && job.attempts >= job.maxAttempts
+            ? (job.leaseExpiresAt ?? job.updatedAt)
+            : undefined
+        if (job.claimableAt !== claimableAt || job.reapableAt !== reapableAt) {
+          issues.push({
+            humanId: request.humanId,
+            code: "agent_job_claimability",
+          })
+          break
+        }
+      }
+    }
+    return {
+      checked: page.page.length,
+      done: page.isDone,
+      continueCursor: page.isDone ? null : page.continueCursor,
+      issues,
+    }
   },
 })

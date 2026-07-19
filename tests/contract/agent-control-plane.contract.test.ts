@@ -31,6 +31,7 @@ describe("agent control-plane contract", () => {
         "target.confirm",
         "share.create",
         "audit.list",
+        "metrics.get",
       ])
     )
     expect(agentControlOperations).not.toContain("request.delete")
@@ -54,6 +55,31 @@ describe("agent control-plane contract", () => {
       request: { humanId: "CR-101", title: "Renewal", source: "private" },
     })
     expect(resolve).toHaveBeenCalledWith("renewal")
+  })
+
+  it("exposes aggregate product metrics as a validated read operation", async () => {
+    const getProductMetrics = vi.fn().mockResolvedValue({
+      founderSubmissions: 4,
+      readyResponses: 3,
+      deliveries: 2,
+      rewriteRate: 1 / 3,
+    })
+    await expect(
+      executeAgentControlCommand(service({ getProductMetrics }), {
+        operation: "metrics.get",
+        arguments: { from: 1_000, to: 2_000 },
+      })
+    ).resolves.toMatchObject({ deliveries: 2 })
+    expect(getProductMetrics).toHaveBeenCalledWith({
+      from: 1_000,
+      to: 2_000,
+    })
+    await expect(
+      executeAgentControlCommand(service({ getProductMetrics }), {
+        operation: "metrics.get",
+        arguments: { from: 2_000, to: 1_000 },
+      })
+    ).rejects.toMatchObject({ field: "to" })
   })
 
   it("executes bounded bulk commands in order and injects stable idempotency keys", async () => {

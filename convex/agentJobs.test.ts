@@ -615,4 +615,63 @@ describe("founder submission and agent drafting jobs", () => {
       founderInput: { heads: ["new-head"], revision: 2 },
     })
   })
+
+  it("admits one winner under a claim storm and one version under an ambiguous completion retry", async () => {
+    const { workspace, job } = await submittedWorkspace()
+    const contenders = Array.from({ length: 24 }, (_, index) =>
+      workspace.withIdentity(identity(`stress-agent-${index}`, "agent-editor"))
+    )
+    await Promise.all(
+      contenders.map((contender) =>
+        contender.mutation(api.principals.syncCurrent)
+      )
+    )
+    const claims = await Promise.all(
+      contenders.map((contender, index) =>
+        contender.mutation(api.agentJobs.claim, {
+          leaseToken: `stress-lease-${index}`,
+          leaseMs: 30_000,
+        })
+      )
+    )
+    const winningIndexes = claims.flatMap((claim, index) =>
+      claim ? [index] : []
+    )
+    expect(winningIndexes).toHaveLength(1)
+    const winningIndex = winningIndexes[0]!
+    const winner = contenders[winningIndex]!
+    const claim = claims[winningIndex]!
+    expect(claim.jobId).toBe(job.jobId)
+    await expect(
+      winner.mutation(api.agentJobs.claim, {
+        leaseToken: `stress-lease-${winningIndex}`,
+        leaseMs: 30_000,
+      })
+    ).resolves.toMatchObject({
+      jobId: job.jobId,
+      leaseGeneration: claim.leaseGeneration,
+    })
+
+    const completion = {
+      jobId: job.jobId,
+      leaseToken: `stress-lease-${winningIndex}`,
+      leaseGeneration: claim.leaseGeneration,
+      body: "A single polished response produced under concurrent pressure.",
+      correlationId: "stress-completion-retry",
+    }
+    const results = await Promise.all([
+      winner.mutation(api.agentJobs.complete, completion),
+      winner.mutation(api.agentJobs.complete, completion),
+    ])
+    expect(results[0].resultVersionId).toBe(results[1].resultVersionId)
+    const stored = await workspace.run(async (ctx) => ({
+      versions: await ctx.db.query("deliverableVersions").collect(),
+      job: await ctx.db.get(job.jobId),
+    }))
+    expect(stored.versions).toHaveLength(1)
+    expect(stored.job).toMatchObject({
+      status: "completed",
+      resultVersionId: results[0].resultVersionId,
+    })
+  })
 })

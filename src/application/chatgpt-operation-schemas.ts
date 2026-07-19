@@ -151,6 +151,10 @@ export const chatGptOperationArgumentSchemas: Record<
       "Stable notification ID returned by notification.list"
     ),
   }),
+  "metrics.get": z.strictObject({
+    from: z.number().int().min(0).optional(),
+    to: z.number().int().min(0).optional(),
+  }),
   "context.list": z.strictObject({ humanId, ...offsetPagination }),
   "context.upsert": z.strictObject({
     humanId,

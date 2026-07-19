@@ -16,12 +16,13 @@
     "deploy": "bun run build && wrangler deploy",
     "test": "vitest run",
     "test:contract": "vitest run tests/contract convex/*.test.ts",
+    "validate:migrations": "vitest run convex/migrations.test.ts --maxWorkers=1",
     "test:e2e": "node scripts/run-e2e.mjs",
     "lint": "eslint",
     "format": "prettier --write . && eslint --fix",
     "check:format": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck && bun run lint && bun run test && bun run build"
+    "check": "bun run typecheck && bun run lint && bun run test && bun run validate:migrations && bun run build"
   },
   "dependencies": {
     "@automerge/automerge": "^3.3.2",

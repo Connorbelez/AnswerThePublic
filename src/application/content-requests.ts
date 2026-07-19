@@ -84,6 +84,28 @@ export type CursorPage<T> = {
   nextCursor: string | null
 }
 
+export type ProductMetrics = {
+  from: number
+  to: number
+  generatedAt: number
+  truncated: boolean
+  founderSubmissions: number
+  readyResponses: number
+  deliveries: number
+  expirations: number
+  failures: number
+  retriesScheduled: number
+  rewrittenResponses: number
+  rewriteRate: number
+  medianFounderToReadyMs: number | null
+  medianReadyToDeliveryMs: number | null
+}
+
+export type ProductMetricsInput = {
+  from?: number
+  to?: number
+}
+
 export type CreateManualRequestInput = {
   title: string
   source?: OriginalSource
@@ -579,6 +601,7 @@ export interface ContentRequestRepository {
     cursor: string | null,
     limit: number
   ): Promise<ContentRequestAuditPage>
+  getProductMetrics(input?: ProductMetricsInput): Promise<ProductMetrics>
   listContext(humanId: string): Promise<Array<ContentContextItem>>
   upsertContext(input: UpsertContentContextInput): Promise<ContentContextItem>
   listContextVersions(
@@ -835,6 +858,7 @@ export interface ContentRequestService {
     cursor: string | null,
     limit: number
   ): Promise<ContentRequestAuditPage>
+  getProductMetrics(input?: ProductMetricsInput): Promise<ProductMetrics>
   listContext(humanId: string): Promise<Array<ContentContextItem>>
   upsertContext(input: UpsertContentContextInput): Promise<ContentContextItem>
   listContextVersions(
@@ -1074,6 +1098,7 @@ export function createContentRequestService(
       repository.markNotificationRead(notificationId, correlationId),
     listAuditEvents: (humanId, cursor, limit) =>
       repository.listAuditEvents(humanId, cursor, limit),
+    getProductMetrics: (input) => repository.getProductMetrics(input),
     listContext: (humanId) => repository.listContext(humanId),
     upsertContext: (input) => repository.upsertContext(input),
     listContextVersions: (contextId, cursor, limit) =>

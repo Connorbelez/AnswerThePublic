@@ -268,6 +268,7 @@ bun run content-requests -- target-confirm "$TARGET_ID" --version-id "$VERSION_I
 bun run content-requests -- target-reopen "$TARGET_ID" --idempotency-key reopen-20260718-01
 bun run content-requests -- control request.workspace --json '{"queue":"needs_operator","limit":20}' --fields page,continueCursor
 bun run content-requests -- control request.resolve --json '{"query":"mortgage renewal"}'
+bun run content-requests -- control metrics.get --json '{"from":1782864000000,"to":1785542400000}'
 bun run content-requests -- control share.create --file ./share-command.json --idempotency-key share-20260718-01
 bun run content-requests -- bulk --file ./commands.json --idempotency-key batch-20260718-01
 ```
@@ -375,10 +376,15 @@ per-item operations failed; inspect each indexed result before retrying.
 
 ## Verification
 
+The production acceptance matrix, migration sequence, invariant scan, metric
+definitions, privacy contract, and incident actions are maintained in
+[`docs/v1-operations-runbook.md`](docs/v1-operations-runbook.md).
+
 ```bash
 bun run typecheck
 bun run lint
 bun run test:contract
+bun run validate:migrations
 bun run test:e2e
 bun run build
 ```

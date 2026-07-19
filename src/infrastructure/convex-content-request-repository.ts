@@ -236,6 +236,9 @@ export function createConvexContentRequestRepository({
         nextCursor: result.isDone ? null : result.continueCursor,
       }
     },
+    async getProductMetrics(input) {
+      return (await client()).query(api.productMetrics.get, input ?? {})
+    },
     async listContext(humanId) {
       return (await client()).query(api.scoutIngestions.listContext, {
         humanId,

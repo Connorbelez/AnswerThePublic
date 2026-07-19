@@ -26,6 +26,7 @@ const operations = [
   "principal.list",
   "notification.list",
   "notification.read",
+  "metrics.get",
   "context.list",
   "context.upsert",
   "context.versions",
@@ -244,6 +245,17 @@ export function validateAgentControlCommand(command: AgentControlCommand) {
       fail("cursor")
   }
   switch (operation) {
+    case "metrics.get":
+      for (const field of ["from", "to"])
+        if (a[field] !== undefined)
+          finiteNumber(a, field, { integer: true, minimum: 0 })
+      if (
+        typeof a.from === "number" &&
+        typeof a.to === "number" &&
+        a.to <= a.from
+      )
+        fail("to")
+      break
     case "request.workspace":
       if (a.limit !== undefined)
         finiteNumber(a, "limit", { integer: true, minimum: 1 })
@@ -566,6 +578,12 @@ export async function executeAgentControlCommand(
   const a = command.arguments ?? {}
   let result: unknown
   switch (command.operation) {
+    case "metrics.get":
+      result = await service.getProductMetrics({
+        from: typeof a.from === "number" ? a.from : undefined,
+        to: typeof a.to === "number" ? a.to : undefined,
+      })
+      break
     case "request.list":
       result = await service.listPage(
         typeof a.cursor === "string" ? a.cursor : null,

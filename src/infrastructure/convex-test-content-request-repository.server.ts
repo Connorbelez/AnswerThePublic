@@ -88,6 +88,9 @@ export async function createConvexTestContentRequestRepository(
         nextCursor: result.isDone ? null : result.continueCursor,
       }
     },
+    async getProductMetrics(input) {
+      return backend.query(api.productMetrics.get, input ?? {})
+    },
     async listOperatorWorkspace(input) {
       return backend.query(api.operatorWorkspace.list, {
         queue: input?.queue,
