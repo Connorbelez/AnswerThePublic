@@ -58,6 +58,7 @@ describe("workspace session application contract", () => {
     ["founder", "founder"],
     ["operator-editor", "operator_editor"],
     ["agent-editor", "agent_editor"],
+    ["admin", "administrator"],
     ["administrator", "administrator"],
   ] as const)("maps the WorkOS %s role to %s", async (workosRole, role) => {
     const principals = principalRepository()

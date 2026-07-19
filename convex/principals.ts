@@ -15,6 +15,8 @@ const workosRoleMap = {
   founder: "founder",
   "operator-editor": "operator_editor",
   "agent-editor": "agent_editor",
+  // WorkOS default Admin role slug plus the FairLend custom slug.
+  admin: "administrator",
   administrator: "administrator",
 } as const
 
@@ -156,5 +158,84 @@ export const syncCurrentProfile = mutation({
     }
     const identity = await requireIdentity(ctx.auth)
     return syncIdentityPrincipal(ctx, identity, verifiedEmail)
+  },
+})
+
+export const seedFounder = mutation({
+  args: {
+    provisioningKey: v.string(),
+    email: v.string(),
+    subject: v.optional(v.string()),
+  },
+  returns: v.object({
+    principalId: v.id("principals"),
+    created: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const expectedKey = process.env.FAIRLEND_PRINCIPAL_PROVISIONING_KEY
+    if (!expectedKey || args.provisioningKey !== expectedKey) {
+      throw new ConvexError({ code: "PRINCIPAL_PROVISIONING_DENIED" })
+    }
+    const organizationId = process.env.FAIRLEND_WORKOS_ORGANIZATION_ID
+    if (!organizationId) {
+      throw new ConvexError({ code: "AUTHORIZATION_NOT_CONFIGURED" })
+    }
+    const email = args.email.trim().toLowerCase()
+    if (!email) {
+      throw new ConvexError({
+        code: "VALIDATION_FAILED",
+        field: "email",
+      })
+    }
+    const subject = (args.subject ?? "user_elie").trim()
+    if (!subject || subject.startsWith("system:")) {
+      throw new ConvexError({
+        code: "VALIDATION_FAILED",
+        field: "subject",
+      })
+    }
+
+    const founders = await ctx.db
+      .query("principals")
+      .withIndex("by_organization_role", (index) =>
+        index.eq("organizationId", organizationId).eq("role", "founder")
+      )
+      .collect()
+    const existingByEmail = founders.find(
+      (candidate) =>
+        candidate.kind !== "system" &&
+        candidate.email?.trim().toLowerCase() === email
+    )
+    const existingBySubject = await ctx.db
+      .query("principals")
+      .withIndex("by_organization_subject", (index) =>
+        index.eq("organizationId", organizationId).eq("subject", subject)
+      )
+      .unique()
+    const existing = existingByEmail ?? existingBySubject
+    const now = Date.now()
+    if (existing) {
+      if (existing.kind === "system") {
+        throw new ConvexError({ code: "RESERVED_SUBJECT" })
+      }
+      await ctx.db.patch(existing._id, {
+        subject: existingByEmail ? existing.subject : subject,
+        role: "founder",
+        kind: "human",
+        email,
+        updatedAt: now,
+      })
+      return { principalId: existing._id, created: false }
+    }
+
+    const principalId = await ctx.db.insert("principals", {
+      subject,
+      organizationId,
+      role: "founder",
+      kind: "human",
+      email,
+      updatedAt: now,
+    })
+    return { principalId, created: true }
   },
 })

@@ -10,6 +10,7 @@
     "dev:web": "vite dev --port 3000",
     "auth:sync-dev": "bun scripts/sync-convex-workos-env.ts",
     "content-requests": "bun src/cli/content-requests.ts",
+    "scout:orchestrate": "bun scripts/orchestrate-scout-report.ts",
     "generate-routes": "tsr generate",
     "build": "vite build",
     "build:e2e": "vite build --mode e2e",

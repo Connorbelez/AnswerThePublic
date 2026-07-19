@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router"
-import { ShieldAlert } from "lucide-react"
+import { LogOut, ShieldAlert } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -39,6 +41,18 @@ function UnauthorizedPage() {
             Agent editor, or Administrator role.
           </p>
         </CardContent>
+        <CardFooter>
+          <Button
+            size="lg"
+            variant="outline"
+            className="w-full justify-between"
+            render={<a href="/logout" />}
+            nativeButton={false}
+          >
+            Sign out
+            <LogOut data-icon="inline-end" />
+          </Button>
+        </CardFooter>
       </Card>
     </main>
   )

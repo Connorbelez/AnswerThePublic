@@ -245,6 +245,8 @@ The opportunity automation produces its maintained Markdown report first. A sepa
 
 - The FairLend community-demand, journalist-request, and digital-PR scout continues to produce the maintained Markdown report as its first artifact.
 - Ingestion is a separate deterministic operation available through the CLI and API.
+- A project-owned scheduled automation invokes one compound opportunity-orchestration skill that performs discovery, persists the maintained report, validates it locally, and automatically ingests every valid above-threshold opportunity as `automated_scout`. External posting and delivery confirmation remain prohibited.
+- The orchestrator derives a stable idempotency key from the complete report, retries only transient failures with that same key, and stops for authentication, authorization, validation, payload, idempotency-reuse, or canonical-source-collision failures.
 - The complete Markdown document is parsed and validated before any database mutation occurs.
 - Validation failure writes nothing and returns structured diagnostics with locations and remediation guidance.
 - A valid report is applied atomically as an upsert batch.
@@ -340,6 +342,7 @@ The opportunity automation produces its maintained Markdown report first. A sepa
 - The suite covers:
   - Minimal manual creation and Critical priority.
   - Automated Markdown validation and atomic upsert.
+  - Compound automation handoff, content-addressed idempotency, fail-closed configuration, and retry classification.
   - URL normalization and deduplication.
   - Manual upgrade of an automated request without immutable-source replacement.
   - Assignment, watcher, opening, drafting, and submission behavior.

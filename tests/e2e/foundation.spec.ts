@@ -206,6 +206,10 @@ test("a signed-in identity without an application role is denied", async ({
   await expect(
     page.getByRole("heading", { name: "Your account is not provisioned" })
   ).toBeVisible()
+  await expect(page.getByRole("link", { name: "Sign out" })).toHaveAttribute(
+    "href",
+    "/logout"
+  )
   await context.close()
 })
 

@@ -99,7 +99,8 @@ source of truth once a deployment is configured.
 | `founder`         | `founder`         | Elie / founder workflow             |
 | `operator-editor` | `operator_editor` | Operator and editorial workspace    |
 | `agent-editor`    | `agent_editor`    | CLI, API, and ChatGPT agent editors |
-| `administrator`   | `administrator`   | System administration               |
+| `admin`           | `administrator`   | WorkOS default Admin role           |
+| `administrator`   | `administrator`   | FairLend custom admin role slug     |
 
 Convex derives the principal role and organization entirely from the signed
 WorkOS token. The WorkOS callback provisions the principal and verified email

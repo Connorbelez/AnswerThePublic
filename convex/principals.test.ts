@@ -38,6 +38,22 @@ describe("principals Convex contract", () => {
     ).resolves.toHaveLength(1)
   })
 
+  it("maps the WorkOS default admin role to administrator", async () => {
+    const t = convexTest(schema, modules).withIdentity({
+      subject: "user_admin",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "admin",
+      client_id: "client_fairlend",
+    })
+
+    await expect(t.mutation(api.principals.syncCurrent)).resolves.toMatchObject({
+      subject: "user_admin",
+      organizationId: "org_fairlend",
+      role: "administrator",
+    })
+  })
+
   it("rejects a valid role from another WorkOS organization", async () => {
     const t = convexTest(schema, modules).withIdentity({
       subject: "agent_01",

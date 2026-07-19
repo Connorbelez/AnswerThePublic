@@ -53,6 +53,8 @@ const WORKOS_ROLE_MAP = {
   founder: "founder",
   "operator-editor": "operator_editor",
   "agent-editor": "agent_editor",
+  // WorkOS default Admin role slug plus the FairLend custom slug.
+  admin: "administrator",
   administrator: "administrator",
 } as const satisfies Record<string, WorkspaceRole>
 
