@@ -3,6 +3,7 @@ import { cloudflare } from "@cloudflare/vite-plugin"
 import { tanstackStart } from "@tanstack/react-start/plugin/vite"
 import tailwindcss from "@tailwindcss/vite"
 import viteReact from "@vitejs/plugin-react"
+import { nitro } from "nitro/vite"
 import { defineConfig, type Plugin } from "vite"
 
 function stripConvexTestFallbackGlob(): Plugin {
@@ -19,6 +20,7 @@ function stripConvexTestFallbackGlob(): Plugin {
 
 export default defineConfig(({ mode }) => {
   const isE2eBuild = mode === "e2e"
+  const isVercelBuild = process.env.VERCEL === "1" && !isE2eBuild
 
   return {
     resolve: { tsconfigPaths: true },
@@ -26,20 +28,26 @@ export default defineConfig(({ mode }) => {
     plugins: [
       ...(isE2eBuild ? [stripConvexTestFallbackGlob()] : []),
       devtools(),
-      cloudflare({
-        viteEnvironment: { name: "ssr" },
-        config: isE2eBuild
-          ? {
-              vars: {
-                FAIRLEND_E2E_AUTH_KEY: process.env.FAIRLEND_E2E_AUTH_KEY ?? "",
-                FAIRLEND_E2E_ORGANIZATION_ID:
-                  process.env.FAIRLEND_E2E_ORGANIZATION_ID ?? "",
-              },
-            }
-          : undefined,
-      }),
+      ...(isVercelBuild
+        ? []
+        : [
+            cloudflare({
+              viteEnvironment: { name: "ssr" },
+              config: isE2eBuild
+                ? {
+                    vars: {
+                      FAIRLEND_E2E_AUTH_KEY:
+                        process.env.FAIRLEND_E2E_AUTH_KEY ?? "",
+                      FAIRLEND_E2E_ORGANIZATION_ID:
+                        process.env.FAIRLEND_E2E_ORGANIZATION_ID ?? "",
+                    },
+                  }
+                : undefined,
+            }),
+          ]),
       tailwindcss(),
       tanstackStart(),
+      ...(isVercelBuild ? [nitro({ preset: "vercel" })] : []),
       viteReact(),
     ],
   }
