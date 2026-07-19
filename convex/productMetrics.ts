@@ -12,14 +12,24 @@ const metricValidator = v.object({
   to: v.number(),
   generatedAt: v.number(),
   truncated: v.boolean(),
+  firstOpens: v.number(),
   founderSubmissions: v.number(),
   readyResponses: v.number(),
   deliveries: v.number(),
   expirations: v.number(),
   failures: v.number(),
   retriesScheduled: v.number(),
+  draftingCompletions: v.number(),
+  draftingFailureRate: v.number(),
+  deliveriesWithExpiration: v.number(),
+  deliveriesBeforeExpiration: v.number(),
+  deliveryBeforeExpirationRate: v.number(),
+  agentDraftDeliveries: v.number(),
   rewrittenResponses: v.number(),
   rewriteRate: v.number(),
+  deliveredWithoutSubstantialRewriteRate: v.number(),
+  medianCreationToFirstOpenMs: v.union(v.number(), v.null()),
+  medianCreationToFounderSubmissionMs: v.union(v.number(), v.null()),
   medianFounderToReadyMs: v.union(v.number(), v.null()),
   medianReadyToDeliveryMs: v.union(v.number(), v.null()),
 })
@@ -35,7 +45,7 @@ function median(values: Array<number>) {
 
 type MetricEvent = Pick<
   Doc<"auditEvents">,
-  "requestId" | "operation" | "occurredAt"
+  "requestId" | "operation" | "occurredAt" | "productMetric"
 >
 
 function firstByRequest(
@@ -61,6 +71,8 @@ export function aggregateProductMetricEvents(
 ) {
   const truncated = page.length > MAX_EVENTS
   const events = page.slice(0, MAX_EVENTS)
+  const created = firstByRequest(events, operation("content_request.created"))
+  const opened = firstByRequest(events, operation("content_request.opened"))
   const submissions = firstByRequest(
     events,
     operation("founder_input.submitted")
@@ -69,8 +81,13 @@ export function aggregateProductMetricEvents(
     events,
     operation("agent_job.completed", "content_request.ready_response")
   )
+  const completedDeliveryEvents = events.filter(
+    (event) =>
+      event.operation === "delivery_receipt.confirmed" &&
+      event.productMetric?.responseCompleted
+  )
   const delivered = firstByRequest(
-    events,
+    completedDeliveryEvents,
     operation("delivery_receipt.confirmed")
   )
   const expired = firstByRequest(events, operation("content_request.expired"))
@@ -80,14 +97,44 @@ export function aggregateProductMetricEvents(
   const retries = events.filter(
     (event) => event.operation === "agent_job.retry_scheduled"
   )
+  const draftingCompletions = events.filter(
+    (event) => event.operation === "agent_job.completed"
+  )
+  const deliveriesWithExpiration = new Set<string>()
+  const deliveriesBeforeExpiration = new Set<string>()
+  const agentDraftDeliveries = new Set<string>()
   const rewrittenRequestIds = new Set<string>()
-  for (const event of events) {
-    if (event.operation !== "deliverable.version_created") continue
+  for (const event of completedDeliveryEvents) {
     const requestId = String(event.requestId)
-    const readyAt = ready.get(requestId)
-    if (readyAt !== undefined && event.occurredAt > readyAt)
+    if (event.occurredAt !== delivered.get(requestId)) continue
+    if (event.productMetric?.deliveryBeforeExpiration !== undefined)
+      deliveriesWithExpiration.add(requestId)
+    if (event.productMetric?.deliveryBeforeExpiration)
+      deliveriesBeforeExpiration.add(requestId)
+    if (event.productMetric?.agentDraftDelivered)
+      agentDraftDeliveries.add(requestId)
+    if (
+      event.productMetric?.agentDraftDelivered &&
+      event.productMetric.substantialOperatorRewrite
+    )
       rewrittenRequestIds.add(requestId)
   }
+  const creationToFirstOpen = [...opened.entries()].flatMap(
+    ([requestId, openedAt]) => {
+      const createdAt = created.get(requestId)
+      return createdAt === undefined || openedAt < createdAt
+        ? []
+        : [openedAt - createdAt]
+    }
+  )
+  const creationToFounderSubmission = [...submissions.entries()].flatMap(
+    ([requestId, submittedAt]) => {
+      const createdAt = created.get(requestId)
+      return createdAt === undefined || submittedAt < createdAt
+        ? []
+        : [submittedAt - createdAt]
+    }
+  )
   const founderToReady = [...ready.entries()].flatMap(
     ([requestId, readyAt]) => {
       const submittedAt = submissions.get(requestId)
@@ -108,14 +155,37 @@ export function aggregateProductMetricEvents(
   return {
     ...window,
     truncated,
+    firstOpens: opened.size,
     founderSubmissions: submissions.size,
     readyResponses: ready.size,
     deliveries: delivered.size,
     expirations: expired.size,
     failures: failed.length,
     retriesScheduled: retries.length,
+    draftingCompletions: draftingCompletions.length,
+    draftingFailureRate:
+      failed.length + draftingCompletions.length === 0
+        ? 0
+        : failed.length / (failed.length + draftingCompletions.length),
+    deliveriesWithExpiration: deliveriesWithExpiration.size,
+    deliveriesBeforeExpiration: deliveriesBeforeExpiration.size,
+    deliveryBeforeExpirationRate:
+      deliveriesWithExpiration.size === 0
+        ? 0
+        : deliveriesBeforeExpiration.size / deliveriesWithExpiration.size,
+    agentDraftDeliveries: agentDraftDeliveries.size,
     rewrittenResponses: rewrittenRequestIds.size,
-    rewriteRate: ready.size === 0 ? 0 : rewrittenRequestIds.size / ready.size,
+    rewriteRate:
+      agentDraftDeliveries.size === 0
+        ? 0
+        : rewrittenRequestIds.size / agentDraftDeliveries.size,
+    deliveredWithoutSubstantialRewriteRate:
+      agentDraftDeliveries.size === 0
+        ? 0
+        : (agentDraftDeliveries.size - rewrittenRequestIds.size) /
+          agentDraftDeliveries.size,
+    medianCreationToFirstOpenMs: median(creationToFirstOpen),
+    medianCreationToFounderSubmissionMs: median(creationToFounderSubmission),
     medianFounderToReadyMs: median(founderToReady),
     medianReadyToDeliveryMs: median(readyToDelivery),
   }

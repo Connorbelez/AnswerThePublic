@@ -14,6 +14,7 @@ import {
   requireEditor,
   requirePrincipal,
 } from "./lib/authorization"
+import { contentRequestCreationDefaults } from "./lib/contentRequestDefaults"
 import { enqueueNotification } from "./lib/notificationOutbox"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 import { requestQueueSortKey } from "./lib/requestOrdering"
@@ -1154,7 +1155,7 @@ export const createFollowUp = mutation({
     }
     const now = Date.now()
     const childId = await ctx.db.insert("contentRequests", {
-      humanId: "pending",
+      ...contentRequestCreationDefaults(now),
       organizationId: actor.organizationId,
       title,
       normalizedTitle: normalized(title),
@@ -1172,20 +1173,12 @@ export const createFollowUp = mutation({
       aliases: [],
       origin: "manual",
       priority: "critical",
-      lifecycle: "pending",
-      disposition: "active",
-      retention: "active",
-      activeVoiceCaptureCount: 0,
-      voiceCaptureCountGeneration: 0,
-      aggregateVersion: 1,
       parentRequestId: parent._id,
       followUpReason: reason,
       assigneePrincipalId:
         parent.assigneePrincipalId ?? parent.createdByPrincipalId,
       watcherPrincipalIds: parent.watcherPrincipalIds ?? [],
       createdByPrincipalId: actor._id,
-      createdAt: now,
-      updatedAt: now,
     })
     const humanId = humanIdFor(childId)
     const deliverableId = await ctx.db.insert("deliverables", {

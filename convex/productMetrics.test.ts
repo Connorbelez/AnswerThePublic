@@ -51,6 +51,11 @@ describe("product metrics", () => {
       origin: "manual",
       correlationId: "metrics-create-third",
     })
+    const fourth = await operator.mutation(api.contentRequests.createManual, {
+      title: "Terminal drafting failure",
+      origin: "manual",
+      correlationId: "metrics-create-fourth",
+    })
 
     await workspace.run(async (ctx) => {
       const requests = await ctx.db.query("contentRequests").collect()
@@ -58,19 +63,43 @@ describe("product metrics", () => {
         requests.map((request) => [request.humanId, request])
       )
       const events = [
-        [first.humanId, "founder_input.submitted", 1_000],
-        [second.humanId, "founder_input.submitted", 2_000],
-        [first.humanId, "agent_job.completed", 3_000],
-        [first.humanId, "deliverable.version_created", 4_000],
-        [second.humanId, "agent_job.completed", 6_000],
-        [first.humanId, "delivery_receipt.confirmed", 8_000],
-        [second.humanId, "agent_job.retry_scheduled", 8_500],
-        [second.humanId, "agent_job.failed", 9_000],
-        [second.humanId, "content_request.expired", 9_500],
-        [third.humanId, "content_request.ready_response", 5_000],
-        [third.humanId, "deliverable.version_created", 7_000],
+        [first.humanId, "content_request.created", 500, undefined],
+        [first.humanId, "content_request.opened", 700, undefined],
+        [first.humanId, "founder_input.submitted", 1_000, undefined],
+        [second.humanId, "content_request.created", 1_000, undefined],
+        [second.humanId, "content_request.opened", 1_500, undefined],
+        [second.humanId, "founder_input.submitted", 2_000, undefined],
+        [first.humanId, "agent_job.completed", 3_000, undefined],
+        [second.humanId, "agent_job.completed", 6_000, undefined],
+        [
+          first.humanId,
+          "delivery_receipt.confirmed",
+          8_000,
+          {
+            responseCompleted: true,
+            deliveryBeforeExpiration: true,
+            agentDraftDelivered: true,
+            substantialOperatorRewrite: true,
+          },
+        ],
+        [
+          second.humanId,
+          "delivery_receipt.confirmed",
+          8_500,
+          {
+            responseCompleted: true,
+            deliveryBeforeExpiration: false,
+            agentDraftDelivered: true,
+            substantialOperatorRewrite: false,
+          },
+        ],
+        [second.humanId, "agent_job.retry_scheduled", 8_750, undefined],
+        [fourth.humanId, "agent_job.failed", 9_000, undefined],
+        [second.humanId, "content_request.expired", 9_500, undefined],
+        [third.humanId, "content_request.ready_response", 5_000, undefined],
+        [third.humanId, "deliverable.version_created", 7_000, undefined],
       ] as const
-      for (const [humanId, operation, occurredAt] of events) {
+      for (const [humanId, operation, occurredAt, productMetric] of events) {
         const request = byHumanId.get(humanId)
         if (!request) throw new Error("Metrics request missing")
         await ctx.db.insert("auditEvents", {
@@ -83,6 +112,7 @@ describe("product metrics", () => {
           correlationId: `must-not-leak-${occurredAt}`,
           occurredAt,
           afterVersion: 1,
+          productMetric,
         })
       }
     })
@@ -97,14 +127,24 @@ describe("product metrics", () => {
       truncated: false,
       founderSubmissions: 2,
       readyResponses: 3,
-      deliveries: 1,
+      firstOpens: 2,
+      deliveries: 2,
       expirations: 1,
       failures: 1,
       retriesScheduled: 1,
-      rewrittenResponses: 2,
-      rewriteRate: 2 / 3,
+      draftingCompletions: 2,
+      draftingFailureRate: 1 / 3,
+      deliveriesWithExpiration: 2,
+      deliveriesBeforeExpiration: 1,
+      deliveryBeforeExpirationRate: 1 / 2,
+      agentDraftDeliveries: 2,
+      rewrittenResponses: 1,
+      rewriteRate: 1 / 2,
+      deliveredWithoutSubstantialRewriteRate: 1 / 2,
+      medianCreationToFirstOpenMs: 350,
+      medianCreationToFounderSubmissionMs: 750,
       medianFounderToReadyMs: 3_000,
-      medianReadyToDeliveryMs: 5_000,
+      medianReadyToDeliveryMs: 3_750,
     })
     const serialized = JSON.stringify(metrics)
     expect(serialized).not.toContain(first.humanId)
@@ -160,7 +200,7 @@ describe("product metrics", () => {
     ).rejects.toMatchObject({ data: { code: "VALIDATION_FAILED" } })
   })
 
-  it("counts direct primary drafting and its later rewrite without an agent job", async () => {
+  it("does not classify an undelivered direct edit as an agent-draft rewrite", async () => {
     const workspace = convexTest(schema, modules)
     const operator = workspace.withIdentity(
       identity("metrics-direct-operator", "operator-editor")
@@ -192,8 +232,10 @@ describe("product metrics", () => {
       })
     ).resolves.toMatchObject({
       readyResponses: 1,
-      rewrittenResponses: 1,
-      rewriteRate: 1,
+      agentDraftDeliveries: 0,
+      rewrittenResponses: 0,
+      rewriteRate: 0,
+      deliveredWithoutSubstantialRewriteRate: 0,
     })
   })
 

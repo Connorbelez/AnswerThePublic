@@ -13,6 +13,7 @@ import {
   requireEditor,
   requirePrincipal,
 } from "./lib/authorization"
+import { contentRequestCreationDefaults } from "./lib/contentRequestDefaults"
 import { expirationTimingIdentity, inferExpirationAt } from "./lib/expiration"
 import { requestQueueSortKey } from "./lib/requestOrdering"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
@@ -226,7 +227,7 @@ export const apply = mutation({
       } else {
         const priority = priorityFor(opportunity.score)
         requestId = await ctx.db.insert("contentRequests", {
-          humanId: "pending",
+          ...contentRequestCreationDefaults(now),
           organizationId: principal.organizationId,
           title: opportunity.title,
           normalizedTitle: normalizeText(opportunity.title),
@@ -234,12 +235,6 @@ export const apply = mutation({
           aliases: [],
           origin: "automated_scout",
           priority,
-          lifecycle: "pending",
-          disposition: "active",
-          retention: "active",
-          activeVoiceCaptureCount: 0,
-          voiceCaptureCountGeneration: 0,
-          aggregateVersion: 1,
           normalizedSourceUrl: opportunity.normalizedSourceUrl,
           latestIngestionRunId: ingestionRunId,
           timingLabel: opportunity.timingLabel,
@@ -247,10 +242,7 @@ export const apply = mutation({
           autoExpirationDueAt: expiresAt,
           queueSortKey: requestQueueSortKey("automated_scout", priority, now),
           assigneePrincipalId: principal._id,
-          watcherPrincipalIds: [],
           createdByPrincipalId: principal._id,
-          createdAt: now,
-          updatedAt: now,
         })
         const primaryDeliverableId = await ctx.db.insert("deliverables", {
           organizationId: principal.organizationId,

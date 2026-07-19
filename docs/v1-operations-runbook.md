@@ -76,13 +76,18 @@ The window must be valid epoch milliseconds and no longer than 366 days. With
 no arguments, the query covers the prior 30 days. It scans at most 10,000 audit
 events and sets `truncated: true` if the window exceeds that bounded read.
 
-The payload contains only aggregate counts and durations:
+The payload contains only aggregate counts, rates, and durations:
 
-- founder submissions, ready responses, confirmed deliveries, expirations,
-  terminal failures, and scheduled retries;
-- median founder-submission-to-ready and ready-to-delivery milliseconds;
-- rewritten responses and rewrite rate, where a rewrite is a deliverable version
-  created after that request first reached ready.
+- first opens, founder submissions, ready responses, completed responses,
+  expirations, terminal drafting outcomes, and scheduled retries;
+- median creation-to-first-open, creation-to-founder-submission,
+  founder-submission-to-ready, and ready-to-completed-delivery milliseconds;
+- the terminal drafting-failure rate and the completed-delivery-before-expiration
+  rate for requests that have an expiration;
+- agent-draft deliveries, substantial operator rewrites, rewrite rate, and the
+  percentage delivered without substantial rewriting. A rewrite is substantial
+  when an operator-delivered version replaces at least 20% of the agent draft's
+  normalized word tokens; punctuation, formatting, and small edits do not count.
 
 It never returns request identifiers, source bodies, founder input, transcripts,
 credentials, correlation IDs, or public-share tokens. Operational request logs

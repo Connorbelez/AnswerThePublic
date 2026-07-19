@@ -664,14 +664,77 @@ describe("founder submission and agent drafting jobs", () => {
       winner.mutation(api.agentJobs.complete, completion),
     ])
     expect(results[0].resultVersionId).toBe(results[1].resultVersionId)
-    const stored = await workspace.run(async (ctx) => ({
-      versions: await ctx.db.query("deliverableVersions").collect(),
-      job: await ctx.db.get(job.jobId),
-    }))
-    expect(stored.versions).toHaveLength(1)
-    expect(stored.job).toMatchObject({
+    const listedJobs = await winner.query(api.agentJobs.list, { limit: 100 })
+    expect(
+      listedJobs.find((candidate) => candidate.jobId === job.jobId)
+    ).toMatchObject({
       status: "completed",
       resultVersionId: results[0].resultVersionId,
+    })
+    const deliverables = await winner.query(api.deliverables.list, {
+      humanId: job.requestHumanId,
+    })
+    expect(deliverables.flatMap((deliverable) => deliverable.versions)).toEqual(
+      [expect.objectContaining({ versionId: results[0].resultVersionId })]
+    )
+  })
+
+  it("measures only a delivered substantial operator rewrite of an agent draft", async () => {
+    const from = Date.now() - 1
+    const { workspace, operator, agent, request, job } =
+      await submittedWorkspace()
+    const claim = await agent.mutation(api.agentJobs.claim, {
+      leaseToken: "metrics-agent-lease",
+      leaseMs: 30_000,
+    })
+    const completed = await agent.mutation(api.agentJobs.complete, {
+      jobId: job.jobId,
+      leaseToken: "metrics-agent-lease",
+      leaseGeneration: claim!.leaseGeneration,
+      body: "Explain portability, qualification, timing, and lender approval.",
+      correlationId: "metrics-agent-completion",
+    })
+    const [primary] = await operator.query(api.deliverables.list, {
+      humanId: request.humanId,
+    })
+    const rewritten = await operator.mutation(api.deliverables.createVersion, {
+      deliverableId: primary!.deliverableId,
+      body: "Publish a short social post focused on payment flexibility and renewal strategy.",
+      correlationId: "metrics-operator-rewrite",
+    })
+    await operator.mutation(api.deliverables.promote, {
+      deliverableId: primary!.deliverableId,
+      versionId: rewritten.currentCandidateVersionId!,
+      expectedPromotedVersionId: completed.resultVersionId,
+      correlationId: "metrics-promote-rewrite",
+    })
+    await workspace.run((ctx) =>
+      ctx.db.patch(request.requestId, { expiresAt: Date.now() + 60_000 })
+    )
+    const [originalTarget] = await operator.query(api.deliveryTracking.list, {
+      humanId: request.humanId,
+    })
+    await operator.mutation(api.deliveryTracking.confirm, {
+      targetId: originalTarget!.targetId,
+      versionId: rewritten.currentCandidateVersionId!,
+      correlationId: "metrics-confirm-rewrite",
+    })
+
+    await expect(
+      operator.query(api.productMetrics.get, {
+        from,
+        to: Date.now() + 1,
+      })
+    ).resolves.toMatchObject({
+      draftingCompletions: 1,
+      draftingFailureRate: 0,
+      deliveriesWithExpiration: 1,
+      deliveriesBeforeExpiration: 1,
+      deliveryBeforeExpirationRate: 1,
+      agentDraftDeliveries: 1,
+      rewrittenResponses: 1,
+      rewriteRate: 1,
+      deliveredWithoutSubstantialRewriteRate: 0,
     })
   })
 })

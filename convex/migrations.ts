@@ -563,26 +563,27 @@ export const validateV1Invariants = internalQuery({
       const expectedNormalizedSourceUrl = source?.url
         ? normalizeSourceUrl(source.url)
         : null
-      if (
-        expectedNormalizedSourceUrl &&
-        request.normalizedSourceUrl !== expectedNormalizedSourceUrl
-      ) {
-        const collision = await ctx.db
-          .query("migrationConflicts")
-          .withIndex("by_request_type", (index) =>
-            index
-              .eq("requestId", request._id)
-              .eq("type", "normalized_source_url_collision")
-          )
-          .unique()
+      const collision = await ctx.db
+        .query("migrationConflicts")
+        .withIndex("by_request_type", (index) =>
+          index
+            .eq("requestId", request._id)
+            .eq("type", "normalized_source_url_collision")
+        )
+        .unique()
+      if (collision && !collision.resolved) {
         issues.push({
           humanId: request.humanId,
-          code:
-            collision && !collision.resolved
-              ? "normalized_source_url_collision"
-              : "normalized_source_url",
+          code: "normalized_source_url_collision",
         })
-      }
+      } else if (
+        expectedNormalizedSourceUrl &&
+        request.normalizedSourceUrl !== expectedNormalizedSourceUrl
+      )
+        issues.push({
+          humanId: request.humanId,
+          code: "normalized_source_url",
+        })
       const expectedRetention = request.retention
       const primaryDeliverables = deliverables.filter(
         (deliverable) =>

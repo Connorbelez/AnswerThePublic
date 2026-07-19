@@ -14,6 +14,7 @@ import {
   requireEditor,
   requirePrincipal,
 } from "./lib/authorization"
+import { contentRequestCreationDefaults } from "./lib/contentRequestDefaults"
 import { enqueueNotification } from "./lib/notificationOutbox"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 import { requestQueueSortKey } from "./lib/requestOrdering"
@@ -475,7 +476,7 @@ export const createManual = mutation({
       return toPublicRequest(ctx, upgraded)
     }
     const requestId = await ctx.db.insert("contentRequests", {
-      humanId: "pending",
+      ...contentRequestCreationDefaults(now),
       organizationId: principal.organizationId,
       title,
       normalizedTitle: normalizeText(title),
@@ -484,18 +485,9 @@ export const createManual = mutation({
       aliases,
       origin: args.origin,
       priority: "critical",
-      lifecycle: "pending",
-      disposition: "active",
-      retention: "active",
-      activeVoiceCaptureCount: 0,
-      voiceCaptureCountGeneration: 0,
-      aggregateVersion: 1,
       normalizedSourceUrl,
       assigneePrincipalId: principal._id,
-      watcherPrincipalIds: [],
       createdByPrincipalId: principal._id,
-      createdAt: now,
-      updatedAt: now,
     })
     const humanId = humanIdFor(requestId)
     const primaryDeliverableId = await ctx.db.insert("deliverables", {

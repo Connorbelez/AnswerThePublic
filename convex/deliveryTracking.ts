@@ -17,6 +17,7 @@ import {
 import { projectDeliveryLifecycle } from "./lib/deliveryLifecycle"
 import { enqueueNotification } from "./lib/notificationOutbox"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
+import { isSubstantialRewrite } from "./lib/productMetricClassification"
 import {
   assertWithinRequestLimit,
   MAX_DELIVERY_TARGETS_PER_REQUEST,
@@ -171,7 +172,13 @@ async function audit(
   principal: Awaited<ReturnType<typeof requirePrincipal>>,
   operation: string,
   correlationId: string,
-  now: number
+  now: number,
+  productMetric?: {
+    responseCompleted: boolean
+    deliveryBeforeExpiration?: boolean
+    agentDraftDelivered: boolean
+    substantialOperatorRewrite: boolean
+  }
 ) {
   const afterVersion = request.aggregateVersion + 1
   await ctx.db.patch(request._id, {
@@ -189,8 +196,47 @@ async function audit(
     occurredAt: now,
     beforeVersion: request.aggregateVersion,
     afterVersion,
+    productMetric,
   })
   await refreshOperatorWorkspaceProjection(ctx, request._id)
+}
+
+async function classifyDeliveryMetric(
+  ctx: MutationCtx,
+  request: Doc<"contentRequests">,
+  version: Doc<"deliverableVersions">,
+  respondedAt: number,
+  responseCompleted: boolean
+) {
+  const versions = await ctx.db
+    .query("deliverableVersions")
+    .withIndex("by_deliverable_ordinal", (index) =>
+      index
+        .eq("deliverableId", version.deliverableId)
+        .lte("ordinal", version.ordinal)
+    )
+    .order("desc")
+    .collect()
+  const agentDraft = versions.find((candidate) => candidate.sourceJobId)
+  const author = agentDraft
+    ? await ctx.db.get(version.createdByPrincipalId)
+    : null
+  const operatorAuthored =
+    author?.role === "operator_editor" || author?.role === "administrator"
+
+  return {
+    responseCompleted,
+    ...(request.expiresAt === undefined
+      ? {}
+      : { deliveryBeforeExpiration: respondedAt <= request.expiresAt }),
+    agentDraftDelivered: Boolean(agentDraft),
+    substantialOperatorRewrite: Boolean(
+      agentDraft &&
+      agentDraft._id !== version._id &&
+      operatorAuthored &&
+      isSubstantialRewrite(agentDraft.body, version.body)
+    ),
+  }
 }
 
 async function notifyOperators(
@@ -684,6 +730,7 @@ export const confirm = mutation({
         throw new ConvexError({ code: "INTEGRATION_SUCCESS_REQUIRED" })
     }
     const now = Date.now()
+    const respondedAt = integration?.succeededAt ?? now
     const receiptId = await ctx.db.insert("deliveryReceipts", {
       organizationId: principal.organizationId,
       requestId: request._id,
@@ -699,7 +746,7 @@ export const confirm = mutation({
       confirmationMethod: integration ? "integration" : "human",
       integrationIdentity: integration?.integrationIdentity,
       externalReceiptId: integration?.externalReceiptId,
-      respondedAt: integration?.succeededAt ?? now,
+      respondedAt,
       createdAt: now,
     })
     await ctx.db.patch(target._id, {
@@ -731,13 +778,23 @@ export const confirm = mutation({
       createdAt: now,
     })
     await projectDeliveryLifecycle(ctx, request)
+    const projectedRequest = await ctx.db.get(request._id)
+    if (!projectedRequest) throw new ConvexError({ code: "WRITE_FAILED" })
+    const productMetric = await classifyDeliveryMetric(
+      ctx,
+      request,
+      version,
+      respondedAt,
+      projectedRequest.lifecycle === "responded"
+    )
     await audit(
       ctx,
       request,
       principal,
       "delivery_receipt.confirmed",
       correlationId,
-      now
+      now,
+      productMetric
     )
     return publicTarget(
       ctx,

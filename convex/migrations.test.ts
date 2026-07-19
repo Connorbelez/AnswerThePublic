@@ -209,5 +209,21 @@ describe("V1 migration deployment gate", () => {
         code: "normalized_source_url_collision",
       },
     ])
+
+    await backend.run(async (ctx) => {
+      await ctx.db.patch(legacy.requestId, {
+        normalizedSourceUrl: "https://example.com/community/thread",
+      })
+    })
+    await expect(
+      backend.query(internal.migrations.validateV1Invariants, {})
+    ).resolves.toMatchObject({
+      issues: [
+        {
+          humanId: legacy.humanId,
+          code: "normalized_source_url_collision",
+        },
+      ],
+    })
   })
 })

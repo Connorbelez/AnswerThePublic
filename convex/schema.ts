@@ -933,6 +933,14 @@ export default defineSchema({
     beforeVersion: v.optional(v.number()),
     afterVersion: v.number(),
     inputFingerprint: v.optional(v.string()),
+    productMetric: v.optional(
+      v.object({
+        responseCompleted: v.boolean(),
+        deliveryBeforeExpiration: v.optional(v.boolean()),
+        agentDraftDelivered: v.boolean(),
+        substantialOperatorRewrite: v.boolean(),
+      })
+    ),
   })
     .index("by_request_occurred_at", ["requestId", "occurredAt"])
     .index("by_request_operation_correlation", [

@@ -89,14 +89,24 @@ export type ProductMetrics = {
   to: number
   generatedAt: number
   truncated: boolean
+  firstOpens: number
   founderSubmissions: number
   readyResponses: number
   deliveries: number
   expirations: number
   failures: number
   retriesScheduled: number
+  draftingCompletions: number
+  draftingFailureRate: number
+  deliveriesWithExpiration: number
+  deliveriesBeforeExpiration: number
+  deliveryBeforeExpirationRate: number
+  agentDraftDeliveries: number
   rewrittenResponses: number
   rewriteRate: number
+  deliveredWithoutSubstantialRewriteRate: number
+  medianCreationToFirstOpenMs: number | null
+  medianCreationToFounderSubmissionMs: number | null
   medianFounderToReadyMs: number | null
   medianReadyToDeliveryMs: number | null
 }
