@@ -16,9 +16,11 @@ import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as UnauthorizedRouteImport } from './routes/unauthorized'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppNewRouteImport } from './routes/app.new'
+import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
 import { Route as ApiAuthSignInRouteImport } from './routes/api/auth/sign-in'
 import { Route as ApiE2eAutomatedRequestRouteImport } from './routes/api/e2e/automated-request'
+import { Route as ApiE2ePublicShareRouteImport } from './routes/api/e2e/public-share'
 import { Route as ApiV1AgentJobsRouteImport } from './routes/api/v1/agent-jobs'
 import { Route as ApiV1ContentRequestsRouteImport } from './routes/api/v1/content-requests'
 import { Route as ApiV1ScoutIngestionsRouteImport } from './routes/api/v1/scout-ingestions'
@@ -70,6 +72,11 @@ const AppNewRoute = AppNewRouteImport.update({
   path: '/new',
   getParentRoute: () => AppRoute,
 } as any)
+const ShareTokenRoute = ShareTokenRouteImport.update({
+  id: '/share/$token',
+  path: '/share/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthCallbackRoute = ApiAuthCallbackRouteImport.update({
   id: '/api/auth/callback',
   path: '/api/auth/callback',
@@ -83,6 +90,11 @@ const ApiAuthSignInRoute = ApiAuthSignInRouteImport.update({
 const ApiE2eAutomatedRequestRoute = ApiE2eAutomatedRequestRouteImport.update({
   id: '/api/e2e/automated-request',
   path: '/api/e2e/automated-request',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiE2ePublicShareRoute = ApiE2ePublicShareRouteImport.update({
+  id: '/api/e2e/public-share',
+  path: '/api/e2e/public-share',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1AgentJobsRoute = ApiV1AgentJobsRouteImport.update({
@@ -176,10 +188,12 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof SignInRoute
   '/unauthorized': typeof UnauthorizedRoute
   '/app/new': typeof AppNewRoute
+  '/share/$token': typeof ShareTokenRoute
   '/app/': typeof AppIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
+  '/api/e2e/public-share': typeof ApiE2ePublicShareRoute
   '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
   '/api/v1/scout-ingestions': typeof ApiV1ScoutIngestionsRoute
@@ -202,10 +216,12 @@ export interface FileRoutesByTo {
   '/sign-in': typeof SignInRoute
   '/unauthorized': typeof UnauthorizedRoute
   '/app/new': typeof AppNewRoute
+  '/share/$token': typeof ShareTokenRoute
   '/app': typeof AppIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
+  '/api/e2e/public-share': typeof ApiE2ePublicShareRoute
   '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
   '/api/v1/scout-ingestions': typeof ApiV1ScoutIngestionsRoute
@@ -230,10 +246,12 @@ export interface FileRoutesById {
   '/sign-in': typeof SignInRoute
   '/unauthorized': typeof UnauthorizedRoute
   '/app/new': typeof AppNewRoute
+  '/share/$token': typeof ShareTokenRoute
   '/app/': typeof AppIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
+  '/api/e2e/public-share': typeof ApiE2ePublicShareRoute
   '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
   '/api/v1/scout-ingestions': typeof ApiV1ScoutIngestionsRoute
@@ -259,10 +277,12 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/unauthorized'
     | '/app/new'
+    | '/share/$token'
     | '/app/'
     | '/api/auth/callback'
     | '/api/auth/sign-in'
     | '/api/e2e/automated-request'
+    | '/api/e2e/public-share'
     | '/api/v1/agent-jobs'
     | '/api/v1/content-requests'
     | '/api/v1/scout-ingestions'
@@ -285,10 +305,12 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/unauthorized'
     | '/app/new'
+    | '/share/$token'
     | '/app'
     | '/api/auth/callback'
     | '/api/auth/sign-in'
     | '/api/e2e/automated-request'
+    | '/api/e2e/public-share'
     | '/api/v1/agent-jobs'
     | '/api/v1/content-requests'
     | '/api/v1/scout-ingestions'
@@ -312,10 +334,12 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/unauthorized'
     | '/app/new'
+    | '/share/$token'
     | '/app/'
     | '/api/auth/callback'
     | '/api/auth/sign-in'
     | '/api/e2e/automated-request'
+    | '/api/e2e/public-share'
     | '/api/v1/agent-jobs'
     | '/api/v1/content-requests'
     | '/api/v1/scout-ingestions'
@@ -339,9 +363,11 @@ export interface RootRouteChildren {
   LogoutRoute: typeof LogoutRoute
   SignInRoute: typeof SignInRoute
   UnauthorizedRoute: typeof UnauthorizedRoute
+  ShareTokenRoute: typeof ShareTokenRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiAuthSignInRoute: typeof ApiAuthSignInRoute
   ApiE2eAutomatedRequestRoute: typeof ApiE2eAutomatedRequestRoute
+  ApiE2ePublicShareRoute: typeof ApiE2ePublicShareRoute
   ApiV1AgentJobsRoute: typeof ApiV1AgentJobsRouteWithChildren
   ApiV1ContentRequestsRoute: typeof ApiV1ContentRequestsRouteWithChildren
   ApiV1ScoutIngestionsRoute: typeof ApiV1ScoutIngestionsRoute
@@ -403,6 +429,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppNewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/share/$token': {
+      id: '/share/$token'
+      path: '/share/$token'
+      fullPath: '/share/$token'
+      preLoaderRoute: typeof ShareTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/callback': {
       id: '/api/auth/callback'
       path: '/api/auth/callback'
@@ -422,6 +455,13 @@ declare module '@tanstack/react-router' {
       path: '/api/e2e/automated-request'
       fullPath: '/api/e2e/automated-request'
       preLoaderRoute: typeof ApiE2eAutomatedRequestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/e2e/public-share': {
+      id: '/api/e2e/public-share'
+      path: '/api/e2e/public-share'
+      fullPath: '/api/e2e/public-share'
+      preLoaderRoute: typeof ApiE2ePublicShareRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/agent-jobs': {
@@ -612,9 +652,11 @@ const rootRouteChildren: RootRouteChildren = {
   LogoutRoute: LogoutRoute,
   SignInRoute: SignInRoute,
   UnauthorizedRoute: UnauthorizedRoute,
+  ShareTokenRoute: ShareTokenRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiAuthSignInRoute: ApiAuthSignInRoute,
   ApiE2eAutomatedRequestRoute: ApiE2eAutomatedRequestRoute,
+  ApiE2ePublicShareRoute: ApiE2ePublicShareRoute,
   ApiV1AgentJobsRoute: ApiV1AgentJobsRouteWithChildren,
   ApiV1ContentRequestsRoute: ApiV1ContentRequestsRouteWithChildren,
   ApiV1ScoutIngestionsRoute: ApiV1ScoutIngestionsRoute,

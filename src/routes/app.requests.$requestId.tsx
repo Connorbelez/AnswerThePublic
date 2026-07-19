@@ -25,6 +25,7 @@ import {
   listArchivedDeliveryTargets,
   listDeliveryTargets,
   listOpenSemanticConflicts,
+  listPublicShares,
   listOperatorWorkspace,
   openContentRequest,
   markFounderVoiceTranscriptMerged,
@@ -45,6 +46,7 @@ import { SemanticConflictPanel } from "@/components/semantic-conflict-panel"
 import { DeliverablePanel } from "@/components/deliverable-panel"
 import { DeliveryTargetChecklist } from "@/components/delivery-target-checklist"
 import { UnifiedContextCanvas } from "@/components/unified-context-canvas"
+import { PublicShareManager } from "@/components/public-share-manager"
 import type { ContextDeckPreferences } from "@/application/content-requests"
 import { useFounderAutomerge } from "@/hooks/use-founder-automerge"
 import { useFounderVoiceInput } from "@/hooks/use-founder-voice-input"
@@ -71,6 +73,7 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       archivedDeliveryTargets,
       operatorWorkspace,
       relations,
+      publicShares,
     ] = await Promise.all([
       getContentRequest({ data: { humanId: params.requestId } }),
       listAssignablePrincipals(),
@@ -105,6 +108,9 @@ export const Route = createFileRoute("/app/requests/$requestId")({
             children: [],
             childrenTruncated: false,
           }),
+      session.status === "authenticated" && session.session.role !== "founder"
+        ? listPublicShares({ data: { humanId: params.requestId } })
+        : Promise.resolve([]),
     ])
     if (!request) throw notFound()
     return {
@@ -119,6 +125,7 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       archivedDeliveryTargetCursor: archivedDeliveryTargets.nextCursor,
       operatorItem: operatorWorkspace?.page[0] ?? null,
       relations,
+      publicShares,
     }
   },
   component: ContentRequestPage,
@@ -159,6 +166,7 @@ function ContentRequestPage() {
     archivedDeliveryTargetCursor,
     operatorItem,
     relations,
+    publicShares,
   } = Route.useLoaderData()
   const session = appRoute.useLoaderData()
   const requestIsActive =
@@ -356,6 +364,12 @@ function ContentRequestPage() {
         deliverables={deliverables}
         principals={principals}
         readOnly={!requestIsActive}
+      />
+      <PublicShareManager
+        humanId={request.humanId}
+        contextItems={contextItems}
+        deliverables={deliverables}
+        shares={publicShares}
       />
       {requestIsActive ? (
         <Card>

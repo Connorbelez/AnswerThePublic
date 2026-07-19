@@ -54,9 +54,22 @@ source or founder content.
 2. Copy `.env.example` to `.env.local` and supply the WorkOS and Convex values.
 3. In WorkOS, register `http://localhost:3000/api/auth/callback` as a redirect
    URI and `http://localhost:3000/api/auth/sign-in` as the sign-in endpoint.
-4. Set `WORKOS_CLIENT_ID` and `FAIRLEND_WORKOS_ORGANIZATION_ID` in the Convex
-   deployment, then run `bunx convex dev` to regenerate `_generated` files and
-   synchronize the schema/auth configuration.
+4. Provision the required Convex environment values, then run `bunx convex dev`
+   to regenerate `_generated` files and synchronize the schema/auth
+   configuration:
+
+   ```sh
+   bunx convex env set WORKOS_CLIENT_ID "client_..."
+   bunx convex env set FAIRLEND_WORKOS_ORGANIZATION_ID "org_..."
+   bunx convex env set PUBLIC_SHARE_TOKEN_SECRET "$(openssl rand -hex 32)"
+   ```
+
+   Set the public-share secret separately in every Convex deployment. Keep it
+   stable: existing public URLs remain valid after rotation because only token
+   hashes are stored, but idempotent retries of older create operations will be
+   rejected with `PUBLIC_SHARE_SECRET_ROTATED`. Revoke or recreate those shares
+   deliberately rather than returning a mismatched URL.
+
 5. Run the app with `bun run dev`.
 
 The checked-in generated Convex types let type checking and isolated contract

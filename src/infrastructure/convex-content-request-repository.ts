@@ -396,6 +396,22 @@ export function createConvexContentRequestRepository({
         targetId: input.targetId as Id<"deliveryTargets">,
       })
     },
+    async listPublicShares(humanId) {
+      return (await client()).mutation(api.publicShares.list, { humanId })
+    },
+    async createPublicShare(input) {
+      return (await client()).mutation(api.publicShares.create, {
+        ...input,
+        contextItemIds: input.contextItemIds as Array<Id<"contextItems">>,
+        deliverableIds: input.deliverableIds as Array<Id<"deliverables">>,
+      })
+    },
+    async revokePublicShare(shareId, correlationId) {
+      return (await client()).mutation(api.publicShares.revoke, {
+        shareId: shareId as Id<"publicShares">,
+        correlationId,
+      })
+    },
     async confirmDeliveryTarget(input) {
       return (await client()).mutation(api.deliveryTracking.confirm, {
         ...input,

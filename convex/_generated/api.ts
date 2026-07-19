@@ -10,6 +10,7 @@ import { componentsGeneric } from "convex/server"
 import type { ComponentApi as TimelineComponentApi } from "convex-timeline/_generated/component.js"
 
 import type * as principals from "../principals"
+import type * as publicShares from "../publicShares"
 import type * as contentRequests from "../contentRequests"
 import type * as deliverables from "../deliverables"
 import type * as deliveryTracking from "../deliveryTracking"
@@ -34,6 +35,7 @@ const fullApi: ApiFromModules<{
   requestDisposition: typeof requestDisposition
   migrations: typeof migrations
   principals: typeof principals
+  publicShares: typeof publicShares
   scoutIngestions: typeof scoutIngestions
   semanticConflicts: typeof semanticConflicts
   voiceCaptures: typeof voiceCaptures

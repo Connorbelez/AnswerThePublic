@@ -9,6 +9,7 @@ import type {
   FinalizeFounderVoiceCaptureInput,
   OperatorWorkspaceInput,
 } from "@/application/content-requests"
+import { toPublicShareResponse } from "@/application/content-requests"
 
 export const listContentRequests = createServerFn({ method: "POST" }).handler(
   async () => {
@@ -598,4 +599,66 @@ export const reopenDeliveryTarget = createServerFn({ method: "POST" })
     return (
       await createContentRequestServiceFromRequest()
     ).reopenDeliveryTarget(data)
+  })
+
+export const listPublicShares = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).listPublicShares(
+      data.humanId
+    )
+  })
+
+export const createPublicShare = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      humanId: string
+      contextItemIds: Array<string>
+      deliverableIds: Array<string>
+      expiresAt?: number
+      correlationId: string
+    }) => data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).createPublicShare(
+      data
+    )
+  })
+
+export const revokePublicShare = createServerFn({ method: "POST" })
+  .validator((data: { shareId: string; correlationId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).revokePublicShare(
+      data.shareId,
+      data.correlationId
+    )
+  })
+
+export const getPublicShareView = createServerFn({ method: "GET" })
+  .validator((data: { token: string }) => data)
+  .handler(async ({ data }) => {
+    const { api } = await import("../../convex/_generated/api")
+    if (import.meta.env.MODE === "e2e") {
+      const { getPublicConvexTestWorkspace } =
+        await import("@/infrastructure/convex-test-workspace.server")
+      const workspace = getPublicConvexTestWorkspace()
+      const view = await workspace.mutation(api.publicShares.view, {
+        token: data.token,
+      })
+      return view ? toPublicShareResponse(view) : null
+    }
+    const { ConvexHttpClient } = await import("convex/browser")
+    const url = process.env.VITE_CONVEX_URL
+    if (!url) throw new Error("VITE_CONVEX_URL is required.")
+    const client = new ConvexHttpClient(url)
+    const view = await client.mutation(api.publicShares.view, {
+      token: data.token,
+    })
+    return view ? toPublicShareResponse(view) : null
   })

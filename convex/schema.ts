@@ -704,6 +704,65 @@ export default defineSchema({
     "operation",
     "correlationId",
   ]),
+  publicShares: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    tokenHash: v.string(),
+    requestSnapshot: v.object({
+      humanId: v.string(),
+      title: v.string(),
+      priority: v.string(),
+      createdAt: v.number(),
+    }),
+    briefSections: v.array(
+      v.object({
+        contextItemId: v.id("contextItems"),
+        kind: v.string(),
+        title: v.string(),
+        bulletPoints: v.array(v.string()),
+        citations: v.array(
+          v.object({ label: v.string(), url: v.string(), supports: v.string() })
+        ),
+      })
+    ),
+    deliverables: v.array(
+      v.object({
+        deliverableId: v.id("deliverables"),
+        versionId: v.id("deliverableVersions"),
+        kind: v.string(),
+        name: v.string(),
+        body: v.string(),
+      })
+    ),
+    expiresAt: v.optional(v.number()),
+    active: v.boolean(),
+    revokedAt: v.optional(v.number()),
+    createdByPrincipalId: v.id("principals"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_token_hash", ["tokenHash"])
+    .index("by_request_active_created_at", ["requestId", "active", "createdAt"])
+    .index("by_request_created_at", ["requestId", "createdAt"]),
+  publicShareAccesses: defineTable({
+    shareId: v.id("publicShares"),
+    hourBucket: v.number(),
+    count: v.number(),
+    firstAccessedAt: v.number(),
+    lastAccessedAt: v.number(),
+  }).index("by_share_hour_bucket", ["shareId", "hourBucket"]),
+  publicShareOperations: defineTable({
+    organizationId: v.string(),
+    actorPrincipalId: v.id("principals"),
+    correlationId: v.string(),
+    inputFingerprint: v.string(),
+    shareId: v.id("publicShares"),
+    createdAt: v.number(),
+  }).index("by_organization_actor_correlation", [
+    "organizationId",
+    "actorPrincipalId",
+    "correlationId",
+  ]),
   founderInputVersionRestoreOperations: defineTable({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),

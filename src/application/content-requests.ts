@@ -320,6 +320,55 @@ export type DeliveryTargetPage = {
   nextCursor: string | null
 }
 
+export type PublicShareSummary = {
+  shareId: string
+  expiresAt: number | null
+  revokedAt: number | null
+  createdAt: number
+  briefSectionCount: number
+  deliverableCount: number
+}
+
+export type PublicShareView = {
+  shareId: string
+  request: {
+    humanId: string
+    title: string
+    priority: string
+    createdAt: number
+  }
+  briefSections: Array<{
+    kind: string
+    title: string
+    bulletPoints: Array<string>
+    citations: Array<{ label: string; url: string; supports: string }>
+  }>
+  deliverables: Array<{ kind: string; name: string; body: string }>
+  expiresAt: number | null
+  createdAt: number
+}
+
+export function toPublicShareResponse(view: PublicShareView): PublicShareView {
+  return {
+    shareId: view.shareId,
+    request: {
+      humanId: view.request.humanId,
+      title: view.request.title,
+      priority: view.request.priority,
+      createdAt: view.request.createdAt,
+    },
+    briefSections: view.briefSections.map((section) => ({
+      kind: section.kind,
+      title: section.title,
+      bulletPoints: [...section.bulletPoints],
+      citations: section.citations.map((citation) => ({ ...citation })),
+    })),
+    deliverables: view.deliverables.map((deliverable) => ({ ...deliverable })),
+    expiresAt: view.expiresAt,
+    createdAt: view.createdAt,
+  }
+}
+
 export type OperatorQueue =
   | "needs_elie"
   | "agent_drafting"
@@ -602,6 +651,18 @@ export interface ContentRequestRepository {
     retention: "active" | "archived"
     correlationId: string
   }): Promise<DeliveryTarget>
+  listPublicShares(humanId: string): Promise<Array<PublicShareSummary>>
+  createPublicShare(input: {
+    humanId: string
+    contextItemIds: Array<string>
+    deliverableIds: Array<string>
+    expiresAt?: number
+    correlationId: string
+  }): Promise<{ share: PublicShareSummary; token: string }>
+  revokePublicShare(
+    shareId: string,
+    correlationId: string
+  ): Promise<PublicShareSummary>
   confirmDeliveryTarget(input: {
     targetId: string
     versionId: string
@@ -804,6 +865,18 @@ export interface ContentRequestService {
     retention: "active" | "archived"
     correlationId: string
   }): Promise<DeliveryTarget>
+  listPublicShares(humanId: string): Promise<Array<PublicShareSummary>>
+  createPublicShare(input: {
+    humanId: string
+    contextItemIds: Array<string>
+    deliverableIds: Array<string>
+    expiresAt?: number
+    correlationId: string
+  }): Promise<{ share: PublicShareSummary; token: string }>
+  revokePublicShare(
+    shareId: string,
+    correlationId: string
+  ): Promise<PublicShareSummary>
   confirmDeliveryTarget(input: {
     targetId: string
     versionId: string
@@ -953,6 +1026,10 @@ export function createContentRequestService(
       repository.setDeliveryTargetRequired(input),
     setDeliveryTargetRetention: (input) =>
       repository.setDeliveryTargetRetention(input),
+    listPublicShares: (humanId) => repository.listPublicShares(humanId),
+    createPublicShare: (input) => repository.createPublicShare(input),
+    revokePublicShare: (shareId, correlationId) =>
+      repository.revokePublicShare(shareId, correlationId),
     confirmDeliveryTarget: (input) => repository.confirmDeliveryTarget(input),
     reopenDeliveryTarget: (input) => repository.reopenDeliveryTarget(input),
     proposeAssigneeChange: (input) => repository.proposeAssigneeChange(input),

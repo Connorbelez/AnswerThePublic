@@ -13,6 +13,52 @@ test("an unauthenticated visitor is sent to the sign-in boundary", async ({
   ).toBeVisible()
 })
 
+test("a public share is unauthenticated, read-only, and immediately revocable", async ({
+  browser,
+}) => {
+  const operator = await browser.newContext({
+    extraHTTPHeaders: {
+      "x-fairlend-e2e-key": "local-playwright-only",
+      "x-fairlend-e2e-user": JSON.stringify({
+        subject: "share_operator",
+        organizationId: "org_fairlend",
+        email: "share@fairlend.ca",
+        displayName: "Share operator",
+        workosRole: "operator-editor",
+      }),
+    },
+  })
+  const response = await operator.request.post("/api/e2e/public-share", {
+    data: { action: "create" },
+  })
+  const payload = (await response.json()) as {
+    data: { token: string; share: { shareId: string } }
+  }
+  const viewer = await browser.newContext()
+  const page = await viewer.newPage()
+  await page.goto(`/share/${payload.data.token}`)
+  await expect(
+    page.getByRole("heading", { name: "Public FairLend response" })
+  ).toBeVisible()
+  await expect(
+    page.getByText("This is the explicitly approved public response.")
+  ).toBeVisible()
+  await expect(page.getByText("Read only", { exact: false })).toBeVisible()
+  const publicHtml = await page.content()
+  expect(publicHtml).not.toContain("PRIVATE_CANDIDATE_SECRET")
+  expect(publicHtml).not.toContain("PRIVATE_FOUNDER_BROWSER_SECRET")
+  expect(publicHtml).not.toMatch(
+    /founderInput|agentJobs|auditEvents|credentialId/
+  )
+  await operator.request.post("/api/e2e/public-share", {
+    data: { action: "revoke", shareId: payload.data.share.shareId },
+  })
+  const revokedResponse = await page.reload()
+  expect(revokedResponse?.status()).toBe(404)
+  await viewer.close()
+  await operator.close()
+})
+
 test("an authenticated founder sees their identity and role", async ({
   browser,
 }) => {

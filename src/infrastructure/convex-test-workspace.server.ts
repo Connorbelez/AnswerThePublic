@@ -17,6 +17,10 @@ const modules = import.meta.glob([
 const workspace = convexTest(schema, modules)
 timelineTest.register(workspace)
 
+export function getPublicConvexTestWorkspace() {
+  return workspace
+}
+
 export async function getConvexTestWorkspace(
   identity: ExternalIdentity,
   configuredOrganizationId = process.env.FAIRLEND_E2E_ORGANIZATION_ID
@@ -76,4 +80,63 @@ export async function createAutomatedE2eRequest(
     })
   })
   return { humanId: created.humanId }
+}
+
+export async function createPublicShareE2e(identity: ExternalIdentity) {
+  process.env.PUBLIC_SHARE_TOKEN_SECRET =
+    "e2e-only-public-share-secret-at-least-32-bytes"
+  const authenticated = await getConvexTestWorkspace(identity)
+  const request = await authenticated.mutation(
+    api.contentRequests.createManual,
+    {
+      title: "Public FairLend response",
+      origin: "manual",
+      correlationId: crypto.randomUUID(),
+    }
+  )
+  const [primary] = await authenticated.query(api.deliverables.list, {
+    humanId: request.humanId,
+  })
+  await authenticated.mutation(api.deliverables.createVersion, {
+    deliverableId: primary.deliverableId,
+    body: "This is the explicitly approved public response.",
+    correlationId: crypto.randomUUID(),
+  })
+  await authenticated.mutation(api.deliverables.createVersion, {
+    deliverableId: primary.deliverableId,
+    body: "PRIVATE_CANDIDATE_SECRET",
+    correlationId: crypto.randomUUID(),
+  })
+  await authenticated.run(async (ctx) => {
+    const principal = await ctx.db.query("principals").first()
+    if (!principal) throw new Error("Missing E2E principal")
+    await ctx.db.insert("founderInputDocuments", {
+      organizationId: identity.organizationId,
+      requestId: request.requestId,
+      founderPrincipalId: principal._id,
+      text: "PRIVATE_FOUNDER_BROWSER_SECRET",
+      revision: 1,
+      hasMeaningfulDraft: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    })
+  })
+  return authenticated.mutation(api.publicShares.create, {
+    humanId: request.humanId,
+    contextItemIds: [],
+    deliverableIds: [primary.deliverableId],
+    correlationId: crypto.randomUUID(),
+  })
+}
+
+export async function revokePublicShareE2e(
+  identity: ExternalIdentity,
+  shareId: string
+) {
+  const authenticated = await getConvexTestWorkspace(identity)
+  return authenticated.mutation(api.publicShares.revoke, {
+    shareId:
+      shareId as import("../../convex/_generated/dataModel").Id<"publicShares">,
+    correlationId: crypto.randomUUID(),
+  })
 }
