@@ -3,10 +3,13 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 test.setTimeout(60_000)
 
 async function expectMinimumTouchTarget(locator: Locator) {
-  const bounds = await locator.boundingBox()
-
-  expect(bounds?.width).toBeGreaterThanOrEqual(44)
-  expect(bounds?.height).toBeGreaterThanOrEqual(44)
+  await expect(locator).toBeVisible()
+  await expect
+    .poll(async () => {
+      const bounds = await locator.boundingBox()
+      return bounds ? Math.min(bounds.width, bounds.height) : 0
+    })
+    .toBeGreaterThanOrEqual(44)
 }
 
 async function expectNoHorizontalOverflow(page: Page) {
@@ -105,6 +108,20 @@ test("an authenticated founder sees their identity and role", async ({
     await expectMinimumTouchTarget(page.getByRole("button", { name }))
   }
 
+  await page.getByRole("button", { name: "Open navigation" }).click()
+  const primaryNavigation = page.getByRole("navigation", {
+    name: "Primary navigation",
+  })
+  await expect(primaryNavigation).toBeVisible()
+  await expect(
+    primaryNavigation.getByRole("link", { name: "Content requests" })
+  ).toBeVisible()
+  await expect(
+    primaryNavigation.getByRole("link", { name: "New request" })
+  ).toHaveCount(0)
+  await page.keyboard.press("Escape")
+  await expect(primaryNavigation).toBeHidden()
+
   await expectNoHorizontalOverflow(page)
   await context.close()
 })
@@ -153,7 +170,13 @@ test("an operator creates a minimal manual request and opens its stable route", 
   const page = await context.newPage()
 
   await page.goto("/app")
-  await page.getByRole("link", { name: "New request" }).click()
+  await expect(page.getByRole("main")).toHaveAttribute("data-hydrated", "true")
+  await page.getByRole("button", { name: "Open navigation" }).click()
+  await page
+    .getByRole("navigation", { name: "Primary navigation" })
+    .getByRole("link", { name: "New request" })
+    .click()
+  await expect(page).toHaveURL(/\/app\/new$/)
   await page.getByLabel("Title").fill("Explain mortgage portability")
   await page
     .getByLabel("Original question")
@@ -543,7 +566,9 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
     gridTitles.indexOf(automatedTitle)
   )
   await founderPage.getByText(title, { exact: true }).click()
-  await expect(founderPage.getByRole("heading", { name: title })).toBeVisible()
+  await expect(
+    founderPage.getByRole("heading", { name: title, exact: true })
+  ).toBeVisible()
   await expect(
     founderPage.getByRole("region", { name: "Context deck" })
   ).toBeVisible()

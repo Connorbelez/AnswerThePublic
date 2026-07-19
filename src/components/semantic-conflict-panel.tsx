@@ -11,6 +11,7 @@ import type {
 } from "@/application/content-requests"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { FieldError } from "@/components/ui/field"
 
 export function SemanticConflictPanel({
   conflicts,
@@ -113,11 +114,7 @@ export function SemanticConflictPanel({
             </div>
           </div>
         ))}
-        {error ? (
-          <p className="form-error" role="alert">
-            {error}
-          </p>
-        ) : null}
+        {error ? <FieldError>{error}</FieldError> : null}
       </AlertDescription>
     </Alert>
   )

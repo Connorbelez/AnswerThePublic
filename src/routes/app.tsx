@@ -1,14 +1,11 @@
 import { Outlet, createFileRoute, redirect } from "@tanstack/react-router"
-import { Menu } from "lucide-react"
-
 import { loadWorkspaceSession } from "@/application/load-workspace-session"
 import { listMyNotifications } from "@/application/content-request-server-functions"
 import type { WorkspaceRole } from "@/application/workspace-session"
+import { ApplicationNavigation } from "@/components/application-navigation"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
 import { NotificationCentre } from "@/components/notification-centre"
 import { SignOutControl } from "@/components/sign-out-control"
-import { Separator } from "@/components/ui/separator"
 
 const roleLabels = {
   founder: "Founder",
@@ -47,13 +44,9 @@ function ApplicationShell() {
     <div className="app-shell">
       <header className="app-header">
         <div className="app-header__brand">
-          <Button
-            variant="ghost"
-            size="icon-touch"
-            aria-label="Open navigation"
-          >
-            <Menu />
-          </Button>
+          <ApplicationNavigation
+            canCreateRequest={session.role !== "founder"}
+          />
           <span className="wordmark">FairLend</span>
         </div>
         <div className="identity">
@@ -70,7 +63,6 @@ function ApplicationShell() {
           </Avatar>
         </div>
       </header>
-      <Separator />
       <Outlet />
     </div>
   )

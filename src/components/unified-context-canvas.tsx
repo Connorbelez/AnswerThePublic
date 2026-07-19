@@ -22,6 +22,8 @@ import {
   Undo2,
 } from "lucide-react"
 
+import { contextCardVariants } from "@/components/context-card-variants"
+import { Card } from "@/components/ui/card"
 import type {
   ContentContextItem,
   ContentRequest,
@@ -188,10 +190,11 @@ function ContextCard({
 }) {
   const Icon = item.icon
   return (
-    <article
+    <Card
+      as="article"
       aria-label={item.title}
       data-pinned={String(pinned)}
-      className={cn("unified-context-card", pinned && "is-pinned")}
+      className={contextCardVariants({ pinned, className: "gap-0" })}
     >
       <div className="unified-context-card__header">
         <span className="unified-context-card__icon" aria-hidden="true">
@@ -242,7 +245,7 @@ function ContextCard({
           ))}
         </div>
       ) : null}
-    </article>
+    </Card>
   )
 }
 

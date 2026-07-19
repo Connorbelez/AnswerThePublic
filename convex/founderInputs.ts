@@ -2,8 +2,7 @@ import { ConvexError, v } from "convex/values"
 import { paginationOptsValidator } from "convex/server"
 import { Timeline } from "convex-timeline"
 import { hash } from "fast-sha256"
-import { automergeWasmBase64 } from "@automerge/automerge/automerge.wasm.base64"
-import * as Automerge from "@automerge/automerge/slim"
+import * as Automerge from "@automerge/automerge"
 
 import type { Doc } from "./_generated/dataModel"
 import { components } from "./_generated/api"
@@ -55,7 +54,6 @@ const archivedVersionValidator = v.object({
 })
 
 const timeline = new Timeline(components.timeline, { maxNodesPerScope: 50 })
-const automergeReady = Automerge.initializeBase64Wasm(automergeWasmBase64)
 
 type CanonicalFounderDocument = {
   requestHumanId: string
@@ -123,7 +121,6 @@ async function canonicalFounderDocument(
   encodedChanges: Array<string>
 ) {
   try {
-    await automergeReady
     const [document] = Automerge.applyChanges(
       Automerge.init<CanonicalFounderDocument>(),
       encodedChanges.map(base64Bytes)

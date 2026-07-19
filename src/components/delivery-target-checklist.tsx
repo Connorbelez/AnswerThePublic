@@ -16,10 +16,13 @@ import {
   setDeliveryTargetRequired,
   setDeliveryTargetRetention,
 } from "@/application/content-request-server-functions"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Item, ItemActions, ItemContent } from "@/components/ui/item"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 
 export function DeliveryTargetChecklist({
@@ -138,7 +141,7 @@ export function DeliveryTargetChecklist({
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between">
-        <CardTitle>Responded</CardTitle>
+        <CardTitle as="h2">Responded</CardTitle>
         {!readOnly ? (
           <Button
             size="sm-touch"
@@ -156,14 +159,13 @@ export function DeliveryTargetChecklist({
           {pending ? "Updating delivery checklist" : (error ?? "")}
         </p>
         {error ? (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         ) : null}
         {adding && !readOnly ? (
           <form
             id="add-delivery-target"
-            className="grid gap-2 rounded-xl border p-3"
             onSubmit={(event) => {
               event.preventDefault()
               const data = new FormData(event.currentTarget)
@@ -191,49 +193,54 @@ export function DeliveryTargetChecklist({
               )
             }}
           >
-            <label className="grid gap-1 text-sm font-medium">
-              Deliverable
-              <NativeSelect
-                name="deliverableId"
-                className="w-full"
-                defaultValue={
-                  deliverables.find((deliverable) => deliverable.isPrimary)
-                    ?.deliverableId
-                }
+            <Item variant="outline" className="grid gap-2">
+              <Field>
+                <FieldLabel htmlFor="delivery-target-deliverable">
+                  Deliverable
+                </FieldLabel>
+                <NativeSelect
+                  id="delivery-target-deliverable"
+                  name="deliverableId"
+                  className="w-full"
+                  defaultValue={
+                    deliverables.find((deliverable) => deliverable.isPrimary)
+                      ?.deliverableId
+                  }
+                  required
+                >
+                  {deliverables.map((deliverable) => (
+                    <NativeSelectOption
+                      key={deliverable.deliverableId}
+                      value={deliverable.deliverableId}
+                    >
+                      {deliverable.name}
+                      {deliverable.isPrimary ? " (primary)" : ""}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </Field>
+              <Input
+                name="channel"
+                aria-label="Channel"
+                placeholder="Channel"
                 required
-              >
-                {deliverables.map((deliverable) => (
-                  <NativeSelectOption
-                    key={deliverable.deliverableId}
-                    value={deliverable.deliverableId}
-                  >
-                    {deliverable.name}
-                    {deliverable.isPrimary ? " (primary)" : ""}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </label>
-            <Input
-              name="channel"
-              aria-label="Channel"
-              placeholder="Channel"
-              required
-            />
-            <Input
-              name="destinationLabel"
-              aria-label="Destination"
-              placeholder="Destination"
-              required
-            />
-            <Input
-              name="destinationUrl"
-              aria-label="Destination URL"
-              placeholder="https://…"
-              type="url"
-            />
-            <Button type="submit" size="sm-touch" disabled={pending !== null}>
-              Create optional channel
-            </Button>
+              />
+              <Input
+                name="destinationLabel"
+                aria-label="Destination"
+                placeholder="Destination"
+                required
+              />
+              <Input
+                name="destinationUrl"
+                aria-label="Destination URL"
+                placeholder="https://…"
+                type="url"
+              />
+              <Button type="submit" size="sm-touch" disabled={pending !== null}>
+                Create optional channel
+              </Button>
+            </Item>
           </form>
         ) : null}
         {visibleTargets.map((target) => {
@@ -247,11 +254,12 @@ export function DeliveryTargetChecklist({
           )
           const readinessId = `delivery-readiness-${target.targetId}`
           return (
-            <div
+            <Item
               key={target.targetId}
-              className={`flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center ${archived ? "bg-muted/40 opacity-75" : ""}`}
+              variant="outline"
+              emphasis={archived ? "subdued" : "default"}
             >
-              <div className="min-w-0 flex-1">
+              <ItemContent className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{target.destinationLabel}</span>
                   {target.isRequired ? (
@@ -368,9 +376,9 @@ export function DeliveryTargetChecklist({
                     Promote a version before confirming delivery.
                   </p>
                 ) : null}
-              </div>
+              </ItemContent>
               {!readOnly ? (
-                <div className="flex flex-wrap gap-2">
+                <ItemActions className="flex-wrap self-start sm:self-center">
                   {archived ? (
                     <Button
                       size="sm-touch"
@@ -478,9 +486,9 @@ export function DeliveryTargetChecklist({
                       Mark responded
                     </Button>
                   ) : null}
-                </div>
+                </ItemActions>
               ) : null}
-            </div>
+            </Item>
           )
         })}
         {archivedCursor ? (

@@ -51,7 +51,12 @@ export function ContentRequestCard({
       to="/app/requests/$requestId"
       params={{ requestId: request.humanId }}
     >
-      <Card className="request-card">
+      <Card
+        className="request-card"
+        tone={
+          operational?.queue === "attention_required" ? "elevated" : "default"
+        }
+      >
         <CardHeader>
           <div className="request-card__meta">
             <Badge
@@ -86,7 +91,7 @@ export function ContentRequestCard({
               <span>Unopened</span>
             )}
           </div>
-          <CardTitle>{request.title}</CardTitle>
+          <CardTitle as="h2">{request.title}</CardTitle>
         </CardHeader>
         <CardContent>
           <p>

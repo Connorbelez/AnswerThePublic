@@ -14,6 +14,12 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemTitle,
+} from "@/components/ui/item"
 
 const notificationLabels = {
   request_assigned: "A request was assigned to you",
@@ -72,15 +78,27 @@ export function NotificationCentre({
         ) : (
           <div className="notification-list">
             {notifications.map((notification) => (
-              <Link
+              <Item
                 key={notification.notificationId}
-                to="/app/requests/$requestId"
-                params={{ requestId: notification.requestHumanId }}
-                onClick={() => readNotification(notification.notificationId)}
+                size="sm"
+                variant={unread.includes(notification) ? "muted" : "default"}
+                render={
+                  <Link
+                    to="/app/requests/$requestId"
+                    params={{ requestId: notification.requestHumanId }}
+                    onClick={() =>
+                      readNotification(notification.notificationId)
+                    }
+                  />
+                }
               >
-                <strong>{notificationLabels[notification.type]}</strong>
-                <span>{notification.requestHumanId}</span>
-              </Link>
+                <ItemContent>
+                  <ItemTitle>{notificationLabels[notification.type]}</ItemTitle>
+                  <ItemDescription>
+                    {notification.requestHumanId}
+                  </ItemDescription>
+                </ItemContent>
+              </Item>
             ))}
           </div>
         )}

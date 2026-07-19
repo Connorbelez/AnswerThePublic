@@ -7,9 +7,11 @@ import {
   promoteDeliverableVersion,
   setPrimaryDeliverable,
 } from "@/application/content-request-server-functions"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Item, ItemHeader } from "@/components/ui/item"
 
 export function DeliverablePanel({
   humanId,
@@ -28,23 +30,25 @@ export function DeliverablePanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Deliverables</CardTitle>
+        <CardTitle as="h2">Deliverables</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
         <p aria-live="polite" className="sr-only" role="status">
           {error ?? (pending ? "Updating deliverables" : "")}
         </p>
         {error ? (
-          <p className="text-sm text-destructive" role="alert">
-            {error}
-          </p>
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         ) : null}
         {deliverables.map((deliverable) => (
-          <article
+          <Item
             key={deliverable.deliverableId}
-            className="rounded-xl border p-4"
+            variant="outline"
+            className="block"
+            render={<article />}
           >
-            <div className="flex items-center justify-between gap-3">
+            <ItemHeader>
               <div>
                 <h3 className="font-medium">{deliverable.name}</h3>
                 <p className="text-sm text-muted-foreground">
@@ -52,7 +56,7 @@ export function DeliverablePanel({
                 </p>
               </div>
               {deliverable.isPrimary ? <Badge>Primary</Badge> : null}
-            </div>
+            </ItemHeader>
             <ol
               className="mt-3 grid gap-3"
               aria-label={`${deliverable.name} versions`}
@@ -164,7 +168,7 @@ export function DeliverablePanel({
                 Make primary
               </Button>
             ) : null}
-          </article>
+          </Item>
         ))}
       </CardContent>
     </Card>

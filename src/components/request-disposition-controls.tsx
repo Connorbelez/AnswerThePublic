@@ -16,7 +16,7 @@ import type {
 } from "@/application/content-requests"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -76,7 +76,7 @@ export function RequestDispositionControls({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Lifecycle and related work</CardTitle>
+        <CardTitle as="h2">Lifecycle and related work</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-6">
         <div className="grid gap-2 text-sm">
@@ -310,7 +310,7 @@ export function RequestDispositionControls({
             </Button>
           </form>
         ) : null}
-        {error ? <p className="form-error">{error}</p> : null}
+        {error ? <FieldError>{error}</FieldError> : null}
       </CardContent>
     </Card>
   )

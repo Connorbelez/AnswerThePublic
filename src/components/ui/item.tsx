@@ -35,7 +35,7 @@ function ItemSeparator({
 }
 
 const itemVariants = cva(
-  "group/item flex w-full flex-wrap items-center rounded-2xl border text-sm transition-colors duration-100 outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 [a]:transition-colors [a]:hover:bg-muted",
+  "group/item flex w-full flex-wrap items-center rounded-2xl border text-sm transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 [a]:hover:bg-muted [a]:active:scale-[0.99]",
   {
     variants: {
       variant: {
@@ -48,10 +48,15 @@ const itemVariants = cva(
         sm: "gap-3.5 px-3.5 py-3",
         xs: "gap-2 px-2.5 py-2 in-data-[slot=dropdown-menu-content]:p-0",
       },
+      emphasis: {
+        default: "",
+        subdued: "bg-muted/40 opacity-75",
+      },
     },
     defaultVariants: {
       variant: "default",
       size: "default",
+      emphasis: "default",
     },
   }
 )
@@ -60,6 +65,7 @@ function Item({
   className,
   variant = "default",
   size = "default",
+  emphasis = "default",
   render,
   ...props
 }: useRender.ComponentProps<"div"> & VariantProps<typeof itemVariants>) {
@@ -67,7 +73,7 @@ function Item({
     defaultTagName: "div",
     props: mergeProps<"div">(
       {
-        className: cn(itemVariants({ variant, size, className })),
+        className: cn(itemVariants({ variant, size, emphasis, className })),
       },
       props
     ),
@@ -76,6 +82,7 @@ function Item({
       slot: "item",
       variant,
       size,
+      emphasis,
     },
   })
 }

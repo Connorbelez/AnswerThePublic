@@ -182,11 +182,17 @@ instead of overwriting the third value.
 
 ## Deployment
 
-The production adapter targets Cloudflare Workers. Configure the WorkOS values
-as Worker secrets/bindings and configure `VITE_CONVEX_URL` as a Worker variable
-(the server reads it at runtime), then run `bun run deploy`. That command always
-creates a clean production build before Wrangler deploys it; browser-test
-artifacts are isolated and deleted.
+The primary production adapter targets Vercel through Nitro. The linked
+`fairlend-content-requests` project uses `vercel.json`, a frozen Bun install,
+and `bun run build`. Configure the production WorkOS and Convex values in the
+Vercel and Convex dashboards, run the full verification gate, then deploy with
+`bunx vercel deploy --prod --yes`. The release and rollback sequence is
+documented in `docs/v1-operations-runbook.md`.
+
+Cloudflare Workers remains a supported alternate target. Configure the WorkOS
+values as Worker secrets/bindings and `VITE_CONVEX_URL` as a Worker variable,
+then run `bun run deploy`; that command creates a production build before
+Wrangler deploys it.
 
 ## Content Request contracts
 

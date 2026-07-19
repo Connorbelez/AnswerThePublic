@@ -1,20 +1,45 @@
 import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+const cardVariants = cva(
+  "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-[min(var(--radius-4xl),24px)] py-(--card-spacing) text-sm text-card-foreground ring-1 ring-foreground/5 [--card-spacing:--spacing(5)] has-[>img:first-child]:pt-0 dark:ring-foreground/10 *:[img:first-child]:rounded-t-[min(var(--radius-4xl),24px)] *:[img:last-child]:rounded-b-[min(var(--radius-4xl),24px)]",
+  {
+    variants: {
+      size: {
+        default: "[--card-spacing:--spacing(5)]",
+        sm: "[--card-spacing:--spacing(4)]",
+      },
+      tone: {
+        default: "bg-card shadow-sm",
+        subtle: "bg-card/70 shadow-none",
+        elevated: "bg-card shadow-[0_20px_60px_rgb(30_45_35/0.10)]",
+      },
+    },
+    defaultVariants: {
+      size: "default",
+      tone: "default",
+    },
+  }
+)
+
 function Card({
+  as: Component = "div",
   className,
   size = "default",
+  tone = "default",
   ...props
-}: React.ComponentProps<"div"> & { size?: "default" | "sm" }) {
+}: React.ComponentProps<"div"> &
+  VariantProps<typeof cardVariants> & {
+    as?: "div" | "article" | "section"
+  }) {
   return (
-    <div
+    <Component
       data-slot="card"
       data-size={size}
-      className={cn(
-        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-[min(var(--radius-4xl),24px)] bg-card py-(--card-spacing) text-sm text-card-foreground shadow-sm ring-1 ring-foreground/5 [--card-spacing:--spacing(5)] has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(4)] dark:ring-foreground/10 *:[img:first-child]:rounded-t-[min(var(--radius-4xl),24px)] *:[img:last-child]:rounded-b-[min(var(--radius-4xl),24px)]",
-        className
-      )}
+      data-tone={tone}
+      className={cn(cardVariants({ size, tone, className }))}
       {...props}
     />
   )
@@ -33,9 +58,15 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
+function CardTitle({
+  as: Component = "div",
+  className,
+  ...props
+}: React.ComponentProps<"div"> & {
+  as?: "div" | "h1" | "h2" | "h3"
+}) {
   return (
-    <div
+    <Component
       data-slot="card-title"
       className={cn("font-heading text-base font-medium", className)}
       {...props}
@@ -97,4 +128,5 @@ export {
   CardAction,
   CardDescription,
   CardContent,
+  cardVariants,
 }

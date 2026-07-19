@@ -20,17 +20,17 @@ function UnauthorizedPage() {
         <span className="wordmark">FairLend</span>
         <p>Content Requests</p>
       </section>
-      <Card className="auth-card">
+      <Card className="auth-card" tone="elevated">
         <CardHeader>
           <span className="auth-icon" aria-hidden="true">
             <ShieldAlert />
           </span>
-          <CardTitle className="text-2xl">
-            <h1>Your account is not provisioned</h1>
+          <CardTitle as="h1" className="text-2xl">
+            Your account is not provisioned
           </CardTitle>
           <CardDescription>
-            You are signed in, but your WorkOS role does not grant access to this
-            workspace.
+            You are signed in, but your WorkOS role does not grant access to
+            this workspace.
           </CardDescription>
         </CardHeader>
         <CardContent>

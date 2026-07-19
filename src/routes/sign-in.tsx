@@ -35,17 +35,17 @@ function SignInPage() {
         <span className="wordmark">FairLend</span>
         <p>Content Requests</p>
       </section>
-      <Card className="auth-card">
+      <Card className="auth-card" tone="elevated">
         <CardHeader>
           <span className="auth-icon" aria-hidden="true">
             <LockKeyhole />
           </span>
-          <CardTitle className="text-2xl">
-            <h1>Your content queue is private</h1>
+          <CardTitle as="h1" className="text-2xl">
+            Your content queue is private
           </CardTitle>
           <CardDescription>
-            Sign in with your FairLend account to review briefs, capture Elie&apos;s
-            input, and finish responses.
+            Sign in with your FairLend account to review briefs, capture
+            Elie&apos;s input, and finish responses.
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
@@ -33,9 +34,9 @@ function NewRequestPage() {
         <ArrowLeft data-icon="inline-start" />
         Content requests
       </Button>
-      <Card className="request-form-card">
+      <Card className="request-form-card" tone="elevated">
         <CardHeader>
-          <CardTitle>Create a Content Request</CardTitle>
+          <CardTitle as="h1">Create a Content Request</CardTitle>
           <p>
             Direct asks are Critical by default. Add only what you know—the rest
             can stay blank.
@@ -121,11 +122,7 @@ function NewRequestPage() {
                 />
               </Field>
             </FieldGroup>
-            {error ? (
-              <p className="form-error" role="alert">
-                {error}
-              </p>
-            ) : null}
+            {error ? <FieldError>{error}</FieldError> : null}
             <div className="form-actions">
               <Button variant="ghost" render={<Link to="/app" />}>
                 Cancel

@@ -50,6 +50,7 @@ import { PublicShareManager } from "@/components/public-share-manager"
 import type { ContextDeckPreferences } from "@/application/content-requests"
 import { useFounderAutomerge } from "@/hooks/use-founder-automerge"
 import { useFounderVoiceInput } from "@/hooks/use-founder-voice-input"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -298,7 +299,7 @@ function ContentRequestPage() {
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Original request</CardTitle>
+          <CardTitle as="h2">Original request</CardTitle>
         </CardHeader>
         <CardContent className="source-material">
           {request.source?.question ? (
@@ -319,31 +320,27 @@ function ContentRequestPage() {
         </CardContent>
       </Card>
       {operatorItem?.attentionReasons.length ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Attention required</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Alert variant="destructive">
+          <AlertTitle>Attention required</AlertTitle>
+          <AlertDescription>
             <ul className="grid gap-2 pl-5">
               {operatorItem.attentionReasons.map((reason) => (
                 <li key={reason}>{reason}</li>
               ))}
             </ul>
-          </CardContent>
-        </Card>
+          </AlertDescription>
+        </Alert>
       ) : null}
       {!requestIsActive ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Read-only request</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Alert>
+          <AlertTitle>Read-only request</AlertTitle>
+          <AlertDescription>
             This request is{" "}
             {request.retention === "archived" ? "archived" : "expired"}. Restore
             it to change assignment, deliverables, delivery targets, or resolve
             conflicts.
-          </CardContent>
-        </Card>
+          </AlertDescription>
+        </Alert>
       ) : null}
       <SemanticConflictPanel
         conflicts={semanticConflicts}
@@ -374,7 +371,7 @@ function ContentRequestPage() {
       {requestIsActive ? (
         <Card>
           <CardHeader>
-            <CardTitle>Assignment</CardTitle>
+            <CardTitle as="h2">Assignment</CardTitle>
           </CardHeader>
           <CardContent>
             <RequestAssignmentControl

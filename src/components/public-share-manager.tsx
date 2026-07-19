@@ -14,7 +14,22 @@ import {
 } from "@/application/content-request-server-functions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemTitle,
+} from "@/components/ui/item"
 
 export function PublicShareManager({
   humanId,
@@ -37,7 +52,7 @@ export function PublicShareManager({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Public sharing</CardTitle>
+        <CardTitle as="h2">Public sharing</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-4">
         <form
@@ -66,8 +81,8 @@ export function PublicShareManager({
               .finally(() => setPending(false))
           }}
         >
-          <fieldset className="grid gap-2">
-            <legend className="text-sm font-medium">Brief sections</legend>
+          <FieldSet className="gap-2">
+            <FieldLegend variant="label">Brief sections</FieldLegend>
             {contextItems
               .filter((item) =>
                 [
@@ -79,65 +94,71 @@ export function PublicShareManager({
                 ].includes(item.kind)
               )
               .map((item) => (
-                <label
-                  key={item.contextId}
-                  className="flex min-h-11 items-center gap-2 text-sm"
-                >
-                  <input
-                    type="checkbox"
+                <Field key={item.contextId} orientation="horizontal">
+                  <Checkbox
+                    id={`context-item-${item.contextId}`}
                     name="contextItemId"
                     value={item.contextId}
                   />
-                  {item.title}
-                </label>
+                  <FieldLabel htmlFor={`context-item-${item.contextId}`}>
+                    {item.title}
+                  </FieldLabel>
+                </Field>
               ))}
-          </fieldset>
-          <fieldset className="grid gap-2">
-            <legend className="text-sm font-medium">
-              Promoted deliverables
-            </legend>
+          </FieldSet>
+          <FieldSet className="gap-2">
+            <FieldLegend variant="label">Promoted deliverables</FieldLegend>
             {deliverables
               .filter((item) => item.promotedVersionId)
               .map((item) => (
-                <label
-                  key={item.deliverableId}
-                  className="flex min-h-11 items-center gap-2 text-sm"
-                >
-                  <input
-                    type="checkbox"
+                <Field key={item.deliverableId} orientation="horizontal">
+                  <Checkbox
+                    id={`deliverable-${item.deliverableId}`}
                     name="deliverableId"
                     value={item.deliverableId}
                   />
-                  {item.name}
-                </label>
+                  <FieldLabel htmlFor={`deliverable-${item.deliverableId}`}>
+                    {item.name}
+                  </FieldLabel>
+                </Field>
               ))}
-          </fieldset>
-          <label className="grid gap-1 text-sm font-medium">
-            Optional expiry
-            <Input type="datetime-local" name="expiresAt" />
-          </label>
+          </FieldSet>
+          <FieldGroup className="gap-3">
+            <Field>
+              <FieldLabel htmlFor="public-share-expiry">
+                Optional expiry
+              </FieldLabel>
+              <Input
+                id="public-share-expiry"
+                type="datetime-local"
+                name="expiresAt"
+              />
+            </Field>
+          </FieldGroup>
           <Button type="submit" disabled={pending}>
             <Link2 /> Create public link
           </Button>
         </form>
         {createdUrl ? (
-          <div className="grid gap-2 rounded-xl border p-3">
-            <a
-              className="text-sm break-all underline"
-              href={createdUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {createdUrl}
-            </a>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => void navigator.clipboard.writeText(createdUrl)}
-            >
-              <Copy /> Copy link
-            </Button>
-          </div>
+          <Item variant="outline">
+            <ItemContent className="min-w-0">
+              <ItemTitle>New public link</ItemTitle>
+              <ItemDescription className="line-clamp-none break-all">
+                <a href={createdUrl} target="_blank" rel="noreferrer">
+                  {createdUrl}
+                </a>
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void navigator.clipboard.writeText(createdUrl)}
+              >
+                <Copy /> Copy link
+              </Button>
+            </ItemActions>
+          </Item>
         ) : null}
         {error ? (
           <p role="alert" className="text-sm text-destructive">
@@ -145,39 +166,38 @@ export function PublicShareManager({
           </p>
         ) : null}
         {shares.map((share) => (
-          <div
-            key={share.shareId}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 text-sm"
-          >
-            <div>
-              <p>
+          <Item key={share.shareId} variant="outline">
+            <ItemContent>
+              <ItemTitle>
                 {share.briefSectionCount} brief sections ·{" "}
                 {share.deliverableCount} deliverables
-              </p>
-              <p className="text-muted-foreground">
+              </ItemTitle>
+              <ItemDescription>
                 Created {new Date(share.createdAt).toLocaleString()}
-              </p>
-            </div>
-            <Button
-              type="button"
-              size="sm-touch"
-              variant="outline"
-              onClick={() => {
-                setPending(true)
-                void revokeShare({
-                  data: {
-                    shareId: share.shareId,
-                    correlationId: crypto.randomUUID(),
-                  },
-                })
-                  .then(() => router.invalidate())
-                  .finally(() => setPending(false))
-              }}
-              disabled={pending}
-            >
-              <ShieldOff /> Revoke
-            </Button>
-          </div>
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Button
+                type="button"
+                size="sm-touch"
+                variant="outline"
+                onClick={() => {
+                  setPending(true)
+                  void revokeShare({
+                    data: {
+                      shareId: share.shareId,
+                      correlationId: crypto.randomUUID(),
+                    },
+                  })
+                    .then(() => router.invalidate())
+                    .finally(() => setPending(false))
+                }}
+                disabled={pending}
+              >
+                <ShieldOff /> Revoke
+              </Button>
+            </ItemActions>
+          </Item>
         ))}
       </CardContent>
     </Card>
