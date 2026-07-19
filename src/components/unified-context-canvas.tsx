@@ -179,10 +179,12 @@ function ContextCard({
   item,
   pinned,
   onTogglePin,
+  readOnly = false,
 }: {
   item: CanvasItem
   pinned: boolean
   onTogglePin(): void
+  readOnly?: boolean
 }) {
   const Icon = item.icon
   return (
@@ -205,6 +207,7 @@ function ContextCard({
           variant="ghost"
           aria-label={`${pinned ? "Unpin" : "Pin"} ${item.title} card`}
           aria-pressed={pinned}
+          disabled={readOnly}
           onClick={onTogglePin}
         >
           <Pin className={cn(pinned && "fill-current")} />
@@ -245,6 +248,7 @@ function ContextCard({
 
 export function UnifiedContextCanvas({
   request,
+  requestActive = true,
   contextItems,
   preferenceOwnerKey,
   initialDraft = "",
@@ -255,6 +259,7 @@ export function UnifiedContextCanvas({
   draftController,
 }: {
   request: ContentRequest
+  requestActive?: boolean
   contextItems: Array<ContentContextItem>
   preferenceOwnerKey: string
   initialDraft?: string
@@ -340,6 +345,8 @@ export function UnifiedContextCanvas({
   >("Saved")
   const displayedSaveStatus = draftController?.status ?? saveStatus
   const displayedDraft = draftController?.text ?? draft
+  const editorReadOnly = Boolean(draftController?.readOnly)
+  const requestInactive = !requestActive
   const voicePending = Boolean(
     draftController?.voice &&
     (draftController.voice.queuedCount > 0 ||
@@ -650,6 +657,12 @@ export function UnifiedContextCanvas({
           {request.priority}
         </Badge>
       </header>
+      {requestInactive ? (
+        <p className="unified-context-sync-error" role="status">
+          This request is inactive. Founder input and context settings are
+          read-only until an editor restores it.
+        </p>
+      ) : null}
 
       <section
         className="unified-context-deck"
@@ -677,6 +690,7 @@ export function UnifiedContextCanvas({
                 <Toggle
                   aria-label={`${isVisible ? "Hide" : "Show"} ${item.title}`}
                   pressed={isVisible}
+                  disabled={requestInactive}
                   onPressedChange={() =>
                     setVisible((current) => toggle(current, item.id))
                   }
@@ -694,6 +708,7 @@ export function UnifiedContextCanvas({
                   size="icon-lg"
                   aria-label={`${isPinned ? "Unpin" : "Pin"} ${item.title}`}
                   aria-pressed={isPinned}
+                  disabled={requestInactive}
                   onClick={() =>
                     setPinned((current) => toggle(current, item.id))
                   }
@@ -711,6 +726,7 @@ export function UnifiedContextCanvas({
                 key={item.id}
                 item={item}
                 pinned={pinned.includes(item.id)}
+                readOnly={requestInactive}
                 onTogglePin={() => {
                   if (pinned.includes(item.id) && !visible.includes(item.id)) {
                     filterPinRefs.current.get(item.id)?.focus()
@@ -738,7 +754,7 @@ export function UnifiedContextCanvas({
           <ToggleGroup
             className="unified-editor__modes"
             aria-label="Input method"
-            disabled={!hydrated}
+            disabled={!hydrated || editorReadOnly}
             value={[inputMode]}
             onValueChange={(values) => {
               const next = values[0]
@@ -895,6 +911,7 @@ export function UnifiedContextCanvas({
               value={displayedDraft}
               readOnly={draftController?.readOnly}
               onChange={(event) => {
+                if (editorReadOnly) return
                 if (draftRetryTimer.current !== null) {
                   window.clearTimeout(draftRetryTimer.current)
                   draftRetryTimer.current = null

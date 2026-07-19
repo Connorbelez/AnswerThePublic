@@ -100,6 +100,32 @@ test("an operator creates a minimal manual request and opens its stable route", 
     page.getByText("Can I take my mortgage with me when I move?")
   ).toBeVisible()
   await expect(page.getByText(/CR-[A-Z0-9]+/)).toBeVisible()
+  await page.getByRole("button", { name: "Archive request" }).click()
+  await expect(page.getByText("Read-only request")).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Update assignment" })
+  ).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Add channel" })).toHaveCount(0)
+  await expect(
+    page.getByRole("button", { name: "Restore request" })
+  ).toBeVisible()
+  await page.getByRole("button", { name: "Restore request" }).click()
+  await expect(
+    page.getByRole("button", { name: "Archive request" })
+  ).toBeVisible()
+
+  await page
+    .getByLabel("Title", { exact: true })
+    .fill("Clarify portability qualification")
+  await page
+    .getByLabel("Why this is a new obligation")
+    .fill("The borrower asked a materially new follow-up")
+  await page.getByRole("button", { name: "Create follow-up" }).click()
+  await expect(page).toHaveURL(/\/app\/requests\/CR-[A-Z0-9]+$/)
+  await expect(
+    page.getByRole("heading", { name: "Clarify portability qualification" })
+  ).toBeVisible()
+  await expect(page.getByText(/Follow-up to CR-/)).toBeVisible()
   await context.close()
 })
 
@@ -296,6 +322,9 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
     founderPage.getByRole("region", { name: "Context deck" })
   ).toBeVisible()
   await expect(founderPage.getByText(completeSource)).toBeVisible()
+  await expect(
+    founderPage.getByRole("button", { name: "Archive request" })
+  ).toHaveCount(0)
   const cards = founderPage.locator(".unified-context-deck__cards")
   const collapsedDisplay = await cards.evaluate(
     (element) => getComputedStyle(element).display
@@ -458,6 +487,19 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
   await expect(operatorPage.getByText("Founder draft saved")).toBeVisible()
   await expect(operatorPage.getByText("In progress")).toBeVisible()
   await expect(operatorPage.getByText(founderText)).toHaveCount(0)
+
+  await operatorPage.getByRole("button", { name: "Archive request" }).click()
+  await founderPage.reload()
+  await expect(founderPage.getByText(/inactive.*read-only/i)).toBeVisible()
+  await expect(
+    founderPage.getByRole("textbox", { name: "Founder input" })
+  ).toHaveAttribute("readonly", "")
+  await expect(
+    founderPage.getByRole("button", { name: "Show Original source" })
+  ).toBeDisabled()
+  await expect(
+    founderPage.getByRole("button", { name: "Submit founder input" })
+  ).toHaveCount(0)
 
   await founderContext.setOffline(true)
   const offlineSignOut = await founderPage.evaluate(async () => {

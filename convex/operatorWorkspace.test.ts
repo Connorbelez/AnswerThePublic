@@ -377,6 +377,98 @@ describe("operator action workspace", () => {
     ).resolves.toMatchObject({ page: [], isDone: true })
   })
 
+  it("canonically rebuilds oversized search rows after a channel is archived", async () => {
+    const workspace = convexTest(schema, modules)
+    const operator = workspace.withIdentity(identity)
+    await operator.mutation(api.principals.syncCurrent)
+    const request = await operator.mutation(api.contentRequests.createManual, {
+      title: "Canonical search repair",
+      origin: "manual",
+      correlationId: "search-repair-request",
+    })
+    const [primary] = await operator.query(api.deliverables.list, {
+      humanId: request.humanId,
+    })
+    const target = await operator.mutation(api.deliveryTracking.createTarget, {
+      humanId: request.humanId,
+      deliverableId: primary.deliverableId,
+      channel: "archived-only",
+      destinationLabel: "Archived only destination",
+      correlationId: "search-repair-target",
+    })
+    await workspace.run(async (ctx) => {
+      const projection = await ctx.db
+        .query("operatorWorkspaceItems")
+        .withIndex("by_request", (index) =>
+          index.eq("requestId", request.requestId)
+        )
+        .unique()
+      if (!projection) throw new Error("Missing projection fixture")
+      for (let index = 0; index < 60; index += 1)
+        await ctx.db.insert("operatorWorkspaceSearchRows", {
+          organizationId: projection.organizationId,
+          requestId: projection.requestId,
+          humanId: projection.humanId,
+          normalizedTitle: projection.normalizedTitle,
+          searchText: "operatorworkspaceall archivedonlytoken",
+          channelKey: "archived-only",
+          active: projection.active,
+          retained: projection.retained,
+          manualCritical: projection.manualCritical,
+          orderBucket: projection.orderBucket,
+          queue: projection.queue,
+          priority: projection.priority,
+          origin: projection.origin,
+          lifecycle: projection.lifecycle,
+          disposition: projection.disposition,
+          assigneePrincipalId: projection.assigneePrincipalId,
+          sortKey: `${projection.sortKey}:${index}`,
+          updatedAt: index,
+        })
+    })
+    await operator.mutation(api.deliveryTracking.setRetention, {
+      targetId: target.targetId,
+      retention: "archived",
+      correlationId: "search-repair-archive",
+    })
+    await workspace.mutation(
+      internal.operatorWorkspace.repairLegacySearchRows,
+      { requestId: request.requestId }
+    )
+    const generation = await workspace.run(async (ctx) => {
+      const projection = await ctx.db
+        .query("operatorWorkspaceItems")
+        .withIndex("by_request", (index) =>
+          index.eq("requestId", request.requestId)
+        )
+        .unique()
+      if (!projection?.searchRepairGeneration)
+        throw new Error("Missing repair generation")
+      return projection.searchRepairGeneration
+    })
+    for (let index = 0; index < 4; index += 1)
+      await workspace.mutation(
+        internal.operatorWorkspace.repairLegacySearchRows,
+        { requestId: request.requestId, generation, phase: "delete" }
+      )
+    await workspace.mutation(
+      internal.operatorWorkspace.repairLegacySearchRows,
+      { requestId: request.requestId, generation, phase: "materialize" }
+    )
+    await expect(
+      operator.query(api.operatorWorkspace.list, {
+        search: "archivedonlytoken",
+        paginationOpts: { numItems: 10, cursor: null },
+      })
+    ).resolves.toMatchObject({ page: [] })
+    await expect(
+      operator.query(api.operatorWorkspace.list, {
+        deliveryChannel: "archived-only",
+        paginationOpts: { numItems: 10, cursor: null },
+      })
+    ).resolves.toMatchObject({ page: [] })
+  })
+
   it("paginates duplicate exact titles and keeps manual or Critical fuzzy matches first", async () => {
     const workspace = convexTest(schema, modules)
     const operator = workspace.withIdentity(identity)

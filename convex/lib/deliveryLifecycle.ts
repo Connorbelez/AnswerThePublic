@@ -3,6 +3,7 @@ import { ConvexError } from "convex/values"
 import type { Doc } from "../_generated/dataModel"
 import type { MutationCtx } from "../_generated/server"
 import { lifecycleForPrimary } from "./deliverableLifecycle"
+import { MAX_DELIVERY_TARGETS_PER_REQUEST } from "./requestLimits"
 
 export async function projectDeliveryLifecycle(
   ctx: MutationCtx,
@@ -10,11 +11,12 @@ export async function projectDeliveryLifecycle(
 ) {
   const targets = await ctx.db
     .query("deliveryTargets")
-    .withIndex("by_request", (index) => index.eq("requestId", request._id))
-    .collect()
-  const required = targets.filter(
-    (target) => target.retention === "active" && target.isRequired
-  )
+    .withIndex("by_request_retention", (index) =>
+      index.eq("requestId", request._id).eq("retention", "active")
+    )
+    .take(MAX_DELIVERY_TARGETS_PER_REQUEST + 1)
+  if (targets.length > MAX_DELIVERY_TARGETS_PER_REQUEST) return
+  const required = targets.filter((target) => target.isRequired)
   if (
     required.length > 0 &&
     required.every((target) => target.currentReceiptId)

@@ -16,10 +16,12 @@ export function SemanticConflictPanel({
   conflicts,
   principals,
   deliverables,
+  readOnly = false,
 }: {
   conflicts: Array<SemanticConflict>
   principals: Array<PrincipalSummary>
   deliverables: Array<Deliverable>
+  readOnly?: boolean
 }) {
   const resolveConflict = useServerFn(resolveSemanticConflict)
   const router = useRouter()
@@ -63,6 +65,7 @@ export function SemanticConflictPanel({
         <p>
           Concurrent singleton changes were preserved. Select the intended
           value; a newer third value will be preserved and rebased.
+          {readOnly ? " Restore this request before resolving it." : ""}
         </p>
         {conflicts.map((conflict) => (
           <div
@@ -80,7 +83,7 @@ export function SemanticConflictPanel({
                   key={value}
                   type="button"
                   variant="outline"
-                  disabled={resolving === conflict.conflictId}
+                  disabled={readOnly || resolving === conflict.conflictId}
                   onClick={async () => {
                     setResolving(conflict.conflictId)
                     setError(null)

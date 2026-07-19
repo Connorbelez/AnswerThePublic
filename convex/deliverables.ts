@@ -7,9 +7,17 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server"
-import { requireEditor, requirePrincipal } from "./lib/authorization"
+import {
+  requireActiveRequest,
+  requireEditor,
+  requirePrincipal,
+} from "./lib/authorization"
 import { lifecycleForPrimary } from "./lib/deliverableLifecycle"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
+import {
+  assertWithinRequestLimit,
+  MAX_DELIVERABLES_PER_REQUEST,
+} from "./lib/requestLimits"
 
 const versionValidator = v.object({
   versionId: v.id("deliverableVersions"),
@@ -346,6 +354,16 @@ export const createDerivative = mutation({
           replay.deliverableId
         )
       )
+    requireActiveRequest(request)
+    const requestDeliverables = await ctx.db
+      .query("deliverables")
+      .withIndex("by_request", (index) => index.eq("requestId", request._id))
+      .take(MAX_DELIVERABLES_PER_REQUEST + 1)
+    assertWithinRequestLimit(
+      requestDeliverables.length,
+      MAX_DELIVERABLES_PER_REQUEST,
+      "deliverables"
+    )
     const now = Date.now()
     const deliverableId = await ctx.db.insert("deliverables", {
       organizationId: principal.organizationId,
@@ -438,6 +456,7 @@ export const createVersion = mutation({
           replay.deliverableId
         )
       )
+    requireActiveRequest(request)
     if ((deliverable.retention ?? "active") !== "active")
       throw new ConvexError({ code: "DELIVERABLE_ARCHIVED" })
     const latest = await ctx.db
@@ -552,6 +571,7 @@ export const promote = mutation({
         conflict: null,
       }
     }
+    requireActiveRequest(request)
     if ((deliverable.retention ?? "active") !== "active")
       throw new ConvexError({ code: "DELIVERABLE_ARCHIVED" })
     const currentPromotedVersionId = deliverable.promotedVersionId ?? null
@@ -664,6 +684,7 @@ export const setPrimary = mutation({
         deliverables: await listRequestDeliverables(ctx, request._id),
         conflict: null,
       }
+    requireActiveRequest(request)
     if (request.lifecycle === "responded")
       throw new ConvexError({ code: "DELIVERED_PRIMARY_LOCKED" })
     if ((selected.retention ?? "active") !== "active")

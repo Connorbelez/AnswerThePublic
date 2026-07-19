@@ -20,7 +20,11 @@ export async function requirePrincipal(
         .eq("subject", identity.subject)
     )
     .unique()
-  if (!principal || principal.role !== identity.role) {
+  if (
+    !principal ||
+    principal.role !== identity.role ||
+    principal.kind === "system"
+  ) {
     throw new ConvexError({ code: "PRINCIPAL_NOT_PROVISIONED" })
   }
   return {
@@ -36,5 +40,16 @@ export function requireEditor(principal: Doc<"principals">) {
     principal.role !== "administrator"
   ) {
     throw new ConvexError({ code: "ROLE_ACCESS_DENIED" })
+  }
+}
+
+export function requireActiveRequest(
+  request: Pick<Doc<"contentRequests">, "retention" | "disposition">
+) {
+  if (request.retention !== "active") {
+    throw new ConvexError({ code: "ARCHIVED_REQUEST" })
+  }
+  if (request.disposition !== "active") {
+    throw new ConvexError({ code: "EXPIRED_REQUEST" })
   }
 }

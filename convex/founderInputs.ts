@@ -12,7 +12,11 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server"
-import { requireEditor, requirePrincipal } from "./lib/authorization"
+import {
+  requireActiveRequest,
+  requireEditor,
+  requirePrincipal,
+} from "./lib/authorization"
 import { requestQueueSortKey } from "./lib/requestOrdering"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 
@@ -206,6 +210,7 @@ function assertAssignedFounder(
 }
 
 function assertFounderInputMutable(request: Doc<"contentRequests">) {
+  requireActiveRequest(request)
   if (!["pending", "in_progress"].includes(request.lifecycle))
     throw new ConvexError({ code: "FOUNDER_INPUT_SUBMITTED" })
 }

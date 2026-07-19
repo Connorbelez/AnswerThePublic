@@ -1,7 +1,7 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "@tanstack/react-router"
 import { useServerFn } from "@tanstack/react-start"
-import { Check, RotateCcw } from "lucide-react"
+import { Archive, ArchiveRestore, Check, RotateCcw } from "lucide-react"
 
 import type {
   Deliverable,
@@ -11,8 +11,10 @@ import type {
 import {
   confirmDeliveryTarget,
   createDeliveryTarget,
+  listArchivedDeliveryTargets,
   reopenDeliveryTarget,
   setDeliveryTargetRequired,
+  setDeliveryTargetRetention,
 } from "@/application/content-request-server-functions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -25,21 +27,44 @@ export function DeliveryTargetChecklist({
   targets,
   deliverables,
   principals,
+  initialArchivedCursor = null,
+  readOnly = false,
 }: {
   humanId: string
   targets: Array<DeliveryTarget>
   deliverables: Array<Deliverable>
   principals: Array<PrincipalSummary>
+  initialArchivedCursor?: string | null
+  readOnly?: boolean
 }) {
   const router = useRouter()
   const createTarget = useServerFn(createDeliveryTarget)
+  const loadArchivedTargets = useServerFn(listArchivedDeliveryTargets)
   const setRequired = useServerFn(setDeliveryTargetRequired)
+  const setRetention = useServerFn(setDeliveryTargetRetention)
   const confirm = useServerFn(confirmDeliveryTarget)
   const reopen = useServerFn(reopenDeliveryTarget)
   const [pending, setPending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [notes, setNotes] = useState<Record<string, string>>({})
+  const [visibleTargets, setVisibleTargets] = useState(targets)
+  const [archivedCursor, setArchivedCursor] = useState(initialArchivedCursor)
+  const visibleRequest = useRef(humanId)
+
+  useEffect(() => {
+    if (visibleRequest.current !== humanId) {
+      visibleRequest.current = humanId
+      setVisibleTargets(targets)
+      setArchivedCursor(initialArchivedCursor)
+      return
+    }
+    setVisibleTargets((current) => {
+      const next = new Map(current.map((target) => [target.targetId, target]))
+      for (const target of targets) next.set(target.targetId, target)
+      return [...next.values()]
+    })
+  }, [humanId, initialArchivedCursor, targets])
 
   const run = async (key: string, operation: () => Promise<unknown>) => {
     setPending(key)
@@ -56,19 +81,62 @@ export function DeliveryTargetChecklist({
     }
   }
 
+  const loadMoreArchived = async () => {
+    if (!archivedCursor) return
+    setPending("load-archived")
+    setError(null)
+    try {
+      const result = await loadArchivedTargets({
+        data: { humanId, cursor: archivedCursor },
+      })
+      setVisibleTargets((current) => {
+        const next = new Map(current.map((target) => [target.targetId, target]))
+        for (const target of result.page) next.set(target.targetId, target)
+        return [...next.values()]
+      })
+      setArchivedCursor(result.nextCursor)
+    } catch {
+      setError("Archived channels could not be loaded. Refresh and try again.")
+    } finally {
+      setPending(null)
+    }
+  }
+
+  const changeRetention = async (
+    targetId: string,
+    retention: "active" | "archived"
+  ) => {
+    const updated = await setRetention({
+      data: {
+        targetId,
+        retention,
+        correlationId: crypto.randomUUID(),
+      },
+    })
+    setVisibleTargets((current) =>
+      current.map((target) =>
+        target.targetId === updated.targetId
+          ? { ...target, ...updated }
+          : target
+      )
+    )
+  }
+
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle>Responded</CardTitle>
-        <Button
-          size="sm"
-          variant="outline"
-          aria-expanded={adding}
-          aria-controls="add-delivery-target"
-          onClick={() => setAdding(!adding)}
-        >
-          Add channel
-        </Button>
+        {!readOnly ? (
+          <Button
+            size="sm"
+            variant="outline"
+            aria-expanded={adding}
+            aria-controls="add-delivery-target"
+            onClick={() => setAdding(!adding)}
+          >
+            Add channel
+          </Button>
+        ) : null}
       </CardHeader>
       <CardContent className="grid gap-3">
         <p className="sr-only" aria-live="polite">
@@ -79,7 +147,7 @@ export function DeliveryTargetChecklist({
             {error}
           </p>
         ) : null}
-        {adding ? (
+        {adding && !readOnly ? (
           <form
             id="add-delivery-target"
             className="grid gap-2 rounded-xl border p-3"
@@ -155,7 +223,8 @@ export function DeliveryTargetChecklist({
             </Button>
           </form>
         ) : null}
-        {targets.map((target) => {
+        {visibleTargets.map((target) => {
+          const archived = target.retention === "archived"
           const deliverable = deliverables.find(
             (candidate) => candidate.deliverableId === target.deliverableId
           )
@@ -167,7 +236,7 @@ export function DeliveryTargetChecklist({
           return (
             <div
               key={target.targetId}
-              className="flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center"
+              className={`flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center ${archived ? "bg-muted/40 opacity-75" : ""}`}
             >
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -177,6 +246,7 @@ export function DeliveryTargetChecklist({
                   ) : (
                     <Badge variant="outline">Optional</Badge>
                   )}
+                  {archived ? <Badge variant="outline">Archived</Badge> : null}
                   {target.currentReceipt ? (
                     <Badge variant="secondary">
                       <Check /> Responded
@@ -262,7 +332,7 @@ export function DeliveryTargetChecklist({
                     </ol>
                   </details>
                 ) : null}
-                {!target.currentReceipt ? (
+                {!archived && !target.currentReceipt && !readOnly ? (
                   <label className="mt-3 grid gap-1 text-xs font-medium">
                     Confirmation note for {target.destinationLabel} (optional)
                     <Input
@@ -277,84 +347,128 @@ export function DeliveryTargetChecklist({
                     />
                   </label>
                 ) : null}
-                {!target.currentReceipt && !promotedVersionId ? (
+                {!archived &&
+                !target.currentReceipt &&
+                !promotedVersionId &&
+                !readOnly ? (
                   <p id={readinessId} className="mt-2 text-xs text-amber-700">
                     Promote a version before confirming delivery.
                   </p>
                 ) : null}
               </div>
-              <div className="flex flex-wrap gap-2">
-                {!target.isOriginal ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={pending !== null}
-                    aria-label={`Make ${target.destinationLabel} ${target.isRequired ? "optional" : "required"}`}
-                    onClick={() =>
-                      void run(target.targetId, () =>
-                        setRequired({
-                          data: {
-                            targetId: target.targetId,
-                            isRequired: !target.isRequired,
-                            correlationId: crypto.randomUUID(),
-                          },
-                        })
-                      )
-                    }
-                  >
-                    Make {target.isRequired ? "optional" : "required"}
-                  </Button>
-                ) : null}
-                {target.currentReceipt ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={pending !== null}
-                    aria-label={`Reopen delivery to ${target.destinationLabel}`}
-                    onClick={() =>
-                      void run(target.targetId, () =>
-                        reopen({
-                          data: {
-                            targetId: target.targetId,
-                            correlationId: crypto.randomUUID(),
-                          },
-                        })
-                      )
-                    }
-                  >
-                    <RotateCcw /> Reopen
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    disabled={pending !== null || !promotedVersionId}
-                    aria-label={`Mark ${target.destinationLabel} responded`}
-                    aria-describedby={
-                      promotedVersionId ? undefined : readinessId
-                    }
-                    onClick={() =>
-                      promotedVersionId
-                        ? void run(target.targetId, () =>
-                            confirm({
-                              data: {
-                                targetId: target.targetId,
-                                versionId: promotedVersionId,
-                                note:
-                                  notes[target.targetId]?.trim() || undefined,
-                                correlationId: crypto.randomUUID(),
-                              },
-                            })
-                          )
-                        : undefined
-                    }
-                  >
-                    Mark responded
-                  </Button>
-                )}
-              </div>
+              {!readOnly ? (
+                <div className="flex flex-wrap gap-2">
+                  {archived ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pending !== null}
+                      aria-label={`Restore delivery target ${target.destinationLabel}`}
+                      onClick={() =>
+                        void run(target.targetId, () =>
+                          changeRetention(target.targetId, "active")
+                        )
+                      }
+                    >
+                      <ArchiveRestore /> Restore
+                    </Button>
+                  ) : !target.isOriginal ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={pending !== null}
+                      aria-label={`Archive delivery target ${target.destinationLabel}`}
+                      onClick={() =>
+                        void run(target.targetId, () =>
+                          changeRetention(target.targetId, "archived")
+                        )
+                      }
+                    >
+                      <Archive /> Archive
+                    </Button>
+                  ) : null}
+                  {!archived && !target.isOriginal ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={pending !== null}
+                      aria-label={`Make ${target.destinationLabel} ${target.isRequired ? "optional" : "required"}`}
+                      onClick={() =>
+                        void run(target.targetId, () =>
+                          setRequired({
+                            data: {
+                              targetId: target.targetId,
+                              isRequired: !target.isRequired,
+                              correlationId: crypto.randomUUID(),
+                            },
+                          })
+                        )
+                      }
+                    >
+                      Make {target.isRequired ? "optional" : "required"}
+                    </Button>
+                  ) : null}
+                  {!archived && target.currentReceipt ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pending !== null}
+                      aria-label={`Reopen delivery to ${target.destinationLabel}`}
+                      onClick={() =>
+                        void run(target.targetId, () =>
+                          reopen({
+                            data: {
+                              targetId: target.targetId,
+                              correlationId: crypto.randomUUID(),
+                            },
+                          })
+                        )
+                      }
+                    >
+                      <RotateCcw /> Reopen
+                    </Button>
+                  ) : !archived ? (
+                    <Button
+                      size="sm"
+                      disabled={pending !== null || !promotedVersionId}
+                      aria-label={`Mark ${target.destinationLabel} responded`}
+                      aria-describedby={
+                        promotedVersionId ? undefined : readinessId
+                      }
+                      onClick={() =>
+                        promotedVersionId
+                          ? void run(target.targetId, () =>
+                              confirm({
+                                data: {
+                                  targetId: target.targetId,
+                                  versionId: promotedVersionId,
+                                  note:
+                                    notes[target.targetId]?.trim() || undefined,
+                                  correlationId: crypto.randomUUID(),
+                                },
+                              })
+                            )
+                          : undefined
+                      }
+                    >
+                      Mark responded
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           )
         })}
+        {archivedCursor ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending !== null}
+            onClick={() => void loadMoreArchived()}
+          >
+            Load more archived channels
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   )

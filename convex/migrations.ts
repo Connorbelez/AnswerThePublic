@@ -8,6 +8,10 @@ import { projectDeliveryLifecycle } from "./lib/deliveryLifecycle"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 import { normalizeSourceUrl } from "../shared/url-normalization"
 import { normalizeLegacyDeliveryChannel } from "../shared/delivery-channel"
+import {
+  MAX_VOICE_CAPTURES_PER_REQUEST,
+  VOICE_CAPTURE_OVERFLOW_SENTINEL,
+} from "./lib/requestLimits"
 
 export const backfillAssignmentFields = internalMutation({
   args: { cursor: v.optional(v.string()) },
@@ -322,5 +326,156 @@ export const backfillOperatorWorkspace = internalMutation({
         }
       )
     return { migrated: page.page.length, done: page.isDone }
+  },
+})
+
+/**
+ * Introduced with indexed job claiming. This keeps the hot claim path bounded
+ * while making every pre-existing non-terminal job visible to that index.
+ * Safe to rerun because jobs with the correct claimability timestamp are
+ * unchanged and terminal jobs are removed from the claim index.
+ */
+export const backfillAgentJobClaimability = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  returns: v.object({ migrated: v.number(), done: v.boolean() }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("agentJobs").paginate({
+      cursor: args.cursor ?? null,
+      numItems: 100,
+    })
+    let migrated = 0
+    for (const job of page.page) {
+      const claimableAt =
+        job.status === "queued"
+          ? (job.nextAttemptAt ?? job.createdAt)
+          : job.status === "retry_wait"
+            ? (job.nextAttemptAt ?? job.updatedAt)
+            : job.status === "running"
+              ? (job.leaseExpiresAt ?? job.updatedAt)
+              : undefined
+      const reapableAt =
+        job.status === "running" && job.attempts >= job.maxAttempts
+          ? (job.leaseExpiresAt ?? job.updatedAt)
+          : undefined
+      if (job.claimableAt === claimableAt && job.reapableAt === reapableAt)
+        continue
+      await ctx.db.patch(job._id, { claimableAt, reapableAt })
+      migrated += 1
+    }
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.backfillAgentJobClaimability,
+        { cursor: page.continueCursor }
+      )
+    return { migrated, done: page.isDone }
+  },
+})
+
+export const backfillActiveVoiceCaptureCounts = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  returns: v.object({ migrated: v.number(), done: v.boolean() }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("contentRequests").paginate({
+      cursor: args.cursor ?? null,
+      numItems: 50,
+    })
+    let migrated = 0
+    for (const request of page.page) {
+      if (request.activeVoiceCaptureCount !== undefined) continue
+      const captures = await ctx.db
+        .query("founderVoiceCaptures")
+        .withIndex("by_request_created_at", (index) =>
+          index.eq("requestId", request._id)
+        )
+        .take(MAX_VOICE_CAPTURES_PER_REQUEST + 1)
+      const activeVoiceCaptureCount =
+        captures.length > MAX_VOICE_CAPTURES_PER_REQUEST
+          ? VOICE_CAPTURE_OVERFLOW_SENTINEL
+          : captures.filter((capture) => !capture.discardedAt).length
+      await ctx.db.patch(request._id, { activeVoiceCaptureCount })
+      if (captures.length > MAX_VOICE_CAPTURES_PER_REQUEST)
+        await ctx.scheduler.runAfter(
+          0,
+          internal.migrations.recountActiveVoiceCaptures,
+          {
+            requestId: request._id,
+            generation: request.voiceCaptureCountGeneration ?? 0,
+            count: 0,
+          }
+        )
+      migrated += 1
+    }
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.backfillActiveVoiceCaptureCounts,
+        { cursor: page.continueCursor }
+      )
+    return { migrated, done: page.isDone }
+  },
+})
+
+export const recountActiveVoiceCaptures = internalMutation({
+  args: {
+    requestId: v.id("contentRequests"),
+    generation: v.number(),
+    count: v.number(),
+    cursor: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const request = await ctx.db.get(args.requestId)
+    if (!request) return null
+    const currentGeneration = request.voiceCaptureCountGeneration ?? 0
+    if (currentGeneration !== args.generation) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.recountActiveVoiceCaptures,
+        {
+          requestId: request._id,
+          generation: currentGeneration,
+          count: 0,
+        }
+      )
+      return null
+    }
+    const page = await ctx.db
+      .query("founderVoiceCaptures")
+      .withIndex("by_request_created_at", (index) =>
+        index.eq("requestId", request._id)
+      )
+      .paginate({ cursor: args.cursor ?? null, numItems: 50 })
+    const count =
+      args.count + page.page.filter((capture) => !capture.discardedAt).length
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.recountActiveVoiceCaptures,
+        {
+          requestId: request._id,
+          generation: args.generation,
+          count,
+          cursor: page.continueCursor,
+        }
+      )
+      return null
+    }
+    const latest = await ctx.db.get(request._id)
+    if ((latest?.voiceCaptureCountGeneration ?? 0) !== args.generation) {
+      if (latest)
+        await ctx.scheduler.runAfter(
+          0,
+          internal.migrations.recountActiveVoiceCaptures,
+          {
+            requestId: latest._id,
+            generation: latest.voiceCaptureCountGeneration ?? 0,
+            count: 0,
+          }
+        )
+      return null
+    }
+    await ctx.db.patch(request._id, { activeVoiceCaptureCount: count })
+    return null
   },
 })

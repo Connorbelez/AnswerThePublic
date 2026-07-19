@@ -4,6 +4,7 @@ import type {
   AssigneeChangeProposal,
   AssignRequestInput,
   ContextDeckPreferences,
+  CreateFollowUpInput,
   CreateManualRequestInput,
   FinalizeFounderVoiceCaptureInput,
   OperatorWorkspaceInput,
@@ -35,6 +36,96 @@ export const getContentRequest = createServerFn({ method: "POST" })
     return (await createContentRequestServiceFromRequest()).getByHumanId(
       data.humanId
     )
+  })
+
+export const getContentRequestRelations = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).getRelations(
+      data.humanId
+    )
+  })
+
+export const setContentRequestExpiration = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      humanId: string
+      expiresAt: number | null
+      correlationId: string
+    }) => data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).setExpiration(
+      data.humanId,
+      data.expiresAt,
+      data.correlationId
+    )
+  })
+
+export const expireContentRequest = createServerFn({ method: "POST" })
+  .validator(
+    (data: { humanId: string; reason: string; correlationId: string }) => data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).expire(
+      data.humanId,
+      data.reason,
+      data.correlationId
+    )
+  })
+
+export const restoreExpiredContentRequest = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      humanId: string
+      expiresAt: number | null
+      correlationId: string
+    }) => data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).restoreExpired(
+      data.humanId,
+      data.expiresAt,
+      data.correlationId
+    )
+  })
+
+export const archiveContentRequest = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string; correlationId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).archive(
+      data.humanId,
+      data.correlationId
+    )
+  })
+
+export const restoreArchivedContentRequest = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string; correlationId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).restoreArchived(
+      data.humanId,
+      data.correlationId
+    )
+  })
+
+export const createContentRequestFollowUp = createServerFn({ method: "POST" })
+  .validator((data: CreateFollowUpInput) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).createFollowUp(data)
   })
 
 export const getContentRequestContext = createServerFn({ method: "POST" })
@@ -423,6 +514,16 @@ export const listDeliveryTargets = createServerFn({ method: "POST" })
     )
   })
 
+export const listArchivedDeliveryTargets = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string; cursor: string | null }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).listArchivedDeliveryTargets(data.humanId, data.cursor)
+  })
+
 export const createDeliveryTarget = createServerFn({ method: "POST" })
   .validator(
     (data: {
@@ -454,6 +555,22 @@ export const setDeliveryTargetRequired = createServerFn({ method: "POST" })
     return (
       await createContentRequestServiceFromRequest()
     ).setDeliveryTargetRequired(data)
+  })
+
+export const setDeliveryTargetRetention = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      targetId: string
+      retention: "active" | "archived"
+      correlationId: string
+    }) => data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).setDeliveryTargetRetention(data)
   })
 
 export const confirmDeliveryTarget = createServerFn({ method: "POST" })

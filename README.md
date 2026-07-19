@@ -223,6 +223,7 @@ bun run content-requests -- primary CR-EXAMPLE --deliverable-id "$DELIVERABLE_ID
 bun run content-requests -- conflicts CR-EXAMPLE
 bun run content-requests -- conflict-resolve "$CONFLICT_ID" --value "$SELECTED_ID" --idempotency-key resolve-20260718-01
 bun run content-requests -- targets CR-EXAMPLE
+bun run content-requests -- target-retention "$TARGET_ID" --retention archived --idempotency-key archive-target-20260718-01
 bun run content-requests -- target-confirm "$TARGET_ID" --version-id "$VERSION_ID" --idempotency-key delivery-20260718-01
 bun run content-requests -- target-reopen "$TARGET_ID" --idempotency-key reopen-20260718-01
 ```
@@ -253,6 +254,41 @@ credential, timestamp, and optional note. Reopen clears only the target's active
 receipt pointer; receipt and event history remain immutable. Agent identities
 cannot confirm delivery from an assertion in the request body: they must supply
 a one-time integration-success record created by a trusted backend adapter.
+
+Automated requests can carry an explicit expiration. Scout timing labels are
+converted only when they contain an unambiguous ISO date or a standalone
+deadline-shaped `within N hours/days` phrase; reply-SLA and dependency wording
+is intentionally left unscheduled. Equivalent relative labels retain the first
+observed deadline instead of sliding on re-ingestion. The minute
+worker expires only unstarted automated requests, cancels queued/unclaimed jobs,
+and moves protected founder or started-agent work to `Attention required` for an
+editor decision. Manual work never auto-expires. Editors can explicitly expire,
+restore with a replacement date, archive, and restore from the request page.
+Archive restoration uses operation provenance and a fenced, paginated
+transition coordinator, so oversized legacy aggregates remain operable and a
+deliverable or destination that was already archived is not accidentally
+reactivated. The request stays non-mutable until every child resource and search
+projection settles. In-flight jobs are
+fenced and preserved as resumable archived work, then returned to the queue with
+a fresh lease after restoration. Deployments upgrading an existing job table
+must run `bunx convex run --prod migrations:backfillAgentJobClaimability '{}'`
+once; the resumable migration populates the indexed claim timestamp used by the
+bounded worker claim path and is safe to rerun. Run
+`bunx convex run --prod migrations:backfillActiveVoiceCaptureCounts '{}'` at
+the same time so expiration can use a materialized progress signal instead of
+scanning audio children. Oversized legacy voice sets are protected by an
+overflow sentinel and a generation-fenced, resumable exact recount. The minute
+cron leases each due row before dispatch and is only a bounded coordinator;
+each due request expires in its own fenced mutation, so slow work neither
+duplicates dispatch nor starves later rows. Exhausted job leases are reaped from
+a bounded materialized due index. V1 enforces per-request limits of 50 deliverables, 50 delivery
+targets, 50 voice captures, and one drafting job. The operator library has
+durable Expired and Archived filters, and every transition is correlated and
+audited. A materially
+new obligation is created as a linked Manual/Critical child through the follow-up
+form; child snapshots may retain the same thread URL but intentionally do not
+claim the parent's canonical deduplication identity. Delivery reopening remains
+limited to correcting a receipt on the original request.
 
 Scout ingestion returns `201` with `applied` or `200` with
 `idempotent_replay`. Reusing an idempotency key for different Markdown returns

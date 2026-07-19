@@ -64,7 +64,17 @@ export function ContentRequestCard({
             <span>{request.humanId}</span>
             <span>{requestOriginLabel(request.origin)}</span>
             <span>{lifecycleLabels[request.lifecycle]}</span>
+            {request.retention === "archived" ? (
+              <span>Archived</span>
+            ) : request.disposition === "expired" ? (
+              <span>Expired</span>
+            ) : null}
             {request.timingLabel ? <span>{request.timingLabel}</span> : null}
+            {request.expiresAt ? (
+              <time dateTime={new Date(request.expiresAt).toISOString()}>
+                Expires {formatTimestamp(request.expiresAt)}
+              </time>
+            ) : null}
             <time dateTime={new Date(request.createdAt).toISOString()}>
               Created {formatTimestamp(request.createdAt)}
             </time>

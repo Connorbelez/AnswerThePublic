@@ -24,6 +24,12 @@ const request = {
   lifecycle: "pending",
   disposition: "active",
   retention: "active",
+  expiresAt: null,
+  expiredAt: null,
+  expirationReason: null,
+  expirationReviewRequiredAt: null,
+  archivedAt: null,
+  parentRequestHumanId: null,
   aggregateVersion: 1,
   assignee: {
     principalId: "founder-1",
@@ -108,6 +114,97 @@ const context = [
 ] satisfies Array<ContentContextItem>
 
 describe("Variant G Unified Context Canvas", () => {
+  it("renders inactive founder work as visibly read-only", () => {
+    const onTextChange = vi.fn()
+    const view = render(
+      <UnifiedContextCanvas
+        request={{ ...request, disposition: "expired" }}
+        requestActive={false}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+        draftController={{
+          text: "Durable founder input",
+          status: "Saved",
+          canUndo: true,
+          canRedo: true,
+          history: null,
+          archiveEntries: [],
+          archiveDone: true,
+          readOnly: true,
+          onTextChange,
+          onUndo: vi.fn(),
+          onRedo: vi.fn(),
+          onLoadOlderHistory: vi.fn(),
+          onRestoreArchivedVersion: vi.fn(),
+        }}
+      />
+    )
+    expect(screen.getByText(/inactive.*read-only/i)).toBeTruthy()
+    const editor = screen.getByRole("textbox", { name: "Founder input" })
+    expect((editor as HTMLTextAreaElement).readOnly).toBe(true)
+    fireEvent.change(editor, { target: { value: "Blocked edit" } })
+    expect(onTextChange).not.toHaveBeenCalled()
+    expect(
+      screen
+        .getByRole("button", { name: "Hide Talking points" })
+        .hasAttribute("disabled")
+    ).toBe(true)
+    expect(
+      screen
+        .getByRole("button", { name: "Pin Talking points" })
+        .hasAttribute("disabled")
+    ).toBe(true)
+    expect(
+      screen.queryByRole("button", { name: /submit founder input/i })
+    ).toBeNull()
+    view.unmount()
+  })
+
+  it("keeps context preferences interactive after founder submission", () => {
+    const view = render(
+      <UnifiedContextCanvas
+        request={{ ...request, lifecycle: "founder_complete" }}
+        requestActive
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+        draftController={{
+          text: "Submitted founder input",
+          status: "Saved",
+          canUndo: false,
+          canRedo: false,
+          history: null,
+          archiveEntries: [],
+          archiveDone: true,
+          readOnly: true,
+          onTextChange: vi.fn(),
+          onUndo: vi.fn(),
+          onRedo: vi.fn(),
+          onLoadOlderHistory: vi.fn(),
+          onRestoreArchivedVersion: vi.fn(),
+        }}
+      />
+    )
+    expect(screen.queryByText(/inactive.*read-only/i)).toBeNull()
+    expect(
+      screen
+        .getByRole("button", { name: "Hide Talking points" })
+        .hasAttribute("disabled")
+    ).toBe(false)
+    expect(
+      screen
+        .getByRole("button", { name: "Pin Talking points" })
+        .hasAttribute("disabled")
+    ).toBe(false)
+    expect(
+      (
+        screen.getByRole("textbox", {
+          name: "Founder input",
+        }) as HTMLTextAreaElement
+      ).readOnly
+    ).toBe(true)
+    view.unmount()
+  })
+
   it("uses one controlled offline editor with component-backed undo and redo", () => {
     const onTextChange = vi.fn()
     const onUndo = vi.fn()

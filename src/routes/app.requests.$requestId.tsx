@@ -13,6 +13,7 @@ import {
   discardFounderVoiceCapture,
   finalizeFounderVoiceCapture,
   getContentRequest,
+  getContentRequestRelations,
   getContentRequestContext,
   getContextDeckPreferences,
   getFounderInput,
@@ -21,6 +22,7 @@ import {
   listFounderArchivedVersions,
   listFounderVoiceCaptures,
   listDeliverables,
+  listArchivedDeliveryTargets,
   listDeliveryTargets,
   listOpenSemanticConflicts,
   listOperatorWorkspace,
@@ -38,6 +40,7 @@ import {
 } from "@/application/content-request-server-functions"
 import { loadWorkspaceSession } from "@/application/load-workspace-session"
 import { RequestAssignmentControl } from "@/components/request-assignment-control"
+import { RequestDispositionControls } from "@/components/request-disposition-controls"
 import { SemanticConflictPanel } from "@/components/semantic-conflict-panel"
 import { DeliverablePanel } from "@/components/deliverable-panel"
 import { DeliveryTargetChecklist } from "@/components/delivery-target-checklist"
@@ -65,7 +68,9 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       semanticConflicts,
       deliverables,
       deliveryTargets,
+      archivedDeliveryTargets,
       operatorWorkspace,
+      relations,
     ] = await Promise.all([
       getContentRequest({ data: { humanId: params.requestId } }),
       listAssignablePrincipals(),
@@ -84,10 +89,22 @@ export const Route = createFileRoute("/app/requests/$requestId")({
         ? listDeliveryTargets({ data: { humanId: params.requestId } })
         : Promise.resolve([]),
       session.status === "authenticated" && session.session.role !== "founder"
+        ? listArchivedDeliveryTargets({
+            data: { humanId: params.requestId, cursor: null },
+          })
+        : Promise.resolve({ page: [], nextCursor: null }),
+      session.status === "authenticated" && session.session.role !== "founder"
         ? listOperatorWorkspace({
             data: { search: params.requestId, limit: 1 },
           })
         : Promise.resolve(null),
+      session.status === "authenticated" && session.session.role !== "founder"
+        ? getContentRequestRelations({ data: { humanId: params.requestId } })
+        : Promise.resolve({
+            parent: null,
+            children: [],
+            childrenTruncated: false,
+          }),
     ])
     if (!request) throw notFound()
     return {
@@ -98,8 +115,10 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       founderInput,
       semanticConflicts,
       deliverables,
-      deliveryTargets,
+      deliveryTargets: [...deliveryTargets, ...archivedDeliveryTargets.page],
+      archivedDeliveryTargetCursor: archivedDeliveryTargets.nextCursor,
       operatorItem: operatorWorkspace?.page[0] ?? null,
+      relations,
     }
   },
   component: ContentRequestPage,
@@ -137,18 +156,25 @@ function ContentRequestPage() {
     semanticConflicts,
     deliverables,
     deliveryTargets,
+    archivedDeliveryTargetCursor,
     operatorItem,
+    relations,
   } = Route.useLoaderData()
   const session = appRoute.useLoaderData()
+  const requestIsActive =
+    request.retention === "active" && request.disposition === "active"
+  const requestIsMutable =
+    requestIsActive && ["pending", "in_progress"].includes(request.lifecycle)
   const recordOpen = useServerFn(openContentRequest)
   const persistContextDeckPreferences = useServerFn(saveContextDeckPreferences)
   const handleContextDeckPreferences = useCallback(
     async (preferences: ContextDeckPreferences, correlationId: string) => {
+      if (!requestIsActive) return
       await persistContextDeckPreferences({
         data: { humanId: request.humanId, preferences, correlationId },
       })
     },
-    [persistContextDeckPreferences, request.humanId]
+    [persistContextDeckPreferences, request.humanId, requestIsActive]
   )
   const openRecordingState = useRef<{
     requestId: string
@@ -227,7 +253,11 @@ function ContentRequestPage() {
         initialDraft={founderInput?.text ?? ""}
         initialDocumentId={founderInput?.automergeDocumentId ?? null}
         initialPreferences={contextDeckPreferences}
-        onPreferencesChange={handleContextDeckPreferences}
+        requestActive={requestIsActive}
+        founderInputMutable={requestIsMutable}
+        onPreferencesChange={
+          requestIsActive ? handleContextDeckPreferences : undefined
+        }
       />
     )
   }
@@ -294,30 +324,53 @@ function ContentRequestPage() {
           </CardContent>
         </Card>
       ) : null}
+      {!requestIsActive ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Read-only request</CardTitle>
+          </CardHeader>
+          <CardContent>
+            This request is{" "}
+            {request.retention === "archived" ? "archived" : "expired"}. Restore
+            it to change assignment, deliverables, delivery targets, or resolve
+            conflicts.
+          </CardContent>
+        </Card>
+      ) : null}
       <SemanticConflictPanel
         conflicts={semanticConflicts}
         principals={principals}
         deliverables={deliverables}
+        readOnly={!requestIsActive}
       />
-      <DeliverablePanel humanId={request.humanId} deliverables={deliverables} />
+      <RequestDispositionControls request={request} relations={relations} />
+      <DeliverablePanel
+        humanId={request.humanId}
+        deliverables={deliverables}
+        readOnly={!requestIsActive}
+      />
       <DeliveryTargetChecklist
         humanId={request.humanId}
         targets={deliveryTargets}
+        initialArchivedCursor={archivedDeliveryTargetCursor}
         deliverables={deliverables}
         principals={principals}
+        readOnly={!requestIsActive}
       />
-      <Card>
-        <CardHeader>
-          <CardTitle>Assignment</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RequestAssignmentControl
-            key={`${request.humanId}:${request.aggregateVersion}`}
-            request={request}
-            principals={principals}
-          />
-        </CardContent>
-      </Card>
+      {requestIsActive ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Assignment</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RequestAssignmentControl
+              key={`${request.humanId}:${request.aggregateVersion}`}
+              request={request}
+              principals={principals}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
     </main>
   )
 }
@@ -330,6 +383,8 @@ function FounderRequestCanvas({
   initialDocumentId,
   initialPreferences,
   onPreferencesChange,
+  requestActive,
+  founderInputMutable,
 }: {
   request: ReturnType<typeof Route.useLoaderData>["request"]
   contextItems: ReturnType<typeof Route.useLoaderData>["contextItems"]
@@ -337,10 +392,12 @@ function FounderRequestCanvas({
   initialDraft: string
   initialDocumentId: string | null
   initialPreferences: ContextDeckPreferences | null
-  onPreferencesChange: (
+  onPreferencesChange?: (
     preferences: ContextDeckPreferences,
     correlationId: string
   ) => Promise<void>
+  requestActive: boolean
+  founderInputMutable: boolean
 }) {
   const pull = useServerFn(pullFounderAutomergeChanges)
   const submit = useServerFn(submitFounderAutomergeChanges)
@@ -404,6 +461,7 @@ function FounderRequestCanvas({
     initialText: initialDraft,
     initialDocumentId,
     transport,
+    enabled: founderInputMutable,
   })
   const voiceTransport = useMemo(
     () => ({
@@ -448,18 +506,20 @@ function FounderRequestCanvas({
     transport: voiceTransport,
     appendTranscript: founderDocument.appendVoiceTranscript,
     ensureDurablySynced: founderDocument.ensureDurablySynced,
+    enabled: founderInputMutable,
   })
 
   return (
     <UnifiedContextCanvas
       request={request}
+      requestActive={requestActive}
       contextItems={contextItems}
       preferenceOwnerKey={preferenceOwnerKey}
       initialDraft={initialDraft}
       initialPreferences={initialPreferences}
       onPreferencesChange={onPreferencesChange}
       onSubmitFounderInput={
-        ["pending", "in_progress"].includes(request.lifecycle)
+        founderInputMutable
           ? async () => {
               const heads = await founderDocument.prepareSubmission()
               if (!heads)
@@ -483,13 +543,13 @@ function FounderRequestCanvas({
         history: founderDocument.history,
         archiveEntries: founderDocument.archiveEntries,
         archiveDone: founderDocument.archiveDone,
-        readOnly: !["pending", "in_progress"].includes(request.lifecycle),
+        readOnly: !founderInputMutable,
         onTextChange: founderDocument.setText,
         onUndo: founderDocument.undo,
         onRedo: founderDocument.redo,
         onLoadOlderHistory: founderDocument.loadOlderHistory,
         onRestoreArchivedVersion: founderDocument.restoreArchivedVersion,
-        voice: voiceInput,
+        voice: founderInputMutable ? voiceInput : undefined,
       }}
     />
   )

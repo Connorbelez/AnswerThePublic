@@ -31,7 +31,11 @@ import {
 } from "@/lib/founder-automerge"
 
 export type FounderSyncStatus =
-  "Saved" | "Saving" | "Offline" | "Save pending" | "Save blocked"
+  | "Saved"
+  | "Saving"
+  | "Offline"
+  | "Save pending"
+  | "Save blocked"
 
 type FounderAutomergeTransport = {
   pull(documentId: string): Promise<FounderAutomergePull>
@@ -333,15 +337,19 @@ export function useFounderAutomerge({
   initialText,
   initialDocumentId,
   transport,
+  enabled = true,
 }: {
   humanId: string
   ownerKey: string
   initialText: string
   initialDocumentId: string | null
   transport: FounderAutomergeTransport
+  enabled?: boolean
 }) {
   const [text, setText] = useState(initialText)
-  const [status, setStatus] = useState<FounderSyncStatus>("Saving")
+  const [status, setStatus] = useState<FounderSyncStatus>(
+    enabled ? "Saving" : "Saved"
+  )
   const [history, setHistory] = useState<FounderVersionHistory | null>(null)
   const [archiveEntries, setArchiveEntries] = useState<
     Array<FounderArchivedVersion>
@@ -389,6 +397,7 @@ export function useFounderAutomerge({
   }, [])
 
   const syncNow = useCallback(async () => {
+    if (!enabled) return false
     const session = sessionRef.current
     if (!session) return false
     await session.flushLocal()
@@ -461,7 +470,7 @@ export function useFounderAutomerge({
     })
     await syncChainRef.current
     return succeeded
-  }, [refreshHistory])
+  }, [enabled, refreshHistory])
 
   useEffect(() => {
     syncNowRef.current = syncNow
@@ -477,6 +486,11 @@ export function useFounderAutomerge({
 
   useEffect(() => {
     mountedRef.current = true
+    if (!enabled) {
+      return () => {
+        mountedRef.current = false
+      }
+    }
     let cancelled = false
     let changeListener: (() => void) | undefined
     const namespace = ownerNamespace(ownerKey)
@@ -573,10 +587,11 @@ export function useFounderAutomerge({
         void session.close()
       }
     }
-  }, [humanId, initialDocumentId, initialText, ownerKey, syncNow])
+  }, [enabled, humanId, initialDocumentId, initialText, ownerKey, syncNow])
 
   const updateText = useCallback(
     (nextText: string) => {
+      if (!enabled) return
       const session = sessionRef.current
       if (!session) {
         pendingTextRef.current = nextText
@@ -588,11 +603,12 @@ export function useFounderAutomerge({
       void session.flushLocal()
       scheduleSync()
     },
-    [humanId, ownerKey, scheduleSync]
+    [enabled, humanId, ownerKey, scheduleSync]
   )
 
   const appendVoiceTranscript = useCallback(
     (captureId: string, addition: string, recordedAt: number) => {
+      if (!enabled) return
       const normalized = addition.trim()
       if (!normalized) return
       const session = sessionRef.current
@@ -608,7 +624,7 @@ export function useFounderAutomerge({
       void session.flushLocal()
       scheduleSync()
     },
-    [scheduleSync]
+    [enabled, scheduleSync]
   )
 
   const moveHistory = useCallback(

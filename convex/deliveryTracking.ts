@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server"
 import { ConvexError, v } from "convex/values"
 
 import type { Doc, Id } from "./_generated/dataModel"
@@ -8,10 +9,18 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server"
-import { requireEditor, requirePrincipal } from "./lib/authorization"
+import {
+  requireActiveRequest,
+  requireEditor,
+  requirePrincipal,
+} from "./lib/authorization"
 import { projectDeliveryLifecycle } from "./lib/deliveryLifecycle"
 import { enqueueNotification } from "./lib/notificationOutbox"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
+import {
+  assertWithinRequestLimit,
+  MAX_DELIVERY_TARGETS_PER_REQUEST,
+} from "./lib/requestLimits"
 
 const receiptValidator = v.object({
   receiptId: v.id("deliveryReceipts"),
@@ -36,6 +45,7 @@ const targetValidator = v.object({
   destinationUrl: v.union(v.string(), v.null()),
   isOriginal: v.boolean(),
   isRequired: v.boolean(),
+  retention: v.union(v.literal("active"), v.literal("archived")),
   currentReceiptId: v.union(v.id("deliveryReceipts"), v.null()),
   currentReceipt: v.union(receiptValidator, v.null()),
   receiptHistory: v.array(receiptValidator),
@@ -91,6 +101,7 @@ async function publicTarget(
     destinationUrl: target.destinationUrl ?? null,
     isOriginal: target.isOriginal,
     isRequired: target.isRequired,
+    retention: target.retention,
     currentReceiptId: target.currentReceiptId ?? null,
     currentReceipt: current ? await publicReceipt(current) : null,
     receiptHistory: await Promise.all(receipts.map(publicReceipt)),
@@ -130,7 +141,12 @@ async function requestByHumanId(
 async function priorOperation(
   ctx: QueryCtx | MutationCtx,
   principal: Awaited<ReturnType<typeof requirePrincipal>>,
-  operation: "create_target" | "set_required" | "confirm" | "reopen",
+  operation:
+    | "create_target"
+    | "set_required"
+    | "set_retention"
+    | "confirm"
+    | "reopen",
   correlationId: string,
   fingerprint: string
 ) {
@@ -217,19 +233,53 @@ export const list = query({
     )
     const targets = await ctx.db
       .query("deliveryTargets")
-      .withIndex("by_request", (index) => index.eq("requestId", request._id))
-      .collect()
+      .withIndex("by_request_retention", (index) =>
+        index.eq("requestId", request._id).eq("retention", "active")
+      )
+      .take(MAX_DELIVERY_TARGETS_PER_REQUEST + 1)
     return Promise.all(
       targets
-        .filter((target) => target.retention === "active")
         .sort(
           (a, b) =>
+            Number(a.retention === "archived") -
+              Number(b.retention === "archived") ||
             Number(b.isOriginal) - Number(a.isOriginal) ||
             Number(b.isRequired) - Number(a.isRequired) ||
             a.createdAt - b.createdAt
         )
         .map((target) => publicTarget(ctx, target))
     )
+  },
+})
+
+export const listArchived = query({
+  args: { humanId: v.string(), paginationOpts: paginationOptsValidator },
+  returns: v.object({
+    page: v.array(targetValidator),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const principal = await requirePrincipal(ctx)
+    requireEditor(principal)
+    const request = await requestByHumanId(
+      ctx,
+      principal.organizationId,
+      args.humanId
+    )
+    const result = await ctx.db
+      .query("deliveryTargets")
+      .withIndex("by_request_retention", (index) =>
+        index.eq("requestId", request._id).eq("retention", "archived")
+      )
+      .paginate(args.paginationOpts)
+    return {
+      page: await Promise.all(
+        result.page.map((target) => publicTarget(ctx, target))
+      ),
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
+    }
   },
 })
 
@@ -276,6 +326,18 @@ export const createTarget = mutation({
         ctx,
         await targetForPrincipal(ctx, principal.organizationId, replay.targetId)
       )
+    requireActiveRequest(request)
+    const requestTargets = await ctx.db
+      .query("deliveryTargets")
+      .withIndex("by_request_retention", (index) =>
+        index.eq("requestId", request._id).eq("retention", "active")
+      )
+      .take(MAX_DELIVERY_TARGETS_PER_REQUEST + 1)
+    assertWithinRequestLimit(
+      requestTargets.length,
+      MAX_DELIVERY_TARGETS_PER_REQUEST,
+      "delivery_targets"
+    )
     if ((deliverable.retention ?? "active") !== "active")
       throw new ConvexError({ code: "NOT_FOUND" })
     const now = Date.now()
@@ -345,6 +407,7 @@ export const setRequired = mutation({
       fingerprint
     )
     if (replay) return publicTarget(ctx, target)
+    requireActiveRequest(request)
     if (target.retention !== "active")
       throw new ConvexError({ code: "NOT_FOUND" })
     if (target.isOriginal && !args.isRequired)
@@ -379,6 +442,88 @@ export const setRequired = mutation({
   },
 })
 
+export const setRetention = mutation({
+  args: {
+    targetId: v.id("deliveryTargets"),
+    retention: v.union(v.literal("active"), v.literal("archived")),
+    correlationId: v.string(),
+  },
+  returns: targetValidator,
+  handler: async (ctx, args) => {
+    const principal = await requirePrincipal(ctx)
+    requireEditor(principal)
+    const target = await targetForPrincipal(
+      ctx,
+      principal.organizationId,
+      args.targetId
+    )
+    const request = await ctx.db.get(target.requestId)
+    if (!request) throw new ConvexError({ code: "NOT_FOUND" })
+    const correlationId = requiredText(args.correlationId, 200)
+    const fingerprint = `${target._id}:${args.retention}`
+    const replay = await priorOperation(
+      ctx,
+      principal,
+      "set_retention",
+      correlationId,
+      fingerprint
+    )
+    if (replay)
+      return publicTarget(
+        ctx,
+        await targetForPrincipal(ctx, principal.organizationId, replay.targetId)
+      )
+    requireActiveRequest(request)
+    if (target.retention === args.retention)
+      throw new ConvexError({ code: "DELIVERY_TARGET_RETENTION_UNCHANGED" })
+    if (args.retention === "archived" && target.isOriginal)
+      throw new ConvexError({ code: "ORIGINAL_TARGET_REQUIRED" })
+    if (args.retention === "active") {
+      const activeTargets = await ctx.db
+        .query("deliveryTargets")
+        .withIndex("by_request_retention", (index) =>
+          index.eq("requestId", request._id).eq("retention", "active")
+        )
+        .take(MAX_DELIVERY_TARGETS_PER_REQUEST)
+      assertWithinRequestLimit(
+        activeTargets.length,
+        MAX_DELIVERY_TARGETS_PER_REQUEST,
+        "delivery_targets"
+      )
+    }
+    const now = Date.now()
+    await ctx.db.patch(target._id, {
+      retention: args.retention,
+      archivedWithRequestAt: undefined,
+      updatedAt: now,
+    })
+    await ctx.db.insert("deliveryOperations", {
+      organizationId: principal.organizationId,
+      actorPrincipalId: principal._id,
+      operation: "set_retention",
+      correlationId,
+      inputFingerprint: fingerprint,
+      targetId: target._id,
+      createdAt: now,
+    })
+    await projectDeliveryLifecycle(ctx, request)
+    await audit(
+      ctx,
+      request,
+      principal,
+      args.retention === "archived"
+        ? "delivery_target.archived"
+        : "delivery_target.restored",
+      correlationId,
+      now
+    )
+    return publicTarget(
+      ctx,
+      await targetForPrincipal(ctx, principal.organizationId, target._id)
+    )
+  },
+})
+
 export const recordIntegrationSuccess = internalMutation({
   args: {
     organizationId: v.string(),
@@ -393,11 +538,13 @@ export const recordIntegrationSuccess = internalMutation({
   handler: async (ctx, args) => {
     const target = await ctx.db.get(args.targetId)
     const version = await ctx.db.get(args.versionId)
+    const deliverable = version ? await ctx.db.get(version.deliverableId) : null
     if (
       !target ||
       target.organizationId !== args.organizationId ||
       !version ||
-      version.deliverableId !== target.deliverableId
+      version.deliverableId !== target.deliverableId ||
+      !deliverable
     )
       throw new ConvexError({ code: "NOT_FOUND" })
     const existing = await ctx.db
@@ -417,6 +564,14 @@ export const recordIntegrationSuccess = internalMutation({
         throw new ConvexError({ code: "IDEMPOTENCY_KEY_REUSED" })
       return existing._id
     }
+    if (
+      target.retention !== "active" ||
+      (deliverable.retention ?? "active") !== "active"
+    )
+      throw new ConvexError({ code: "NOT_FOUND" })
+    const request = await ctx.db.get(target.requestId)
+    if (!request) throw new ConvexError({ code: "NOT_FOUND" })
+    requireActiveRequest(request)
     return ctx.db.insert("integrationDeliverySuccesses", {
       organizationId: args.organizationId,
       targetId: target._id,
@@ -476,6 +631,7 @@ export const confirm = mutation({
         ctx,
         await targetForPrincipal(ctx, principal.organizationId, replay.targetId)
       )
+    requireActiveRequest(request)
     if (
       target.retention !== "active" ||
       (deliverable.retention ?? "active") !== "active"
@@ -601,6 +757,7 @@ export const reopen = mutation({
         throw new ConvexError({ code: "IDEMPOTENCY_KEY_REUSED" })
       return publicTarget(ctx, target)
     }
+    requireActiveRequest(request)
     if (target.retention !== "active")
       throw new ConvexError({ code: "NOT_FOUND" })
     if (!target.currentReceiptId)

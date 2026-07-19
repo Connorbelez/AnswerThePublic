@@ -42,9 +42,10 @@ function usage() {
     "  primary <CR-ID> --deliverable-id <deliverable-id> --expected-primary-id <deliverable-id> [--idempotency-key key]",
     "  conflicts <CR-ID>",
     "  conflict-resolve <conflict-id> --value <selected-id> [--idempotency-key key]",
-    "  targets <CR-ID>",
+    "  targets <CR-ID> [--retention active|archived] [--cursor cursor]",
     "  target-create <CR-ID> --deliverable-id <id> --channel <channel> --destination <label> [--url url] [--required] [--idempotency-key key]",
     "  target-required <target-id> --required <true|false> [--idempotency-key key]",
+    "  target-retention <target-id> --retention <active|archived> [--idempotency-key key]",
     "  target-confirm <target-id> --version-id <id> [--note text] [--integration-success-id id] [--idempotency-key key]",
     "  target-reopen <target-id> [--idempotency-key key]",
     "Environment: CONTENT_REQUESTS_API_URL, CONTENT_REQUESTS_ACCESS_TOKEN",
@@ -255,6 +256,16 @@ export async function runContentRequestsCli(
   } else if (["targets", "target-create"].includes(command)) {
     if (!args[0]) throw new Error(`${command} requires a Content Request ID.`)
     url = `${baseUrl}/api/v1/content-requests/${encodeURIComponent(args[0])}/delivery-targets`
+    if (command === "targets") {
+      const retention = readFlag(args, "--retention")
+      if (retention && retention !== "active" && retention !== "archived")
+        throw new Error("--retention must be active or archived.")
+      const query = new URLSearchParams()
+      if (retention) query.set("retention", retention)
+      const cursor = readFlag(args, "--cursor")
+      if (cursor) query.set("cursor", cursor)
+      if (query.size) url += `?${query}`
+    }
     if (command === "target-create")
       init = {
         method: "POST",
@@ -271,7 +282,12 @@ export async function runContentRequestsCli(
         }),
       }
   } else if (
-    ["target-required", "target-confirm", "target-reopen"].includes(command)
+    [
+      "target-required",
+      "target-retention",
+      "target-confirm",
+      "target-reopen",
+    ].includes(command)
   ) {
     if (!args[0]) throw new Error(`${command} requires a target ID.`)
     url = `${baseUrl}/api/v1/delivery-targets/${encodeURIComponent(args[0])}`
@@ -281,6 +297,11 @@ export async function runContentRequestsCli(
       if (required !== "true" && required !== "false")
         throw new Error("--required must be true or false.")
       body = { action: "set_required", isRequired: required === "true" }
+    } else if (command === "target-retention") {
+      const retention = requireFlag(args, "--retention")
+      if (retention !== "active" && retention !== "archived")
+        throw new Error("--retention must be active or archived.")
+      body = { action: "set_retention", retention }
     } else if (command === "target-confirm")
       body = {
         action: "confirm",

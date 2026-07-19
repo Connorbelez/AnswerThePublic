@@ -8,7 +8,11 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server"
-import { requireEditor, requirePrincipal } from "./lib/authorization"
+import {
+  requireActiveRequest,
+  requireEditor,
+  requirePrincipal,
+} from "./lib/authorization"
 import { enqueueNotification } from "./lib/notificationOutbox"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 import { requestQueueSortKey } from "./lib/requestOrdering"
@@ -56,6 +60,17 @@ export const contentRequestValidator = v.object({
   lifecycle: requestLifecycleValidator,
   disposition: requestDispositionValidator,
   retention: requestRetentionValidator,
+  retentionTransition: v.union(
+    v.literal("archiving"),
+    v.literal("restoring"),
+    v.null()
+  ),
+  expiresAt: v.union(v.number(), v.null()),
+  expiredAt: v.union(v.number(), v.null()),
+  expirationReason: v.union(v.string(), v.null()),
+  expirationReviewRequiredAt: v.union(v.number(), v.null()),
+  archivedAt: v.union(v.number(), v.null()),
+  parentRequestHumanId: v.union(v.string(), v.null()),
   aggregateVersion: v.number(),
   assignee: principalSummaryValidator,
   watchers: v.array(principalSummaryValidator),
@@ -187,6 +202,15 @@ export async function toPublicRequest(
     .query("founderInputDocuments")
     .withIndex("by_request", (index) => index.eq("requestId", request._id))
     .unique()
+  const parentRequest = request.parentRequestId
+    ? await ctx.db.get(request.parentRequestId)
+    : null
+  const retentionTransition: "archiving" | "restoring" | null =
+    request.archiveTransitionMode === "archive"
+      ? "archiving"
+      : request.archiveTransitionMode === "restore"
+        ? "restoring"
+        : null
   return {
     requestId: request._id,
     humanId: request.humanId,
@@ -198,6 +222,13 @@ export async function toPublicRequest(
     lifecycle: request.lifecycle,
     disposition: request.disposition,
     retention: request.retention,
+    retentionTransition,
+    expiresAt: request.expiresAt ?? null,
+    expiredAt: request.expiredAt ?? null,
+    expirationReason: request.expirationReason ?? null,
+    expirationReviewRequiredAt: request.expirationReviewRequiredAt ?? null,
+    archivedAt: request.archivedAt ?? null,
+    parentRequestHumanId: parentRequest?.humanId ?? null,
     aggregateVersion: request.aggregateVersion,
     assignee: {
       principalId: assignee._id,
@@ -358,6 +389,7 @@ export const createManual = mutation({
       (request) => request.origin !== "automated_scout"
     )
     if (existingExplicitRequest) {
+      requireActiveRequest(existingExplicitRequest)
       await ctx.db.insert("auditEvents", {
         organizationId: principal.organizationId,
         requestId: existingExplicitRequest._id,
@@ -377,6 +409,7 @@ export const createManual = mutation({
       (request) => request.origin === "automated_scout"
     )
     if (matchedAutomatedRequest) {
+      requireActiveRequest(matchedAutomatedRequest)
       if (args.source) {
         await ctx.db.insert("sourceSnapshots", {
           organizationId: principal.organizationId,
@@ -399,6 +432,10 @@ export const createManual = mutation({
         aliases,
         origin: args.origin,
         priority: "critical",
+        autoExpirationDueAt: undefined,
+        expirationDispatchToken: undefined,
+        expirationOriginalDueAt: undefined,
+        expirationReviewRequiredAt: undefined,
         queueSortKey: requestQueueSortKey(
           args.origin,
           "critical",
@@ -671,11 +708,13 @@ export const listAssignablePrincipals = query({
         index.eq("organizationId", principal.organizationId)
       )
       .collect()
-    return principals.map((candidate) => ({
-      principalId: candidate._id,
-      subject: candidate.subject,
-      role: candidate.role,
-    }))
+    return principals
+      .filter((candidate) => candidate.kind !== "system")
+      .map((candidate) => ({
+        principalId: candidate._id,
+        subject: candidate.subject,
+        role: candidate.role,
+      }))
   },
 })
 
@@ -700,8 +739,13 @@ export const assign = internalMutation({
       )
       .unique()
     if (!request) throw new ConvexError({ code: "NOT_FOUND" })
+    requireActiveRequest(request)
     const assignee = await ctx.db.get(args.assigneePrincipalId)
-    if (!assignee || assignee.organizationId !== actor.organizationId) {
+    if (
+      !assignee ||
+      assignee.organizationId !== actor.organizationId ||
+      assignee.kind === "system"
+    ) {
       throw new ConvexError({ code: "ASSIGNEE_NOT_FOUND" })
     }
     if (assignee.role === "founder") {
@@ -721,7 +765,10 @@ export const assign = internalMutation({
     )
     if (
       watchers.some(
-        (watcher) => !watcher || watcher.organizationId !== actor.organizationId
+        (watcher) =>
+          !watcher ||
+          watcher.organizationId !== actor.organizationId ||
+          watcher.kind === "system"
       )
     ) {
       throw new ConvexError({ code: "WATCHER_NOT_FOUND" })

@@ -50,6 +50,7 @@ export function createConvexContentRequestRepository({
         origin: input?.origin,
         lifecycle: input?.lifecycle,
         disposition: input?.disposition,
+        retention: input?.retention,
         assigneePrincipalId: input?.assigneePrincipalId as
           | Id<"principals">
           | undefined,
@@ -100,6 +101,50 @@ export function createConvexContentRequestRepository({
       return (await client()).mutation(api.contentRequests.open, {
         humanId,
         correlationId,
+      })
+    },
+    async setExpiration(humanId, expiresAt, correlationId) {
+      return (await client()).mutation(api.requestDisposition.setExpiration, {
+        humanId,
+        expiresAt,
+        correlationId,
+      })
+    },
+    async expire(humanId, reason, correlationId) {
+      return (await client()).mutation(api.requestDisposition.expire, {
+        humanId,
+        reason,
+        correlationId,
+      })
+    },
+    async restoreExpired(humanId, expiresAt, correlationId) {
+      return (await client()).mutation(api.requestDisposition.restoreExpired, {
+        humanId,
+        expiresAt,
+        correlationId,
+      })
+    },
+    async archive(humanId, correlationId) {
+      return (await client()).mutation(api.requestDisposition.archive, {
+        humanId,
+        correlationId,
+      })
+    },
+    async restoreArchived(humanId, correlationId) {
+      return (await client()).mutation(api.requestDisposition.restoreArchived, {
+        humanId,
+        correlationId,
+      })
+    },
+    async createFollowUp(input) {
+      return (await client()).mutation(
+        api.requestDisposition.createFollowUp,
+        input
+      )
+    },
+    async getRelations(humanId) {
+      return (await client()).query(api.requestDisposition.getRelations, {
+        humanId,
       })
     },
     async listAssignablePrincipals() {
@@ -321,6 +366,18 @@ export function createConvexContentRequestRepository({
     async listDeliveryTargets(humanId) {
       return (await client()).query(api.deliveryTracking.list, { humanId })
     },
+    async listArchivedDeliveryTargets(humanId, cursor) {
+      const result = await (
+        await client()
+      ).query(api.deliveryTracking.listArchived, {
+        humanId,
+        paginationOpts: { numItems: 50, cursor },
+      })
+      return {
+        page: result.page,
+        nextCursor: result.isDone ? null : result.continueCursor,
+      }
+    },
     async createDeliveryTarget(input) {
       return (await client()).mutation(api.deliveryTracking.createTarget, {
         ...input,
@@ -329,6 +386,12 @@ export function createConvexContentRequestRepository({
     },
     async setDeliveryTargetRequired(input) {
       return (await client()).mutation(api.deliveryTracking.setRequired, {
+        ...input,
+        targetId: input.targetId as Id<"deliveryTargets">,
+      })
+    },
+    async setDeliveryTargetRetention(input) {
+      return (await client()).mutation(api.deliveryTracking.setRetention, {
         ...input,
         targetId: input.targetId as Id<"deliveryTargets">,
       })

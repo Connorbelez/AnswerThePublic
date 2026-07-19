@@ -24,6 +24,12 @@ describe("Operator workspace card contract", () => {
           lifecycle: "founder_complete",
           disposition: "active",
           retention: "active",
+          expiresAt: null,
+          expiredAt: null,
+          expirationReason: null,
+          expirationReviewRequiredAt: null,
+          archivedAt: null,
+          parentRequestHumanId: null,
           aggregateVersion: 3,
           assignee: {
             principalId: "elie",

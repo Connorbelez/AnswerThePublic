@@ -7,7 +7,12 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server"
-import { requireEditor, requirePrincipal } from "./lib/authorization"
+import {
+  requireActiveRequest,
+  requireEditor,
+  requirePrincipal,
+} from "./lib/authorization"
+import { expirationTimingIdentity, inferExpirationAt } from "./lib/expiration"
 import { requestQueueSortKey } from "./lib/requestOrdering"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 import { parseScoutReport } from "../src/domain/scout-report"
@@ -156,6 +161,17 @@ export const apply = mutation({
         })
       }
       const existing = sourceMatches[0]
+      const preserveInactive =
+        existing !== undefined &&
+        (existing.retention !== "active" || existing.disposition !== "active")
+      const inferredExpiresAt = inferExpirationAt(opportunity.timingLabel, now)
+      const expiresAt =
+        existing?.origin === "automated_scout" &&
+        expirationTimingIdentity(existing.timingLabel) !== undefined &&
+        expirationTimingIdentity(existing.timingLabel) ===
+          expirationTimingIdentity(opportunity.timingLabel)
+          ? existing.expiresAt
+          : inferredExpiresAt
       let requestId: Id<"contentRequests">
       let humanId: string
       let action: "created" | "updated" | "manual_preserved"
@@ -163,10 +179,16 @@ export const apply = mutation({
         requestId = existing._id
         humanId = existing.humanId
         action =
-          existing.origin === "automated_scout" ? "updated" : "manual_preserved"
+          existing.origin === "automated_scout" && !preserveInactive
+            ? "updated"
+            : "manual_preserved"
         if (action === "updated") updated += 1
         else manualPreserved += 1
-        if (existing.origin === "automated_scout") {
+        if (preserveInactive) {
+          // Expiration and archival are explicit editor dispositions. A later
+          // scout run may observe the same URL, but cannot reactivate or mutate
+          // the inactive aggregate behind the editor's back.
+        } else if (existing.origin === "automated_scout") {
           const priority = priorityFor(opportunity.score)
           await ctx.db.patch(requestId, {
             title: opportunity.title,
@@ -174,6 +196,14 @@ export const apply = mutation({
             searchText: `${opportunity.title} ${existing.aliases.join(" ")} ${opportunity.question ?? ""} ${opportunity.normalizedSourceUrl}`,
             priority,
             timingLabel: opportunity.timingLabel,
+            expiresAt,
+            autoExpirationDueAt:
+              existing.disposition === "active" &&
+              existing.retention === "active"
+                ? expiresAt
+                : undefined,
+            expirationDispatchToken: undefined,
+            expirationOriginalDueAt: undefined,
             latestIngestionRunId: ingestionRunId,
             queueSortKey: requestQueueSortKey(
               "automated_scout",
@@ -210,6 +240,8 @@ export const apply = mutation({
           normalizedSourceUrl: opportunity.normalizedSourceUrl,
           latestIngestionRunId: ingestionRunId,
           timingLabel: opportunity.timingLabel,
+          expiresAt,
+          autoExpirationDueAt: expiresAt,
           queueSortKey: requestQueueSortKey("automated_scout", priority, now),
           assigneePrincipalId: principal._id,
           watcherPrincipalIds: [],
@@ -312,31 +344,33 @@ export const apply = mutation({
           citations: [],
         },
       ]
-      const existingContexts = await ctx.db
-        .query("contextItems")
-        .withIndex("by_request_kind", (index) =>
-          index.eq("requestId", requestId)
-        )
-        .collect()
-      for (const context of contexts) {
-        const existingContext = existingContexts.find(
-          (item) => item.kind === context.kind
-        )
-        if (existingContext) {
-          await ctx.db.patch(existingContext._id, {
-            ...context,
-            ingestionRunId,
-            updatedAt: now,
-          })
-        } else {
-          await ctx.db.insert("contextItems", {
-            organizationId: principal.organizationId,
-            requestId,
-            ...context,
-            ingestionRunId,
-            createdAt: now,
-            updatedAt: now,
-          })
+      if (!preserveInactive) {
+        const existingContexts = await ctx.db
+          .query("contextItems")
+          .withIndex("by_request_kind", (index) =>
+            index.eq("requestId", requestId)
+          )
+          .collect()
+        for (const context of contexts) {
+          const existingContext = existingContexts.find(
+            (item) => item.kind === context.kind
+          )
+          if (existingContext) {
+            await ctx.db.patch(existingContext._id, {
+              ...context,
+              ingestionRunId,
+              updatedAt: now,
+            })
+          } else {
+            await ctx.db.insert("contextItems", {
+              organizationId: principal.organizationId,
+              requestId,
+              ...context,
+              ingestionRunId,
+              createdAt: now,
+              updatedAt: now,
+            })
+          }
         }
       }
       await ctx.db.insert("ingestionItems", {
@@ -357,7 +391,9 @@ export const apply = mutation({
         operation: `scout_ingestion.${action}`,
         correlationId: idempotencyKey,
         occurredAt: now,
-        afterVersion: existing ? existing.aggregateVersion + 1 : 1,
+        afterVersion: existing
+          ? existing.aggregateVersion + (preserveInactive ? 0 : 1)
+          : 1,
         beforeVersion: existing?.aggregateVersion,
       })
       await refreshOperatorWorkspaceProjection(ctx, requestId)
@@ -542,6 +578,7 @@ export const saveContextDeckPreferences = mutation({
       }
       return value
     }
+    requireActiveRequest(request)
     const now = Date.now()
     if (existing) {
       await ctx.db.patch(existing._id, { ...value, updatedAt: now })

@@ -1,4 +1,4 @@
-import { api } from "../../convex/_generated/api"
+import { api, internal } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
 import type {
   AssignRequestInput,
@@ -12,6 +12,62 @@ export async function createConvexTestContentRequestRepository(
   identity: ExternalIdentity
 ): Promise<ContentRequestRepository> {
   const backend = await getConvexTestWorkspace(identity)
+  async function finishArchiveTransition(humanId: string) {
+    const request = await backend.query(api.contentRequests.getByHumanId, {
+      humanId,
+    })
+    if (!request) throw new Error("Content Request not found")
+    const transition = await backend.run((ctx) =>
+      ctx.db.get(request.requestId as Id<"contentRequests">)
+    )
+    if (
+      !transition?.archiveTransitionToken ||
+      !transition.archiveTransitionMode ||
+      !transition.archiveTransitionMarker
+    )
+      return request
+    const resources =
+      transition.archiveTransitionMode === "archive"
+        ? ([
+            "deliverables",
+            "delivery_targets",
+            "agent_jobs",
+            "search_rows",
+          ] as const)
+        : ([
+            "deliverables",
+            "delivery_targets",
+            "agent_jobs",
+            "voice_captures",
+            "search_rows",
+          ] as const)
+    for (const resource of resources)
+      await backend.mutation(
+        internal.requestDisposition.continueArchiveChildren,
+        {
+          requestId: transition._id,
+          marker: transition.archiveTransitionMarker,
+          transitionToken: transition.archiveTransitionToken,
+          mode: transition.archiveTransitionMode,
+          resource,
+        }
+      )
+    if (transition.archiveTransitionMode === "restore") {
+      await backend.mutation(internal.requestDisposition.activateRestoredJobs, {
+        requestId: transition._id,
+        marker: transition.archiveTransitionMarker,
+      })
+      await backend.mutation(
+        internal.requestDisposition.resumeRestoredVoiceCaptures,
+        { requestId: transition._id }
+      )
+    }
+    const settled = await backend.query(api.contentRequests.getByHumanId, {
+      humanId,
+    })
+    if (!settled) throw new Error("Content Request not found")
+    return settled
+  }
   return {
     async createManual(input: PersistManualRequestInput) {
       return backend.mutation(api.contentRequests.createManual, input)
@@ -30,6 +86,7 @@ export async function createConvexTestContentRequestRepository(
         origin: input?.origin,
         lifecycle: input?.lifecycle,
         disposition: input?.disposition,
+        retention: input?.retention,
         assigneePrincipalId: input?.assigneePrincipalId as
           | Id<"principals">
           | undefined,
@@ -78,6 +135,47 @@ export async function createConvexTestContentRequestRepository(
         humanId,
         correlationId,
       })
+    },
+    async setExpiration(humanId, expiresAt, correlationId) {
+      return backend.mutation(api.requestDisposition.setExpiration, {
+        humanId,
+        expiresAt,
+        correlationId,
+      })
+    },
+    async expire(humanId, reason, correlationId) {
+      return backend.mutation(api.requestDisposition.expire, {
+        humanId,
+        reason,
+        correlationId,
+      })
+    },
+    async restoreExpired(humanId, expiresAt, correlationId) {
+      return backend.mutation(api.requestDisposition.restoreExpired, {
+        humanId,
+        expiresAt,
+        correlationId,
+      })
+    },
+    async archive(humanId, correlationId) {
+      await backend.mutation(api.requestDisposition.archive, {
+        humanId,
+        correlationId,
+      })
+      return finishArchiveTransition(humanId)
+    },
+    async restoreArchived(humanId, correlationId) {
+      await backend.mutation(api.requestDisposition.restoreArchived, {
+        humanId,
+        correlationId,
+      })
+      return finishArchiveTransition(humanId)
+    },
+    async createFollowUp(input) {
+      return backend.mutation(api.requestDisposition.createFollowUp, input)
+    },
+    async getRelations(humanId) {
+      return backend.query(api.requestDisposition.getRelations, { humanId })
     },
     async listAssignablePrincipals() {
       return backend.query(api.contentRequests.listAssignablePrincipals, {})
@@ -278,6 +376,16 @@ export async function createConvexTestContentRequestRepository(
     async listDeliveryTargets(humanId) {
       return backend.query(api.deliveryTracking.list, { humanId })
     },
+    async listArchivedDeliveryTargets(humanId, cursor) {
+      const result = await backend.query(api.deliveryTracking.listArchived, {
+        humanId,
+        paginationOpts: { numItems: 50, cursor },
+      })
+      return {
+        page: result.page,
+        nextCursor: result.isDone ? null : result.continueCursor,
+      }
+    },
     async createDeliveryTarget(input) {
       return backend.mutation(api.deliveryTracking.createTarget, {
         ...input,
@@ -286,6 +394,12 @@ export async function createConvexTestContentRequestRepository(
     },
     async setDeliveryTargetRequired(input) {
       return backend.mutation(api.deliveryTracking.setRequired, {
+        ...input,
+        targetId: input.targetId as Id<"deliveryTargets">,
+      })
+    },
+    async setDeliveryTargetRetention(input) {
+      return backend.mutation(api.deliveryTracking.setRetention, {
         ...input,
         targetId: input.targetId as Id<"deliveryTargets">,
       })

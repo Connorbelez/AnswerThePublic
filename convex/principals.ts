@@ -23,6 +23,9 @@ async function syncIdentityPrincipal(
   identity: Awaited<ReturnType<typeof requireIdentity>>,
   verifiedEmail?: string
 ) {
+  if (identity.subject.startsWith("system:")) {
+    throw new ConvexError({ code: "RESERVED_SUBJECT" })
+  }
   const existing = await ctx.db
     .query("principals")
     .withIndex("by_organization_subject", (index) =>
@@ -31,11 +34,18 @@ async function syncIdentityPrincipal(
         .eq("subject", identity.subject)
     )
     .unique()
+  if (existing?.kind === "system") {
+    throw new ConvexError({ code: "RESERVED_SUBJECT" })
+  }
   const email = verifiedEmail?.trim() || identity.email || existing?.email
   const fields = {
     subject: identity.subject,
     organizationId: identity.organizationId,
     role: identity.role,
+    kind:
+      identity.role === "agent_editor"
+        ? ("agent" as const)
+        : ("human" as const),
     email,
     updatedAt: Date.now(),
   }
@@ -101,7 +111,7 @@ export const getCurrent = query({
       )
       .unique()
 
-    if (!principal) {
+    if (!principal || principal.kind === "system") {
       return null
     }
 

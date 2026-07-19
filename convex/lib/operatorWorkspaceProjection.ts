@@ -1,5 +1,7 @@
 import type { Id } from "../_generated/dataModel"
+import { internal } from "../_generated/api"
 import type { MutationCtx } from "../_generated/server"
+import { MAX_DELIVERY_TARGETS_PER_REQUEST } from "./requestLimits"
 
 function deriveQueue(input: {
   lifecycle: string
@@ -47,25 +49,26 @@ export async function refreshOperatorWorkspaceProjection(
         .first(),
       ctx.db
         .query("deliveryTargets")
-        .withIndex("by_request", (index) => index.eq("requestId", request._id))
-        .collect(),
+        .withIndex("by_request_retention", (index) =>
+          index.eq("requestId", request._id).eq("retention", "active")
+        )
+        .take(MAX_DELIVERY_TARGETS_PER_REQUEST + 1),
       ctx.db
         .query("semanticConflicts")
         .withIndex("by_request_status", (index) =>
           index.eq("requestId", request._id).eq("status", "open")
         )
-        .collect(),
+        .take(101),
       ctx.db
         .query("migrationConflicts")
         .withIndex("by_request_resolved", (index) =>
           index.eq("requestId", request._id).eq("resolved", false)
         )
-        .collect(),
+        .take(101),
       request.sourceSnapshotId ? ctx.db.get(request.sourceSnapshotId) : null,
     ])
-  const activeTargets = targets.filter(
-    (target) => target.retention === "active"
-  )
+  const targetOverflow = targets.length > MAX_DELIVERY_TARGETS_PER_REQUEST
+  const activeTargets = targets.slice(0, MAX_DELIVERY_TARGETS_PER_REQUEST)
   const required = activeTargets.filter((target) => target.isRequired)
   const confirmed = required.filter((target) => target.currentReceiptId).length
   const attentionReasons = [
@@ -80,6 +83,12 @@ export async function refreshOperatorWorkspaceProjection(
       ),
     ...(latestJob?.status === "failed"
       ? ["Agent drafting retries exhausted"]
+      : []),
+    ...(request.expirationReviewRequiredAt
+      ? ["Review protected work after its expiration deadline"]
+      : []),
+    ...(targetOverflow
+      ? ["Legacy delivery target count requires remediation"]
       : []),
   ]
   const attentionReasonCount = attentionReasons.length
@@ -152,13 +161,28 @@ export async function refreshOperatorWorkspaceProjection(
     .query("operatorWorkspaceItems")
     .withIndex("by_request", (index) => index.eq("requestId", request._id))
     .unique()
-  if (existing) await ctx.db.patch(existing._id, value)
+  if (existing)
+    await ctx.db.patch(existing._id, {
+      ...value,
+      searchRepairGeneration: undefined,
+    })
   else await ctx.db.insert("operatorWorkspaceItems", value)
 
   const existingSearchRows = await ctx.db
     .query("operatorWorkspaceSearchRows")
     .withIndex("by_request", (index) => index.eq("requestId", request._id))
-    .collect()
+    .take(MAX_DELIVERY_TARGETS_PER_REQUEST + 2)
+  if (
+    targetOverflow ||
+    existingSearchRows.length > MAX_DELIVERY_TARGETS_PER_REQUEST + 1
+  ) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.operatorWorkspace.repairLegacySearchRows,
+      { requestId: request._id }
+    )
+    return
+  }
   for (const row of existingSearchRows) await ctx.db.delete(row._id)
   const channelKeys = [
     "",

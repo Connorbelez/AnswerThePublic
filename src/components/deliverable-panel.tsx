@@ -14,9 +14,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 export function DeliverablePanel({
   humanId,
   deliverables,
+  readOnly = false,
 }: {
   humanId: string
   deliverables: Array<Deliverable>
+  readOnly?: boolean
 }) {
   const promote = useServerFn(promoteDeliverableVersion)
   const setPrimary = useServerFn(setPrimaryDeliverable)
@@ -77,7 +79,7 @@ export function DeliverablePanel({
                     <p className="text-sm whitespace-pre-wrap">
                       {version.body}
                     </p>
-                    {!promoted ? (
+                    {!promoted && !readOnly ? (
                       <Button
                         className="mt-3"
                         size="sm"
@@ -120,7 +122,7 @@ export function DeliverablePanel({
                 )
               })}
             </ol>
-            {!deliverable.isPrimary ? (
+            {!deliverable.isPrimary && !readOnly ? (
               <Button
                 className="mt-3"
                 size="sm"

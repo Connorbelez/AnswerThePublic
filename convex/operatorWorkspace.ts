@@ -2,6 +2,7 @@ import { paginationOptsValidator, type PaginationOptions } from "convex/server"
 import { ConvexError, v } from "convex/values"
 
 import type { Doc } from "./_generated/dataModel"
+import { internal } from "./_generated/api"
 import { internalMutation, query, type QueryCtx } from "./_generated/server"
 import { contentRequestValidator, toPublicRequest } from "./contentRequests"
 import { requireEditor, requirePrincipal } from "./lib/authorization"
@@ -11,6 +12,7 @@ import {
   requestLifecycleValidator,
   requestOriginValidator,
   requestPriorityValidator,
+  requestRetentionValidator,
 } from "./schema"
 
 const queueValidator = v.union(
@@ -48,6 +50,7 @@ type WorkspaceFilters = {
   origin?: Doc<"operatorWorkspaceItems">["origin"]
   lifecycle?: Doc<"operatorWorkspaceItems">["lifecycle"]
   disposition?: Doc<"operatorWorkspaceItems">["disposition"]
+  retention?: "active" | "archived"
   assigneePrincipalId?: Doc<"operatorWorkspaceItems">["assigneePrincipalId"]
   deliveryChannel?: string
 }
@@ -105,15 +108,93 @@ export const refreshRequest = internalMutation({
   },
 })
 
+export const repairLegacySearchRows = internalMutation({
+  args: {
+    requestId: v.id("contentRequests"),
+    generation: v.optional(v.number()),
+    phase: v.optional(v.union(v.literal("delete"), v.literal("materialize"))),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const projection = await ctx.db
+      .query("operatorWorkspaceItems")
+      .withIndex("by_request", (index) => index.eq("requestId", args.requestId))
+      .unique()
+    if (!projection) return null
+    if (args.generation === undefined) {
+      const generation = (projection.searchRepairGeneration ?? 0) + 1
+      await ctx.db.patch(projection._id, { searchRepairGeneration: generation })
+      await ctx.scheduler.runAfter(
+        0,
+        internal.operatorWorkspace.repairLegacySearchRows,
+        { requestId: args.requestId, generation, phase: "delete" }
+      )
+      return null
+    }
+    if (projection.searchRepairGeneration !== args.generation) return null
+    if (args.phase !== "materialize") {
+      const rows = await ctx.db
+        .query("operatorWorkspaceSearchRows")
+        .withIndex("by_request", (index) =>
+          index.eq("requestId", args.requestId)
+        )
+        .take(25)
+      for (const row of rows) await ctx.db.delete(row._id)
+      await ctx.scheduler.runAfter(
+        0,
+        internal.operatorWorkspace.repairLegacySearchRows,
+        {
+          requestId: args.requestId,
+          generation: args.generation,
+          phase: rows.length === 0 ? "materialize" : "delete",
+        }
+      )
+      return null
+    }
+    const channelKeys = [
+      "",
+      ...new Set(
+        projection.deliveryChannels.map((channel) => normalize(channel))
+      ),
+    ]
+    const updatedAt = Date.now()
+    for (const channelKey of channelKeys)
+      await ctx.db.insert("operatorWorkspaceSearchRows", {
+        organizationId: projection.organizationId,
+        requestId: projection.requestId,
+        humanId: projection.humanId,
+        normalizedTitle: projection.normalizedTitle,
+        searchText: projection.searchText,
+        channelKey,
+        active: projection.active,
+        retained: projection.retained,
+        manualCritical: projection.manualCritical,
+        orderBucket: projection.orderBucket,
+        queue: projection.queue,
+        priority: projection.priority,
+        origin: projection.origin,
+        lifecycle: projection.lifecycle,
+        disposition: projection.disposition,
+        assigneePrincipalId: projection.assigneePrincipalId,
+        sortKey: projection.sortKey,
+        updatedAt,
+      })
+    await ctx.db.patch(projection._id, { searchRepairGeneration: undefined })
+    return null
+  },
+})
+
 function matches(
   projection: Doc<"operatorWorkspaceItems">,
   args: WorkspaceFilters
 ) {
   const inScope =
-    projection.retained &&
-    (args.disposition
-      ? projection.disposition === args.disposition
-      : projection.active)
+    (args.retention === "archived"
+      ? !projection.retained
+      : args.disposition
+        ? projection.retained
+        : projection.active) &&
+    (!args.disposition || projection.disposition === args.disposition)
   return (
     inScope &&
     (!args.queue || projection.queue === args.queue) &&
@@ -168,7 +249,11 @@ function searchRowsQuery(
           args.deliveryChannel ? normalize(args.deliveryChannel) : ""
         )
         .eq("orderBucket", orderBucket)
-      if (args.disposition)
+      if (args.retention === "archived") {
+        scoped = scoped.eq("retained", false)
+        if (args.disposition)
+          scoped = scoped.eq("disposition", args.disposition)
+      } else if (args.disposition)
         scoped = scoped.eq("retained", true).eq("disposition", args.disposition)
       else scoped = scoped.eq("active", true)
       if (args.queue) scoped = scoped.eq("queue", args.queue)
@@ -283,6 +368,7 @@ export const list = query({
     origin: v.optional(requestOriginValidator),
     lifecycle: v.optional(requestLifecycleValidator),
     disposition: v.optional(requestDispositionValidator),
+    retention: v.optional(requestRetentionValidator),
     assigneePrincipalId: v.optional(v.id("principals")),
     deliveryChannel: v.optional(v.string()),
     paginationOpts: paginationOptsValidator,
@@ -315,17 +401,19 @@ export const list = query({
       }
 
       const normalizedTitle = normalize(search)
-      const disposition = args.disposition ?? "active"
       const exactTitle = await ctx.db
         .query("operatorWorkspaceItems")
         .withIndex(
           "by_organization_normalized_title_retained_disposition_sort",
-          (index) =>
-            index
+          (index) => {
+            const retained = index
               .eq("organizationId", principal.organizationId)
               .eq("normalizedTitle", normalizedTitle)
-              .eq("retained", true)
-              .eq("disposition", disposition)
+              .eq("retained", args.retention !== "archived")
+            return args.retention === "archived" && !args.disposition
+              ? retained
+              : retained.eq("disposition", args.disposition ?? "active")
+          }
         )
         .first()
       if (exactTitle) {
@@ -350,6 +438,7 @@ export const list = query({
       args.origin ||
       args.lifecycle ||
       args.disposition ||
+      args.retention ||
       args.assigneePrincipalId ||
       args.deliveryChannel
     )

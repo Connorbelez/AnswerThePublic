@@ -18,4 +18,11 @@ crons.interval(
   {}
 )
 
+crons.interval(
+  "expire stale automated content requests",
+  { minutes: 1 },
+  internal.requestDisposition.expireDue,
+  {}
+)
+
 export default crons

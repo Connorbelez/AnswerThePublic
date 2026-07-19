@@ -9,7 +9,12 @@ import {
   mutation,
   query,
 } from "./_generated/server"
-import { requirePrincipal } from "./lib/authorization"
+import { requireActiveRequest, requirePrincipal } from "./lib/authorization"
+import {
+  assertWithinRequestLimit,
+  MAX_VOICE_CAPTURES_PER_REQUEST,
+  VOICE_CAPTURE_OVERFLOW_SENTINEL,
+} from "./lib/requestLimits"
 
 const captureValidator = v.object({
   captureId: v.id("founderVoiceCaptures"),
@@ -74,8 +79,11 @@ async function assignedFounderRequest(
   ) {
     throw new ConvexError({ code: "RESOURCE_ACCESS_DENIED" })
   }
-  if (requireMutable && !["pending", "in_progress"].includes(request.lifecycle))
-    throw new ConvexError({ code: "FOUNDER_INPUT_SUBMITTED" })
+  if (requireMutable) {
+    requireActiveRequest(request)
+    if (!["pending", "in_progress"].includes(request.lifecycle))
+      throw new ConvexError({ code: "FOUNDER_INPUT_SUBMITTED" })
+  }
   const document = await ctx.db
     .query("founderInputDocuments")
     .withIndex("by_request", (index) => index.eq("requestId", request._id))
@@ -153,6 +161,17 @@ export const finalizeUpload = mutation({
       }
       return publicCapture(existing)
     }
+    const requestCaptures = await ctx.db
+      .query("founderVoiceCaptures")
+      .withIndex("by_request_created_at", (index) =>
+        index.eq("requestId", request._id)
+      )
+      .take(MAX_VOICE_CAPTURES_PER_REQUEST + 1)
+    assertWithinRequestLimit(
+      requestCaptures.length,
+      MAX_VOICE_CAPTURES_PER_REQUEST,
+      "voice_captures"
+    )
     const now = Date.now()
     const captureId = await ctx.db.insert("founderVoiceCaptures", {
       organizationId: principal.organizationId,
@@ -171,6 +190,30 @@ export const finalizeUpload = mutation({
       createdAt: now,
       updatedAt: now,
     })
+    const reconstructedActiveCaptureCount = requestCaptures.filter(
+      (capture) => !capture.discardedAt
+    ).length
+    const currentActiveCaptureCount =
+      request.activeVoiceCaptureCount ?? reconstructedActiveCaptureCount
+    await ctx.db.patch(request._id, {
+      activeVoiceCaptureCount:
+        currentActiveCaptureCount > MAX_VOICE_CAPTURES_PER_REQUEST
+          ? VOICE_CAPTURE_OVERFLOW_SENTINEL
+          : currentActiveCaptureCount + 1,
+      voiceCaptureCountGeneration:
+        (request.voiceCaptureCountGeneration ?? 0) + 1,
+      updatedAt: now,
+    })
+    if (currentActiveCaptureCount > MAX_VOICE_CAPTURES_PER_REQUEST)
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.recountActiveVoiceCaptures,
+        {
+          requestId: request._id,
+          generation: (request.voiceCaptureCountGeneration ?? 0) + 1,
+          count: 0,
+        }
+      )
     await ctx.db.insert("auditEvents", {
       organizationId: principal.organizationId,
       requestId: request._id,
@@ -202,7 +245,7 @@ export const listMine = query({
         index.eq("documentId", document._id)
       )
       .order("desc")
-      .collect()
+      .take(MAX_VOICE_CAPTURES_PER_REQUEST)
     return captures.map(publicCapture)
   },
 })
@@ -244,11 +287,52 @@ export const discard = mutation({
       throw new ConvexError({ code: "NOT_FOUND" })
     if (["uploaded", "transcribing"].includes(capture.status))
       throw new ConvexError({ code: "VOICE_CAPTURE_IN_FLIGHT" })
-    if (!capture.discardedAt)
+    if (!capture.discardedAt) {
+      const request = await ctx.db.get(capture.requestId)
+      const requestCaptures =
+        request?.activeVoiceCaptureCount === undefined
+          ? await ctx.db
+              .query("founderVoiceCaptures")
+              .withIndex("by_request_created_at", (index) =>
+                index.eq("requestId", capture.requestId)
+              )
+              .take(VOICE_CAPTURE_OVERFLOW_SENTINEL)
+          : []
+      const reconstructedActiveCaptureCount = requestCaptures.filter(
+        (candidate) => !candidate.discardedAt
+      ).length
+      const currentActiveCaptureCount =
+        request?.activeVoiceCaptureCount ?? reconstructedActiveCaptureCount
       await ctx.db.patch(capture._id, {
         discardedAt: Date.now(),
         updatedAt: Date.now(),
       })
+      if (request)
+        await ctx.db.patch(request._id, {
+          activeVoiceCaptureCount:
+            requestCaptures.length >= VOICE_CAPTURE_OVERFLOW_SENTINEL ||
+            currentActiveCaptureCount > MAX_VOICE_CAPTURES_PER_REQUEST
+              ? VOICE_CAPTURE_OVERFLOW_SENTINEL
+              : Math.max(0, currentActiveCaptureCount - 1),
+          voiceCaptureCountGeneration:
+            (request.voiceCaptureCountGeneration ?? 0) + 1,
+          updatedAt: Date.now(),
+        })
+      if (
+        request &&
+        (requestCaptures.length >= VOICE_CAPTURE_OVERFLOW_SENTINEL ||
+          currentActiveCaptureCount > MAX_VOICE_CAPTURES_PER_REQUEST)
+      )
+        await ctx.scheduler.runAfter(
+          0,
+          internal.migrations.recountActiveVoiceCaptures,
+          {
+            requestId: request._id,
+            generation: (request.voiceCaptureCountGeneration ?? 0) + 1,
+            count: 0,
+          }
+        )
+    }
     const saved = await ctx.db.get(capture._id)
     if (!saved) throw new ConvexError({ code: "WRITE_FAILED" })
     return publicCapture(saved)
@@ -298,6 +382,13 @@ export const claimTranscription = internalMutation({
     if (!capture || (capture.status !== "uploaded" && !staleClaim)) {
       return null
     }
+    const request = await ctx.db.get(capture.requestId)
+    if (
+      !request ||
+      request.retention !== "active" ||
+      request.disposition !== "active"
+    )
+      return null
     const retryAttemptCount = capture.retryAttemptCount ?? capture.attempts
     if (retryAttemptCount >= 3) {
       await ctx.db.patch(capture._id, {
@@ -340,6 +431,13 @@ export const completeTranscription = internalMutation({
       !transcript
     )
       return null
+    const request = await ctx.db.get(capture.requestId)
+    if (
+      !request ||
+      request.retention !== "active" ||
+      request.disposition !== "active"
+    )
+      return null
     await ctx.db.patch(capture._id, {
       status: "transcribed",
       transcript,
@@ -366,6 +464,13 @@ export const failTranscription = internalMutation({
       capture.attempts !== args.attempt
     )
       return null
+    const request = await ctx.db.get(capture.requestId)
+    if (
+      !request ||
+      request.retention !== "active" ||
+      request.disposition !== "active"
+    )
+      return null
     await ctx.db.patch(capture._id, {
       status: "failed",
       failureCode: args.failureCode.slice(0, 100),
@@ -384,9 +489,15 @@ export const getForTranscription = internalQuery({
   ),
   handler: async (ctx, args) => {
     const capture = await ctx.db.get(args.captureId)
-    return capture
-      ? { storageId: capture.storageId, mimeType: capture.mimeType }
-      : null
+    if (!capture) return null
+    const request = await ctx.db.get(capture.requestId)
+    if (
+      !request ||
+      request.retention !== "active" ||
+      request.disposition !== "active"
+    )
+      return null
+    return { storageId: capture.storageId, mimeType: capture.mimeType }
   },
 })
 

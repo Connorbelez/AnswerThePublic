@@ -128,9 +128,13 @@ describe("founder submission and agent drafting jobs", () => {
       leaseMs: 30_000,
     })
     expect(firstClaim).toMatchObject({ jobId: job.jobId, status: "running" })
-    await workspace.run((ctx) =>
-      ctx.db.patch(job.jobId, { leaseExpiresAt: Date.now() - 1 })
-    )
+    await workspace.run((ctx) => {
+      const expiredAt = Date.now() - 1
+      return ctx.db.patch(job.jobId, {
+        leaseExpiresAt: expiredAt,
+        claimableAt: expiredAt,
+      })
+    })
     const reclaimed = await agentTwo.mutation(api.agentJobs.claim, {
       leaseToken: "lease-two",
       leaseMs: 30_000,
@@ -235,9 +239,13 @@ describe("founder submission and agent drafting jobs", () => {
         })
       ).resolves.toMatchObject({ status: failed.status })
       if (attempt < 3)
-        await workspace.run((ctx) =>
-          ctx.db.patch(job.jobId, { nextAttemptAt: Date.now() - 1 })
-        )
+        await workspace.run((ctx) => {
+          const retryAt = Date.now() - 1
+          return ctx.db.patch(job.jobId, {
+            nextAttemptAt: retryAt,
+            claimableAt: retryAt,
+          })
+        })
     }
 
     const evidence = await workspace.run(async (ctx) => {
@@ -415,13 +423,36 @@ describe("founder submission and agent drafting jobs", () => {
         leaseMs: 30_000,
       })
     ).rejects.toMatchObject({ data: { code: "LEASE_LOST" } })
-    await workspace.run((ctx) =>
-      ctx.db.patch(job.jobId, { leaseExpiresAt: Date.now() - 1 })
-    )
+    const competingJobId = await workspace.run(async (ctx) => {
+      const original = await ctx.db.get(job.jobId)
+      if (!original) throw new Error("Original job missing")
+      const expiredAt = Date.now() - 1
+      await ctx.db.patch(job.jobId, {
+        leaseExpiresAt: expiredAt,
+        claimableAt: expiredAt,
+      })
+      return ctx.db.insert("agentJobs", {
+        organizationId: original.organizationId,
+        requestId: original.requestId,
+        requestTitle: "Older competing job",
+        type: "primary_response",
+        status: "queued",
+        founderVersionId: original.founderVersionId,
+        contextSnapshot: original.contextSnapshot,
+        attempts: 0,
+        maxAttempts: 3,
+        leaseGeneration: 0,
+        claimableAt: expiredAt,
+        createdAt: original.createdAt - 1,
+        updatedAt: expiredAt,
+      })
+    })
     const reclaimed = await agent.mutation(api.agentJobs.claim, {
       leaseToken: "private-lease",
       leaseMs: 30_000,
     })
+    expect(reclaimed?.jobId).toBe(job.jobId)
+    expect(reclaimed?.jobId).not.toBe(competingJobId)
     expect(reclaimed?.leaseGeneration).toBe(2)
     await expect(
       agent.mutation(api.agentJobs.heartbeat, {
@@ -490,9 +521,14 @@ describe("founder submission and agent drafting jobs", () => {
         leaseMs: 30_000,
       })
       expect(claimed?.attempts).toBe(attempt)
-      await workspace.run((ctx) =>
-        ctx.db.patch(job.jobId, { leaseExpiresAt: Date.now() - 1 })
-      )
+      await workspace.run((ctx) => {
+        const expiredAt = Date.now() - 1
+        return ctx.db.patch(job.jobId, {
+          leaseExpiresAt: expiredAt,
+          claimableAt: expiredAt,
+          reapableAt: attempt === 3 ? expiredAt : undefined,
+        })
+      })
     }
     await expect(
       workspace.mutation(internal.agentJobs.reapExpired, {})

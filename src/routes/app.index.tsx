@@ -9,6 +9,7 @@ import type {
   RequestLifecycle,
   RequestOrigin,
   RequestPriority,
+  RequestRetention,
 } from "@/application/content-requests"
 import {
   listContentRequests,
@@ -58,6 +59,7 @@ type WorkspaceFilters = {
   priority: RequestPriority | ""
   lifecycle: RequestLifecycle | ""
   disposition: RequestDisposition | ""
+  retention: RequestRetention | ""
   origin: RequestOrigin | ""
   assigneePrincipalId: string
   deliveryChannel: string
@@ -76,6 +78,7 @@ function RequestLibrary() {
   const [priority, setPriority] = useState<RequestPriority | "">("")
   const [lifecycle, setLifecycle] = useState<RequestLifecycle | "">("")
   const [disposition, setDisposition] = useState<RequestDisposition | "">("")
+  const [retention, setRetention] = useState<RequestRetention | "">("")
   const [origin, setOrigin] = useState<RequestOrigin | "">("")
   const [assigneePrincipalId, setAssigneePrincipalId] = useState("")
   const [deliveryChannel, setDeliveryChannel] = useState("")
@@ -87,6 +90,7 @@ function RequestLibrary() {
     priority: "",
     lifecycle: "",
     disposition: "",
+    retention: "",
     origin: "",
     assigneePrincipalId: "",
     deliveryChannel: "",
@@ -112,6 +116,7 @@ function RequestLibrary() {
       priority,
       lifecycle,
       disposition,
+      retention,
       origin,
       assigneePrincipalId,
       deliveryChannel,
@@ -135,6 +140,7 @@ function RequestLibrary() {
           priority: filters.priority || undefined,
           lifecycle: filters.lifecycle || undefined,
           disposition: filters.disposition || undefined,
+          retention: filters.retention || undefined,
           origin: filters.origin || undefined,
           assigneePrincipalId: filters.assigneePrincipalId || undefined,
           deliveryChannel: filters.deliveryChannel.trim() || undefined,
@@ -159,6 +165,7 @@ function RequestLibrary() {
     priority ||
     lifecycle ||
     disposition ||
+    retention ||
     origin ||
     assigneePrincipalId ||
     deliveryChannel.trim()
@@ -209,7 +216,7 @@ function RequestLibrary() {
               aria-label="Search content requests"
             />
           </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
             <NativeSelect
               aria-label="Priority"
               className="w-full [&_select]:h-11"
@@ -223,6 +230,20 @@ function RequestLibrary() {
               <NativeSelectOption value="high">High</NativeSelectOption>
               <NativeSelectOption value="normal">Normal</NativeSelectOption>
               <NativeSelectOption value="low">Low</NativeSelectOption>
+            </NativeSelect>
+            <NativeSelect
+              aria-label="Retention"
+              className="w-full [&_select]:h-11"
+              value={retention}
+              onChange={(event) =>
+                setRetention(event.target.value as RequestRetention | "")
+              }
+            >
+              <NativeSelectOption value="">Active library</NativeSelectOption>
+              <NativeSelectOption value="active">
+                Active only
+              </NativeSelectOption>
+              <NativeSelectOption value="archived">Archived</NativeSelectOption>
             </NativeSelect>
             <NativeSelect
               aria-label="Lifecycle"
@@ -354,6 +375,7 @@ function RequestLibrary() {
                   setPriority("")
                   setLifecycle("")
                   setDisposition("")
+                  setRetention("")
                   setOrigin("")
                   setAssigneePrincipalId("")
                   setDeliveryChannel("")
@@ -363,6 +385,7 @@ function RequestLibrary() {
                     priority: "",
                     lifecycle: "",
                     disposition: "",
+                    retention: "",
                     origin: "",
                     assigneePrincipalId: "",
                     deliveryChannel: "",

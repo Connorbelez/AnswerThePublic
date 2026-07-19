@@ -8,9 +8,15 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server"
-import { requirePrincipal } from "./lib/authorization"
+import { requireActiveRequest, requirePrincipal } from "./lib/authorization"
 import { enqueueNotification } from "./lib/notificationOutbox"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
+import {
+  assertRequestCollectionBound,
+  assertWithinRequestLimit,
+  MAX_DELIVERABLES_PER_REQUEST,
+  MAX_VOICE_CAPTURES_PER_REQUEST,
+} from "./lib/requestLimits"
 
 const jobValidator = v.object({
   jobId: v.id("agentJobs"),
@@ -115,6 +121,16 @@ async function requiredJob(
   return job
 }
 
+async function requestAcceptingAgentWork(
+  ctx: QueryCtx | MutationCtx,
+  job: Doc<"agentJobs">
+) {
+  const request = await ctx.db.get(job.requestId)
+  if (!request) throw new ConvexError({ code: "NOT_FOUND" })
+  requireActiveRequest(request)
+  return request
+}
+
 function assertAgent(principal: { role: string }) {
   if (!["agent_editor", "administrator"].includes(principal.role)) {
     throw new ConvexError({ code: "ROLE_ACCESS_DENIED" })
@@ -201,6 +217,7 @@ export const submitFounderInput = mutation({
       principal.organizationId,
       args.humanId
     )
+    requireActiveRequest(request)
     if (
       (request.assigneePrincipalId ?? request.createdByPrincipalId) !==
       principal._id
@@ -240,7 +257,12 @@ export const submitFounderInput = mutation({
       .withIndex("by_document_created_at", (q) =>
         q.eq("documentId", document._id)
       )
-      .collect()
+      .take(MAX_VOICE_CAPTURES_PER_REQUEST + 1)
+    assertRequestCollectionBound(
+      voiceCaptures.length,
+      MAX_VOICE_CAPTURES_PER_REQUEST,
+      "voice_captures"
+    )
     if (
       voiceCaptures.some(
         (capture) =>
@@ -307,6 +329,7 @@ export const submitFounderInput = mutation({
       requestTitle: request.title,
       type: "primary_response",
       status: "queued",
+      claimableAt: now,
       sourceSnapshotId: request.sourceSnapshotId,
       founderVersionId: version._id,
       contextSnapshot: contextItems.map((item) => ({
@@ -353,59 +376,83 @@ export const claim = mutation({
     const leaseToken = requiredNonEmpty(args.leaseToken)
     const now = Date.now()
     const leaseMs = Math.min(15 * 60_000, Math.max(30_000, args.leaseMs))
+    const activeTokenClaim = await ctx.db
+      .query("agentJobs")
+      .withIndex("by_organization_lease_token", (q) =>
+        q
+          .eq("organizationId", principal.organizationId)
+          .eq("leaseToken", leaseToken)
+      )
+      .unique()
+    if (activeTokenClaim) {
+      if (
+        activeTokenClaim.status !== "running" ||
+        activeTokenClaim.claimedByPrincipalId !== principal._id
+      )
+        throw new ConvexError({ code: "IDEMPOTENCY_KEY_REUSED" })
+      if ((activeTokenClaim.leaseExpiresAt ?? 0) > now) {
+        await requestAcceptingAgentWork(ctx, activeTokenClaim)
+        return publicJob(ctx, activeTokenClaim)
+      }
+    }
+    const indexedCandidates = activeTokenClaim
+      ? [activeTokenClaim]
+      : await ctx.db
+          .query("agentJobs")
+          .withIndex("by_organization_claimable_at_created_at", (q) =>
+            q
+              .eq("organizationId", principal.organizationId)
+              .gt("claimableAt", 0)
+              .lte("claimableAt", now)
+          )
+          .take(50)
     const candidates = (
       await Promise.all(
-        (["queued", "retry_wait", "running"] as const).map((status) =>
-          ctx.db
-            .query("agentJobs")
-            .withIndex("by_organization_status_created_at", (q) =>
-              q
-                .eq("organizationId", principal.organizationId)
-                .eq("status", status)
-            )
-            .collect()
-        )
+        indexedCandidates.map(async (candidate) => {
+          const request = await ctx.db.get(candidate.requestId)
+          if (
+            request?.retention === "active" &&
+            request.disposition === "active"
+          )
+            return candidate
+          await ctx.db.patch(candidate._id, { claimableAt: undefined })
+          return null
+        })
       )
-    ).flat()
-    const activeTokenClaim = candidates.find(
+    ).filter((candidate) => candidate !== null)
+    for (const exhausted of candidates.filter(
       (candidate) =>
-        candidate.status === "running" &&
-        candidate.leaseToken === leaseToken &&
-        (candidate.leaseExpiresAt ?? 0) > now
-    )
-    if (activeTokenClaim) {
-      if (activeTokenClaim.claimedByPrincipalId !== principal._id)
-        throw new ConvexError({ code: "IDEMPOTENCY_KEY_REUSED" })
-      return publicJob(ctx, activeTokenClaim)
-    }
-    for (const expired of candidates.filter(
-      (candidate) =>
-        candidate.status === "running" &&
-        (candidate.leaseExpiresAt ?? 0) <= now &&
+        ["queued", "retry_wait", "running"].includes(candidate.status) &&
         candidate.attempts >= candidate.maxAttempts
     )) {
-      await ctx.db.patch(expired._id, {
+      const leaseExpired = exhausted.status === "running"
+      await ctx.db.patch(exhausted._id, {
         status: "failed",
+        claimableAt: undefined,
+        reapableAt: undefined,
         leaseToken: undefined,
         leaseExpiresAt: undefined,
-        lastErrorCode: "LEASE_EXPIRED",
+        lastErrorCode: leaseExpired
+          ? "LEASE_EXPIRED"
+          : "RETRY_BUDGET_EXHAUSTED",
         updatedAt: now,
       })
-      await ctx.db.insert("agentJobLeaseEvents", {
-        organizationId: principal.organizationId,
-        jobId: expired._id,
-        requestId: expired.requestId,
-        actorPrincipalId: principal._id,
-        event: "expired_failure",
-        leaseGeneration: expired.leaseGeneration,
-        occurredAt: now,
-      })
+      if (leaseExpired)
+        await ctx.db.insert("agentJobLeaseEvents", {
+          organizationId: principal.organizationId,
+          jobId: exhausted._id,
+          requestId: exhausted.requestId,
+          actorPrincipalId: principal._id,
+          event: "expired_failure",
+          leaseGeneration: exhausted.leaseGeneration,
+          occurredAt: now,
+        })
       const request = await auditJobEvent(
         ctx,
-        expired,
+        exhausted,
         principal,
         "agent_job.failed",
-        `lease-expired:${expired._id}:${expired.leaseGeneration}`,
+        `retry-exhausted:${exhausted._id}:${exhausted.leaseGeneration}`,
         now
       )
       await notifyOperators(ctx, request, "drafting_failed", now)
@@ -413,9 +460,11 @@ export const claim = mutation({
     const job = candidates
       .filter(
         (candidate) =>
-          candidate.status === "queued" ||
+          (candidate.status === "queued" &&
+            candidate.attempts < candidate.maxAttempts) ||
           (candidate.status === "retry_wait" &&
-            (candidate.nextAttemptAt ?? 0) <= now) ||
+            (candidate.nextAttemptAt ?? 0) <= now &&
+            candidate.attempts < candidate.maxAttempts) ||
           (candidate.status === "running" &&
             (candidate.leaseExpiresAt ?? 0) <= now &&
             candidate.attempts < candidate.maxAttempts)
@@ -429,6 +478,9 @@ export const claim = mutation({
       status: "running",
       leaseToken,
       leaseExpiresAt,
+      claimableAt: leaseExpiresAt,
+      reapableAt:
+        job.attempts + 1 >= job.maxAttempts ? leaseExpiresAt : undefined,
       heartbeatAt: now,
       claimedByPrincipalId: principal._id,
       attempts: job.attempts + 1,
@@ -481,11 +533,14 @@ export const heartbeat = mutation({
       (job.leaseExpiresAt ?? 0) <= now
     )
       throw new ConvexError({ code: "LEASE_LOST" })
+    await requestAcceptingAgentWork(ctx, job)
     const leaseExpiresAt =
       now + Math.min(15 * 60_000, Math.max(30_000, args.leaseMs))
     await ctx.db.patch(job._id, {
       heartbeatAt: now,
       leaseExpiresAt,
+      claimableAt: leaseExpiresAt,
+      reapableAt: job.reapableAt === undefined ? undefined : leaseExpiresAt,
       updatedAt: now,
     })
     await ctx.db.insert("agentJobLeaseEvents", {
@@ -535,15 +590,14 @@ export const complete = mutation({
       (job.leaseExpiresAt ?? 0) <= now
     )
       throw new ConvexError({ code: "LEASE_LOST" })
+    const request = await requestAcceptingAgentWork(ctx, job)
     const body = args.body.trim()
     if (!body) throw new ConvexError({ code: "VALIDATION_FAILED" })
     const correlationId = requiredNonEmpty(args.correlationId)
-    const request = await ctx.db.get(job.requestId)
-    if (!request) throw new ConvexError({ code: "NOT_FOUND" })
     const deliverables = await ctx.db
       .query("deliverables")
       .withIndex("by_request", (q) => q.eq("requestId", job.requestId))
-      .collect()
+      .take(MAX_DELIVERABLES_PER_REQUEST + 1)
     let deliverable = deliverables.find(
       (candidate) =>
         candidate.isPrimary && (candidate.retention ?? "active") === "active"
@@ -571,6 +625,11 @@ export const complete = mutation({
             isPrimary: false,
             updatedAt: now,
           })
+      assertWithinRequestLimit(
+        deliverables.length,
+        MAX_DELIVERABLES_PER_REQUEST,
+        "deliverables"
+      )
       deliverableId = await ctx.db.insert("deliverables", {
         organizationId: principal.organizationId,
         requestId: job.requestId,
@@ -629,6 +688,8 @@ export const complete = mutation({
       })
     await ctx.db.patch(job._id, {
       status: "completed",
+      claimableAt: undefined,
+      reapableAt: undefined,
       resultVersionId: versionId,
       leaseToken: undefined,
       leaseExpiresAt: undefined,
@@ -706,12 +767,17 @@ export const fail = mutation({
       (job.leaseExpiresAt ?? 0) <= now
     )
       throw new ConvexError({ code: "LEASE_LOST" })
+    const request = await requestAcceptingAgentWork(ctx, job)
     const retry = args.transient && job.attempts < job.maxAttempts
     await ctx.db.patch(job._id, {
       status: retry ? "retry_wait" : "failed",
       nextAttemptAt: retry
         ? now + Math.min(15 * 60_000, 30_000 * 2 ** (job.attempts - 1))
         : undefined,
+      claimableAt: retry
+        ? now + Math.min(15 * 60_000, 30_000 * 2 ** (job.attempts - 1))
+        : undefined,
+      reapableAt: undefined,
       lastErrorCode: errorCode,
       leaseToken: undefined,
       leaseExpiresAt: undefined,
@@ -726,8 +792,6 @@ export const fail = mutation({
       resultStatus: retry ? "retry_wait" : "failed",
       createdAt: now,
     })
-    const request = await ctx.db.get(job.requestId)
-    if (!request) throw new ConvexError({ code: "NOT_FOUND" })
     await ctx.db.insert("auditEvents", {
       organizationId: principal.organizationId,
       requestId: request._id,
@@ -746,36 +810,19 @@ export const fail = mutation({
 })
 
 export const list = query({
-  args: {},
+  args: { limit: v.optional(v.number()) },
   returns: v.array(jobValidator),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const principal = await requirePrincipal(ctx)
     assertAgent(principal)
-    const jobs = (
-      await Promise.all(
-        (
-          [
-            "queued",
-            "running",
-            "retry_wait",
-            "failed",
-            "completed",
-            "cancelled",
-          ] as const
-        ).map((status) =>
-          ctx.db
-            .query("agentJobs")
-            .withIndex("by_organization_status_created_at", (q) =>
-              q
-                .eq("organizationId", principal.organizationId)
-                .eq("status", status)
-            )
-            .collect()
-        )
+    const limit = Math.min(Math.max(Math.floor(args.limit ?? 100), 1), 100)
+    const jobs = await ctx.db
+      .query("agentJobs")
+      .withIndex("by_organization_created_at", (q) =>
+        q.eq("organizationId", principal.organizationId)
       )
-    )
-      .flat()
-      .sort((a, b) => b.createdAt - a.createdAt)
+      .order("desc")
+      .take(limit)
     return Promise.all(jobs.map((job) => publicJob(ctx, job)))
   },
 })
@@ -787,8 +834,10 @@ export const reapExpired = internalMutation({
     const now = Date.now()
     const jobs = await ctx.db
       .query("agentJobs")
-      .withIndex("by_status_created_at", (q) => q.eq("status", "running"))
-      .collect()
+      .withIndex("by_status_reapable_at", (q) =>
+        q.eq("status", "running").gt("reapableAt", 0).lte("reapableAt", now)
+      )
+      .take(100)
     let reaped = 0
     for (const job of jobs) {
       if (
@@ -802,6 +851,8 @@ export const reapExpired = internalMutation({
       if (!actor || !request) continue
       await ctx.db.patch(job._id, {
         status: "failed",
+        claimableAt: undefined,
+        reapableAt: undefined,
         leaseToken: undefined,
         leaseExpiresAt: undefined,
         lastErrorCode: "LEASE_EXPIRED",

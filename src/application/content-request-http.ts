@@ -91,6 +91,8 @@ function safeErrorResponse(error: unknown, validationStatus = 400) {
     code === "DELIVERY_TARGET_ALREADY_CONFIRMED" ||
     code === "DELIVERY_ALREADY_CONFIRMED" ||
     code === "DELIVERY_NOT_CONFIRMED" ||
+    code === "DELIVERY_TARGET_RETENTION_UNCHANGED" ||
+    code === "REQUEST_CHILD_LIMIT_REACHED" ||
     code === "PROMOTED_VERSION_REQUIRED" ||
     code === "HUMAN_CONFIRMATION_REQUIRED" ||
     code === "INTEGRATION_SUCCESS_REQUIRED"
@@ -611,6 +613,15 @@ export function createDeliveryTargetCollectionHandler(
     }) => {
       try {
         const service = await serviceForRequest(request)
+        const url = new URL(request.url)
+        if (url.searchParams.get("retention") === "archived") {
+          return Response.json({
+            data: await service.listArchivedDeliveryTargets(
+              params.requestId,
+              url.searchParams.get("cursor")
+            ),
+          })
+        }
         return Response.json({
           data: await service.listDeliveryTargets(params.requestId),
         })
@@ -694,23 +705,30 @@ export function createDeliveryTargetItemHandler(
                 isRequired: body.isRequired,
                 correlationId: operationId,
               })
-            : body.action === "confirm" && typeof body.versionId === "string"
-              ? await service.confirmDeliveryTarget({
+            : body.action === "set_retention" &&
+                (body.retention === "active" || body.retention === "archived")
+              ? await service.setDeliveryTargetRetention({
                   targetId: params.targetId,
-                  versionId: body.versionId,
-                  note: typeof body.note === "string" ? body.note : undefined,
-                  integrationSuccessId:
-                    typeof body.integrationSuccessId === "string"
-                      ? body.integrationSuccessId
-                      : undefined,
+                  retention: body.retention,
                   correlationId: operationId,
                 })
-              : body.action === "reopen"
-                ? await service.reopenDeliveryTarget({
+              : body.action === "confirm" && typeof body.versionId === "string"
+                ? await service.confirmDeliveryTarget({
                     targetId: params.targetId,
+                    versionId: body.versionId,
+                    note: typeof body.note === "string" ? body.note : undefined,
+                    integrationSuccessId:
+                      typeof body.integrationSuccessId === "string"
+                        ? body.integrationSuccessId
+                        : undefined,
                     correlationId: operationId,
                   })
-                : null
+                : body.action === "reopen"
+                  ? await service.reopenDeliveryTarget({
+                      targetId: params.targetId,
+                      correlationId: operationId,
+                    })
+                  : null
         return data
           ? Response.json({ data })
           : jsonError(

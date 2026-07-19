@@ -2,7 +2,11 @@ import { ConvexError, v } from "convex/values"
 
 import type { Id } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
-import { requireEditor, requirePrincipal } from "./lib/authorization"
+import {
+  requireActiveRequest,
+  requireEditor,
+  requirePrincipal,
+} from "./lib/authorization"
 import { lifecycleForPrimary } from "./lib/deliverableLifecycle"
 import { enqueueNotification } from "./lib/notificationOutbox"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
@@ -91,7 +95,11 @@ export const proposeAssigneeChange = mutation({
       .unique()
     if (!request) throw new ConvexError({ code: "NOT_FOUND" })
     const proposed = await ctx.db.get(args.proposedAssigneePrincipalId)
-    if (!proposed || proposed.organizationId !== actor.organizationId) {
+    if (
+      !proposed ||
+      proposed.organizationId !== actor.organizationId ||
+      proposed.kind === "system"
+    ) {
       throw new ConvexError({ code: "ASSIGNEE_NOT_FOUND" })
     }
     const watcherPrincipalIds = Array.from(
@@ -99,7 +107,11 @@ export const proposeAssigneeChange = mutation({
     ).filter((principalId) => principalId !== proposed._id)
     for (const watcherPrincipalId of watcherPrincipalIds) {
       const watcher = await ctx.db.get(watcherPrincipalId)
-      if (!watcher || watcher.organizationId !== actor.organizationId) {
+      if (
+        !watcher ||
+        watcher.organizationId !== actor.organizationId ||
+        watcher.kind === "system"
+      ) {
         throw new ConvexError({ code: "WATCHER_NOT_FOUND" })
       }
     }
@@ -142,6 +154,7 @@ export const proposeAssigneeChange = mutation({
         conflict: publicConflict(request.humanId, replayedConflict),
       }
     }
+    requireActiveRequest(request)
 
     const now = Date.now()
     const afterVersion = request.aggregateVersion + 1
@@ -320,6 +333,7 @@ export const resolve = mutation({
     if (!request || request.organizationId !== actor.organizationId) {
       throw new ConvexError({ code: "NOT_FOUND" })
     }
+    requireActiveRequest(request)
     const resolveSingleton = async (
       currentValue: string,
       applySelectedValue: (now: number) => Promise<void>
@@ -524,7 +538,8 @@ export const resolve = mutation({
     )
     if (
       !selectedAssignee ||
-      selectedAssignee.organizationId !== actor.organizationId
+      selectedAssignee.organizationId !== actor.organizationId ||
+      selectedAssignee.kind === "system"
     ) {
       throw new ConvexError({ code: "ASSIGNEE_NOT_FOUND" })
     }

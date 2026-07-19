@@ -42,6 +42,13 @@ export type ContentRequest = {
   lifecycle: RequestLifecycle
   disposition: RequestDisposition
   retention: RequestRetention
+  retentionTransition?: "archiving" | "restoring" | null
+  expiresAt: number | null
+  expiredAt: number | null
+  expirationReason: string | null
+  expirationReviewRequiredAt: number | null
+  archivedAt: number | null
+  parentRequestHumanId: string | null
   aggregateVersion: number
   assignee: PrincipalSummary
   watchers: Array<PrincipalSummary>
@@ -300,11 +307,17 @@ export type DeliveryTarget = {
   destinationUrl: string | null
   isOriginal: boolean
   isRequired: boolean
+  retention: "active" | "archived"
   currentReceiptId: string | null
   currentReceipt: DeliveryReceipt | null
   receiptHistory: Array<DeliveryReceipt>
   createdAt: number
   updatedAt: number
+}
+
+export type DeliveryTargetPage = {
+  page: Array<DeliveryTarget>
+  nextCursor: string | null
 }
 
 export type OperatorQueue =
@@ -340,10 +353,30 @@ export type OperatorWorkspaceInput = {
   origin?: RequestOrigin
   lifecycle?: RequestLifecycle
   disposition?: RequestDisposition
+  retention?: RequestRetention
   assigneePrincipalId?: string
   deliveryChannel?: string
   cursor?: string | null
   limit?: number
+}
+
+export type ContentRequestRelations = {
+  parent: ContentRequestRelationSummary | null
+  children: Array<ContentRequestRelationSummary>
+  childrenTruncated: boolean
+}
+
+export type ContentRequestRelationSummary = Pick<
+  ContentRequest,
+  "requestId" | "humanId" | "title" | "lifecycle" | "disposition" | "retention"
+>
+
+export type CreateFollowUpInput = {
+  parentHumanId: string
+  title: string
+  reason: string
+  source?: OriginalSource
+  correlationId: string
 }
 
 export type SemanticConflict = {
@@ -399,6 +432,28 @@ export interface ContentRequestRepository {
   resolve(query: string): Promise<RequestResolution>
   assign(input: AssignRequestInput): Promise<ContentRequest>
   open(humanId: string, correlationId: string): Promise<ContentRequest>
+  setExpiration(
+    humanId: string,
+    expiresAt: number | null,
+    correlationId: string
+  ): Promise<ContentRequest>
+  expire(
+    humanId: string,
+    reason: string,
+    correlationId: string
+  ): Promise<ContentRequest>
+  restoreExpired(
+    humanId: string,
+    expiresAt: number | null,
+    correlationId: string
+  ): Promise<ContentRequest>
+  archive(humanId: string, correlationId: string): Promise<ContentRequest>
+  restoreArchived(
+    humanId: string,
+    correlationId: string
+  ): Promise<ContentRequest>
+  createFollowUp(input: CreateFollowUpInput): Promise<ContentRequest>
+  getRelations(humanId: string): Promise<ContentRequestRelations>
   listAssignablePrincipals(): Promise<Array<PrincipalSummary>>
   listMyNotifications(): Promise<Array<ContentNotification>>
   markNotificationRead(notificationId: string): Promise<void>
@@ -524,6 +579,10 @@ export interface ContentRequestRepository {
     correlationId: string
   }): Promise<PrimaryDeliverableResult>
   listDeliveryTargets(humanId: string): Promise<Array<DeliveryTarget>>
+  listArchivedDeliveryTargets(
+    humanId: string,
+    cursor: string | null
+  ): Promise<DeliveryTargetPage>
   createDeliveryTarget(input: {
     humanId: string
     deliverableId: string
@@ -536,6 +595,11 @@ export interface ContentRequestRepository {
   setDeliveryTargetRequired(input: {
     targetId: string
     isRequired: boolean
+    correlationId: string
+  }): Promise<DeliveryTarget>
+  setDeliveryTargetRetention(input: {
+    targetId: string
+    retention: "active" | "archived"
     correlationId: string
   }): Promise<DeliveryTarget>
   confirmDeliveryTarget(input: {
@@ -570,6 +634,28 @@ export interface ContentRequestService {
   resolve(query: string): Promise<RequestResolution>
   assign(input: AssignRequestInput): Promise<ContentRequest>
   open(humanId: string, correlationId: string): Promise<ContentRequest>
+  setExpiration(
+    humanId: string,
+    expiresAt: number | null,
+    correlationId: string
+  ): Promise<ContentRequest>
+  expire(
+    humanId: string,
+    reason: string,
+    correlationId: string
+  ): Promise<ContentRequest>
+  restoreExpired(
+    humanId: string,
+    expiresAt: number | null,
+    correlationId: string
+  ): Promise<ContentRequest>
+  archive(humanId: string, correlationId: string): Promise<ContentRequest>
+  restoreArchived(
+    humanId: string,
+    correlationId: string
+  ): Promise<ContentRequest>
+  createFollowUp(input: CreateFollowUpInput): Promise<ContentRequest>
+  getRelations(humanId: string): Promise<ContentRequestRelations>
   listAssignablePrincipals(): Promise<Array<PrincipalSummary>>
   listMyNotifications(): Promise<Array<ContentNotification>>
   markNotificationRead(notificationId: string): Promise<void>
@@ -695,6 +781,10 @@ export interface ContentRequestService {
     correlationId: string
   }): Promise<PrimaryDeliverableResult>
   listDeliveryTargets(humanId: string): Promise<Array<DeliveryTarget>>
+  listArchivedDeliveryTargets(
+    humanId: string,
+    cursor: string | null
+  ): Promise<DeliveryTargetPage>
   createDeliveryTarget(input: {
     humanId: string
     deliverableId: string
@@ -707,6 +797,11 @@ export interface ContentRequestService {
   setDeliveryTargetRequired(input: {
     targetId: string
     isRequired: boolean
+    correlationId: string
+  }): Promise<DeliveryTarget>
+  setDeliveryTargetRetention(input: {
+    targetId: string
+    retention: "active" | "archived"
     correlationId: string
   }): Promise<DeliveryTarget>
   confirmDeliveryTarget(input: {
@@ -744,6 +839,18 @@ export function createContentRequestService(
     resolve: (query) => repository.resolve(query),
     assign: (input) => repository.assign(input),
     open: (humanId, correlationId) => repository.open(humanId, correlationId),
+    setExpiration: (humanId, expiresAt, correlationId) =>
+      repository.setExpiration(humanId, expiresAt, correlationId),
+    expire: (humanId, reason, correlationId) =>
+      repository.expire(humanId, reason, correlationId),
+    restoreExpired: (humanId, expiresAt, correlationId) =>
+      repository.restoreExpired(humanId, expiresAt, correlationId),
+    archive: (humanId, correlationId) =>
+      repository.archive(humanId, correlationId),
+    restoreArchived: (humanId, correlationId) =>
+      repository.restoreArchived(humanId, correlationId),
+    createFollowUp: (input) => repository.createFollowUp(input),
+    getRelations: (humanId) => repository.getRelations(humanId),
     listAssignablePrincipals: () => repository.listAssignablePrincipals(),
     listMyNotifications: () => repository.listMyNotifications(),
     markNotificationRead: (notificationId) =>
@@ -839,9 +946,13 @@ export function createContentRequestService(
       repository.promoteDeliverableVersion(input),
     setPrimaryDeliverable: (input) => repository.setPrimaryDeliverable(input),
     listDeliveryTargets: (humanId) => repository.listDeliveryTargets(humanId),
+    listArchivedDeliveryTargets: (humanId, cursor) =>
+      repository.listArchivedDeliveryTargets(humanId, cursor),
     createDeliveryTarget: (input) => repository.createDeliveryTarget(input),
     setDeliveryTargetRequired: (input) =>
       repository.setDeliveryTargetRequired(input),
+    setDeliveryTargetRetention: (input) =>
+      repository.setDeliveryTargetRetention(input),
     confirmDeliveryTarget: (input) => repository.confirmDeliveryTarget(input),
     reopenDeliveryTarget: (input) => repository.reopenDeliveryTarget(input),
     proposeAssigneeChange: (input) => repository.proposeAssigneeChange(input),

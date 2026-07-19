@@ -40,6 +40,7 @@ export function useFounderVoiceInput({
   appendTranscript,
   ensureDurablySynced,
   queueFactory = createVoiceCaptureQueue,
+  enabled = true,
 }: {
   requestHumanId: string
   ownerKey: string
@@ -51,6 +52,7 @@ export function useFounderVoiceInput({
   ): void
   ensureDurablySynced(): Promise<boolean>
   queueFactory?: (ownerKey: string) => VoiceCaptureQueue
+  enabled?: boolean
 }) {
   const [supported, setSupported] = useState(false)
   const [state, setState] = useState<VoiceInputState>("idle")
@@ -210,6 +212,11 @@ export function useFounderVoiceInput({
 
   useEffect(() => {
     mountedRef.current = true
+    if (!enabled) {
+      return () => {
+        mountedRef.current = false
+      }
+    }
     queueRef.current = queueFactory(ownerKey)
     const canRecord =
       typeof MediaRecorder !== "undefined" &&
@@ -233,10 +240,18 @@ export function useFounderVoiceInput({
       if (recorder && recorder.state !== "inactive") recorder.stop()
       streamRef.current?.getTracks().forEach((track) => track.stop())
     }
-  }, [ownerKey, queueFactory, refreshCaptures, requestHumanId, syncQueue])
+  }, [
+    enabled,
+    ownerKey,
+    queueFactory,
+    refreshCaptures,
+    requestHumanId,
+    syncQueue,
+  ])
 
   useEffect(() => {
     if (
+      !enabled ||
       !captures.some(
         (capture) =>
           capture.status === "uploaded" ||
@@ -249,7 +264,7 @@ export function useFounderVoiceInput({
       return
     const timer = window.setInterval(() => void refreshCaptures(), 2_000)
     return () => window.clearInterval(timer)
-  }, [captures, refreshCaptures])
+  }, [captures, enabled, refreshCaptures])
 
   useEffect(() => {
     if (state !== "recording") return
@@ -264,7 +279,8 @@ export function useFounderVoiceInput({
   }, [state])
 
   const start = useCallback(async () => {
-    if (!supported || state === "recording" || state === "paused") return
+    if (!enabled || !supported || state === "recording" || state === "paused")
+      return
     setState("requesting")
     setErrorCode(null)
     let acquiredStream: MediaStream | null = null
@@ -303,7 +319,7 @@ export function useFounderVoiceInput({
           : "RECORDING_UNAVAILABLE"
       )
     }
-  }, [state, supported])
+  }, [enabled, state, supported])
 
   const pause = useCallback(() => {
     const recorder = recorderRef.current

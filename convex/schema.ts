@@ -46,6 +46,9 @@ export default defineSchema({
     subject: v.string(),
     organizationId: v.string(),
     role: workspaceRoleValidator,
+    kind: v.optional(
+      v.union(v.literal("human"), v.literal("agent"), v.literal("system"))
+    ),
     email: v.optional(v.string()),
     updatedAt: v.number(),
   })
@@ -64,6 +67,25 @@ export default defineSchema({
     lifecycle: requestLifecycleValidator,
     disposition: requestDispositionValidator,
     retention: requestRetentionValidator,
+    expiresAt: v.optional(v.number()),
+    autoExpirationDueAt: v.optional(v.number()),
+    expirationDispatchToken: v.optional(v.string()),
+    expirationOriginalDueAt: v.optional(v.number()),
+    expiredAt: v.optional(v.number()),
+    expirationReason: v.optional(v.string()),
+    expirationReviewRequiredAt: v.optional(v.number()),
+    activeVoiceCaptureCount: v.optional(v.number()),
+    voiceCaptureCountGeneration: v.optional(v.number()),
+    archivedAt: v.optional(v.number()),
+    archiveTransitionToken: v.optional(v.string()),
+    archiveTransitionMode: v.optional(
+      v.union(v.literal("archive"), v.literal("restore"))
+    ),
+    archiveTransitionMarker: v.optional(v.number()),
+    archiveTransitionPendingResources: v.optional(v.number()),
+    archiveTransitionHasOverflowTargets: v.optional(v.boolean()),
+    parentRequestId: v.optional(v.id("contentRequests")),
+    followUpReason: v.optional(v.string()),
     aggregateVersion: v.number(),
     sourceSnapshotId: v.optional(v.id("sourceSnapshots")),
     normalizedSourceUrl: v.optional(v.string()),
@@ -83,6 +105,8 @@ export default defineSchema({
       "normalizedTitle",
     ])
     .index("by_organization_created_at", ["organizationId", "createdAt"])
+    .index("by_auto_expiration_due_at", ["autoExpirationDueAt"])
+    .index("by_parent_created_at", ["parentRequestId", "createdAt"])
     .index("by_organization_normalized_source_url", [
       "organizationId",
       "normalizedSourceUrl",
@@ -313,6 +337,8 @@ export default defineSchema({
     maxAttempts: v.number(),
     leaseGeneration: v.number(),
     nextAttemptAt: v.optional(v.number()),
+    claimableAt: v.optional(v.number()),
+    reapableAt: v.optional(v.number()),
     leaseToken: v.optional(v.string()),
     leaseExpiresAt: v.optional(v.number()),
     heartbeatAt: v.optional(v.number()),
@@ -322,6 +348,16 @@ export default defineSchema({
     createdAt: v.number(),
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    cancellationReason: v.optional(v.string()),
+    pausedJobStatus: v.optional(
+      v.union(
+        v.literal("queued"),
+        v.literal("running"),
+        v.literal("retry_wait")
+      )
+    ),
+    pausedWithRequestAt: v.optional(v.number()),
     updatedAt: v.number(),
   })
     .index("by_organization_status_created_at", [
@@ -329,7 +365,15 @@ export default defineSchema({
       "status",
       "createdAt",
     ])
+    .index("by_organization_created_at", ["organizationId", "createdAt"])
     .index("by_status_created_at", ["status", "createdAt"])
+    .index("by_status_reapable_at", ["status", "reapableAt"])
+    .index("by_organization_claimable_at_created_at", [
+      "organizationId",
+      "claimableAt",
+      "createdAt",
+    ])
+    .index("by_organization_lease_token", ["organizationId", "leaseToken"])
     .index("by_request", ["requestId"])
     .index("by_request_created_at", ["requestId", "createdAt"]),
   agentJobLeaseEvents: defineTable({
@@ -367,6 +411,7 @@ export default defineSchema({
     name: v.string(),
     isPrimary: v.boolean(),
     retention: v.optional(v.union(v.literal("active"), v.literal("archived"))),
+    archivedWithRequestAt: v.optional(v.number()),
     currentCandidateVersionId: v.optional(v.id("deliverableVersions")),
     promotedVersionId: v.optional(v.id("deliverableVersions")),
     createdAt: v.number(),
@@ -435,6 +480,19 @@ export default defineSchema({
     correlationId: v.string(),
     occurredAt: v.number(),
   }).index("by_request_occurred_at", ["requestId", "occurredAt"]),
+  followUpOperations: defineTable({
+    organizationId: v.string(),
+    parentRequestId: v.id("contentRequests"),
+    childRequestId: v.id("contentRequests"),
+    actorPrincipalId: v.id("principals"),
+    correlationId: v.string(),
+    inputFingerprint: v.string(),
+    createdAt: v.number(),
+  }).index("by_organization_actor_correlation", [
+    "organizationId",
+    "actorPrincipalId",
+    "correlationId",
+  ]),
   deliveryTargets: defineTable({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),
@@ -445,6 +503,7 @@ export default defineSchema({
     isOriginal: v.boolean(),
     isRequired: v.boolean(),
     retention: v.union(v.literal("active"), v.literal("archived")),
+    archivedWithRequestAt: v.optional(v.number()),
     currentReceiptId: v.optional(v.id("deliveryReceipts")),
     hasHistoricalReceipt: v.optional(v.boolean()),
     createdByPrincipalId: v.id("principals"),
@@ -452,6 +511,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_request", ["requestId"])
+    .index("by_request_retention", ["requestId", "retention"])
     .index("by_deliverable", ["deliverableId"]),
   operatorWorkspaceItems: defineTable({
     organizationId: v.string(),
@@ -491,6 +551,7 @@ export default defineSchema({
     attentionReasonCount: v.number(),
     attentionReasons: v.array(v.string()),
     deliveryChannels: v.array(v.string()),
+    searchRepairGeneration: v.optional(v.number()),
     sortKey: v.string(),
     nextActionChangedAt: v.number(),
     updatedAt: v.number(),
@@ -628,6 +689,7 @@ export default defineSchema({
     operation: v.union(
       v.literal("create_target"),
       v.literal("set_required"),
+      v.literal("set_retention"),
       v.literal("confirm"),
       v.literal("reopen")
     ),
@@ -692,6 +754,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_document_created_at", ["documentId", "createdAt"])
+    .index("by_request_created_at", ["requestId", "createdAt"])
     .index("by_organization_founder_client", [
       "organizationId",
       "founderPrincipalId",

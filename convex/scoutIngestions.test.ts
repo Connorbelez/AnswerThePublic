@@ -1,6 +1,6 @@
 // @vitest-environment edge-runtime
 import { convexTest } from "convex-test"
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { api, internal } from "./_generated/api"
 import schema from "./schema"
@@ -171,6 +171,35 @@ describe("Scout ingestion workflow contract", () => {
         }),
       ])
     )
+  })
+
+  it("anchors equivalent relative deadlines to first observation", async () => {
+    vi.useFakeTimers()
+    try {
+      const firstObservedAt = Date.UTC(2026, 6, 19, 12)
+      vi.setSystemTime(firstObservedAt)
+      const app = await backend()
+      const first = await app.mutation(api.scoutIngestions.apply, {
+        idempotencyKey: "relative-deadline-first",
+        markdown: report({ timingLabel: "within 36 hours" }),
+      })
+      const initial = await app.query(api.contentRequests.getByHumanId, {
+        humanId: first.requestHumanIds[0],
+      })
+      expect(initial?.expiresAt).toBe(firstObservedAt + 36 * 60 * 60 * 1_000)
+
+      vi.setSystemTime(firstObservedAt + 6 * 60 * 60 * 1_000)
+      await app.mutation(api.scoutIngestions.apply, {
+        idempotencyKey: "relative-deadline-format-variation",
+        markdown: report({ timingLabel: "Respond within 36 HOURS." }),
+      })
+      const updated = await app.query(api.contentRequests.getByHumanId, {
+        humanId: first.requestHumanIds[0],
+      })
+      expect(updated?.expiresAt).toBe(initial?.expiresAt)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("persists context deck visibility and pin preferences by principal/request", async () => {

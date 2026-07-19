@@ -24,6 +24,13 @@ function serviceStub(overrides: Partial<ContentRequestService> = {}) {
     resolve: vi.fn(),
     assign: vi.fn(),
     open: vi.fn(),
+    setExpiration: vi.fn(),
+    expire: vi.fn(),
+    restoreExpired: vi.fn(),
+    archive: vi.fn(),
+    restoreArchived: vi.fn(),
+    createFollowUp: vi.fn(),
+    getRelations: vi.fn(),
     listAssignablePrincipals: vi.fn(),
     listMyNotifications: vi.fn(),
     markNotificationRead: vi.fn(),
@@ -59,8 +66,10 @@ function serviceStub(overrides: Partial<ContentRequestService> = {}) {
     promoteDeliverableVersion: vi.fn(),
     setPrimaryDeliverable: vi.fn(),
     listDeliveryTargets: vi.fn(),
+    listArchivedDeliveryTargets: vi.fn(),
     createDeliveryTarget: vi.fn(),
     setDeliveryTargetRequired: vi.fn(),
+    setDeliveryTargetRetention: vi.fn(),
     confirmDeliveryTarget: vi.fn(),
     reopenDeliveryTarget: vi.fn(),
     proposeAssigneeChange: vi.fn(),
@@ -331,7 +340,9 @@ describe("Content Request adapter contracts", () => {
   })
 
   it("preserves deliverable idempotency and compare-and-propose values in the CLI", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(Response.json({ data: {} }))
+    const fetchImpl = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(Response.json({ data: {} })))
     const options = {
       fetchImpl,
       env: {
@@ -514,7 +525,7 @@ describe("Content Request adapter contracts", () => {
     }
   )
 
-  it("maps delivery target creation, confirmation, and reopen through shared adapters", async () => {
+  it("maps delivery target creation, retention, confirmation, and reopen through shared adapters", async () => {
     const createDeliveryTarget = vi
       .fn()
       .mockResolvedValue({ targetId: "target-2" })
@@ -524,11 +535,22 @@ describe("Content Request adapter contracts", () => {
     const reopenDeliveryTarget = vi
       .fn()
       .mockResolvedValue({ currentReceiptId: null })
+    const setDeliveryTargetRetention = vi
+      .fn()
+      .mockResolvedValue({ retention: "archived" })
+    const listArchivedDeliveryTargets = vi.fn().mockResolvedValue({
+      page: [{ targetId: "target-archived" }],
+      nextCursor: "next-archived",
+    })
     const collection = createDeliveryTargetCollectionHandler(async () =>
-      serviceStub({ createDeliveryTarget })
+      serviceStub({ createDeliveryTarget, listArchivedDeliveryTargets })
     )
     const item = createDeliveryTargetItemHandler(async () =>
-      serviceStub({ confirmDeliveryTarget, reopenDeliveryTarget })
+      serviceStub({
+        confirmDeliveryTarget,
+        reopenDeliveryTarget,
+        setDeliveryTargetRetention,
+      })
     )
     const created = await collection.POST({
       request: new Request(
@@ -555,6 +577,35 @@ describe("Content Request adapter contracts", () => {
       destinationUrl: undefined,
       isRequired: undefined,
       correlationId: "create-target",
+    })
+    const archivedPage = await collection.GET({
+      request: new Request(
+        "https://fairlend.test/api/v1/content-requests/CR-1/delivery-targets?retention=archived&cursor=cursor-1"
+      ),
+      params: { requestId: "CR-1" },
+    })
+    expect(listArchivedDeliveryTargets).toHaveBeenCalledWith("CR-1", "cursor-1")
+    await expect(archivedPage.json()).resolves.toMatchObject({
+      data: { nextCursor: "next-archived" },
+    })
+    await item.POST({
+      request: new Request(
+        "https://fairlend.test/api/v1/delivery-targets/target-2",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            action: "set_retention",
+            retention: "archived",
+            correlationId: "archive-target",
+          }),
+        }
+      ),
+      params: { targetId: "target-2" },
+    })
+    expect(setDeliveryTargetRetention).toHaveBeenCalledWith({
+      targetId: "target-2",
+      retention: "archived",
+      correlationId: "archive-target",
     })
     await item.POST({
       request: new Request(
@@ -596,7 +647,9 @@ describe("Content Request adapter contracts", () => {
       correlationId: "reopen-target",
     })
 
-    const fetchImpl = vi.fn().mockResolvedValue(Response.json({ data: {} }))
+    const fetchImpl = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(Response.json({ data: {} })))
     await runContentRequestsCli(
       [
         "target-confirm",
@@ -622,5 +675,58 @@ describe("Content Request adapter contracts", () => {
       versionId: "version-1",
       correlationId: "stable-confirm",
     })
+    await runContentRequestsCli(
+      [
+        "target-retention",
+        "target-2",
+        "--retention",
+        "archived",
+        "--idempotency-key",
+        "stable-archive",
+      ],
+      {
+        fetchImpl,
+        env: {
+          CONTENT_REQUESTS_API_URL: "https://fairlend.test",
+          CONTENT_REQUESTS_ACCESS_TOKEN: "token",
+        },
+        io: { writeOut: vi.fn(), writeError: vi.fn() },
+      }
+    )
+    expect(
+      JSON.parse((fetchImpl.mock.calls[1][1] as RequestInit).body as string)
+    ).toMatchObject({
+      action: "set_retention",
+      retention: "archived",
+      correlationId: "stable-archive",
+    })
+  })
+
+  it.each([
+    "DELIVERY_TARGET_RETENTION_UNCHANGED",
+    "REQUEST_CHILD_LIMIT_REACHED",
+  ])("maps delivery retention conflict %s to HTTP 409", async (code) => {
+    const item = createDeliveryTargetItemHandler(async () =>
+      serviceStub({
+        setDeliveryTargetRetention: vi
+          .fn()
+          .mockRejectedValue({ data: { code } }),
+      })
+    )
+    const response = await item.POST({
+      request: new Request(
+        "https://fairlend.test/api/v1/delivery-targets/target-2",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            action: "set_retention",
+            retention: "archived",
+          }),
+        }
+      ),
+      params: { targetId: "target-2" },
+    })
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({ error: { code } })
   })
 })
