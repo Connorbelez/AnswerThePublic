@@ -145,6 +145,13 @@ describe("Scout ingestion workflow contract", () => {
         url: opportunity.sourceUrl,
       },
     })
+    const [originalTarget] = await app.query(api.deliveryTracking.list, {
+      humanId: result.requestHumanIds[0],
+    })
+    expect(originalTarget).toMatchObject({
+      isOriginal: true,
+      channel: "community",
+    })
     const context = await app.query(api.scoutIngestions.listContext, {
       humanId: result.requestHumanIds[0],
     })

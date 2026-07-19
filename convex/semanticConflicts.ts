@@ -431,6 +431,19 @@ export const resolve = mutation({
         throw new ConvexError({ code: "NOT_FOUND" })
       if ((selected.retention ?? "active") !== "active")
         throw new ConvexError({ code: "DELIVERABLE_ARCHIVED" })
+      const requestTargets = await ctx.db
+        .query("deliveryTargets")
+        .withIndex("by_request", (index) => index.eq("requestId", request._id))
+        .collect()
+      const originalTarget = requestTargets.find((target) => target.isOriginal)
+      const historicalReceipt = await ctx.db
+        .query("deliveryReceipts")
+        .withIndex("by_request_responded_at", (index) =>
+          index.eq("requestId", request._id)
+        )
+        .first()
+      if (historicalReceipt)
+        throw new ConvexError({ code: "DELIVERY_TARGET_ALREADY_CONFIRMED" })
       return resolveSingleton(current._id, async (now) => {
         for (const deliverable of deliverables)
           if (deliverable.isPrimary !== (deliverable._id === selected._id))
@@ -438,6 +451,11 @@ export const resolve = mutation({
               isPrimary: deliverable._id === selected._id,
               updatedAt: now,
             })
+        if (originalTarget)
+          await ctx.db.patch(originalTarget._id, {
+            deliverableId: selected._id,
+            updatedAt: now,
+          })
         if (current._id !== selected._id && request.lifecycle !== "responded")
           await ctx.db.insert("primaryDeliverableEvents", {
             organizationId: actor.organizationId,

@@ -21,6 +21,7 @@ import {
   listFounderArchivedVersions,
   listFounderVoiceCaptures,
   listDeliverables,
+  listDeliveryTargets,
   listOpenSemanticConflicts,
   openContentRequest,
   markFounderVoiceTranscriptMerged,
@@ -38,6 +39,7 @@ import { loadWorkspaceSession } from "@/application/load-workspace-session"
 import { RequestAssignmentControl } from "@/components/request-assignment-control"
 import { SemanticConflictPanel } from "@/components/semantic-conflict-panel"
 import { DeliverablePanel } from "@/components/deliverable-panel"
+import { DeliveryTargetChecklist } from "@/components/delivery-target-checklist"
 import { UnifiedContextCanvas } from "@/components/unified-context-canvas"
 import type { ContextDeckPreferences } from "@/application/content-requests"
 import { useFounderAutomerge } from "@/hooks/use-founder-automerge"
@@ -61,6 +63,7 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       founderInput,
       semanticConflicts,
       deliverables,
+      deliveryTargets,
     ] = await Promise.all([
       getContentRequest({ data: { humanId: params.requestId } }),
       listAssignablePrincipals(),
@@ -75,6 +78,9 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       session.status === "authenticated" && session.session.role !== "founder"
         ? listDeliverables({ data: { humanId: params.requestId } })
         : Promise.resolve([]),
+      session.status === "authenticated" && session.session.role !== "founder"
+        ? listDeliveryTargets({ data: { humanId: params.requestId } })
+        : Promise.resolve([]),
     ])
     if (!request) throw notFound()
     return {
@@ -85,6 +91,7 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       founderInput,
       semanticConflicts,
       deliverables,
+      deliveryTargets,
     }
   },
   component: ContentRequestPage,
@@ -121,6 +128,7 @@ function ContentRequestPage() {
     founderInput,
     semanticConflicts,
     deliverables,
+    deliveryTargets,
   } = Route.useLoaderData()
   const session = appRoute.useLoaderData()
   const recordOpen = useServerFn(openContentRequest)
@@ -269,6 +277,12 @@ function ContentRequestPage() {
         deliverables={deliverables}
       />
       <DeliverablePanel humanId={request.humanId} deliverables={deliverables} />
+      <DeliveryTargetChecklist
+        humanId={request.humanId}
+        targets={deliveryTargets}
+        deliverables={deliverables}
+        principals={principals}
+      />
       <Card>
         <CardHeader>
           <CardTitle>Assignment</CardTitle>

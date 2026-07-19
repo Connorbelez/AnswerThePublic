@@ -454,7 +454,7 @@ export const createManual = mutation({
       updatedAt: now,
     })
     const humanId = humanIdFor(requestId)
-    await ctx.db.insert("deliverables", {
+    const primaryDeliverableId = await ctx.db.insert("deliverables", {
       organizationId: principal.organizationId,
       requestId,
       kind: "primary_response",
@@ -478,6 +478,21 @@ export const createManual = mutation({
         capturedAt: now,
       })
     }
+    await ctx.db.insert("deliveryTargets", {
+      organizationId: principal.organizationId,
+      requestId,
+      deliverableId: primaryDeliverableId,
+      channel: args.source?.channel?.trim() || "original_opportunity",
+      destinationLabel:
+        args.source?.name?.trim() || "Original opportunity response",
+      destinationUrl: args.source?.url?.trim() || undefined,
+      isOriginal: true,
+      isRequired: true,
+      retention: "active",
+      createdByPrincipalId: principal._id,
+      createdAt: now,
+      updatedAt: now,
+    })
     await ctx.db.patch(requestId, { humanId, sourceSnapshotId })
     await ctx.db.insert("auditEvents", {
       organizationId: principal.organizationId,

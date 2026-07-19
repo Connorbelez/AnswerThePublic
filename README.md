@@ -186,6 +186,10 @@ The initial HTTP contract is available at:
 - `GET /api/v1/content-requests/:humanId/semantic-conflicts` and
   `POST /api/v1/semantic-conflicts/:conflictId` — inspect and explicitly resolve
   incompatible assignee, primary-deliverable, or promoted-version changes.
+- `GET|POST /api/v1/content-requests/:humanId/delivery-targets` and
+  `POST /api/v1/delivery-targets/:targetId` — manage required/optional channels,
+  explicitly confirm delivery against an exact promoted version, or reopen a
+  receipt without deleting its history.
 
 The API accepts the signed-in WorkOS session or a WorkOS bearer access token.
 Every create requires or generates a correlation ID and produces an audit event.
@@ -210,6 +214,9 @@ bun run content-requests -- promote "$DELIVERABLE_ID" --version-id "$VERSION_ID"
 bun run content-requests -- primary CR-EXAMPLE --deliverable-id "$DELIVERABLE_ID" --expected-primary-id "$CURRENT_PRIMARY_ID" --idempotency-key primary-20260718-01
 bun run content-requests -- conflicts CR-EXAMPLE
 bun run content-requests -- conflict-resolve "$CONFLICT_ID" --value "$SELECTED_ID" --idempotency-key resolve-20260718-01
+bun run content-requests -- targets CR-EXAMPLE
+bun run content-requests -- target-confirm "$TARGET_ID" --version-id "$VERSION_ID" --idempotency-key delivery-20260718-01
+bun run content-requests -- target-reopen "$TARGET_ID" --idempotency-key reopen-20260718-01
 ```
 
 Founder submission first verifies that every local Automerge head is durable,
@@ -224,7 +231,16 @@ conflict instead of overwriting it; editors resolve that conflict explicitly.
 Stable `--idempotency-key` values make ambiguous CLI retries safe. Deployments
 upgrading legacy data must run the paginated
 `migrations.backfillPrimaryDeliverables` internal mutation once; reruns are
-safe.
+safe. Then run `migrations.backfillOriginalDeliveryTargets` to create the
+required original-destination checklist item for pre-existing requests.
+
+Every new request receives one required original-opportunity target. Additional
+targets default optional. Clipboard actions never mutate delivery state. A
+receipt snapshots the exact promoted version, destination, confirming actor,
+credential, timestamp, and optional note. Reopen clears only the target's active
+receipt pointer; receipt and event history remain immutable. Agent identities
+cannot confirm delivery from an assertion in the request body: they must supply
+a one-time integration-success record created by a trusted backend adapter.
 
 Scout ingestion returns `201` with `applied` or `200` with
 `idempotent_replay`. Reusing an idempotency key for different Markdown returns

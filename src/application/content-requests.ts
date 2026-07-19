@@ -267,6 +267,36 @@ export type Deliverable = {
   updatedAt: number
 }
 
+export type DeliveryReceipt = {
+  receiptId: string
+  versionId: string
+  channel: string
+  destinationLabel: string
+  destinationUrl: string | null
+  note: string | null
+  confirmedByPrincipalId: string
+  confirmationMethod: "human" | "integration"
+  integrationIdentity: string | null
+  externalReceiptId: string | null
+  respondedAt: number
+}
+
+export type DeliveryTarget = {
+  targetId: string
+  requestHumanId: string
+  deliverableId: string
+  channel: string
+  destinationLabel: string
+  destinationUrl: string | null
+  isOriginal: boolean
+  isRequired: boolean
+  currentReceiptId: string | null
+  currentReceipt: DeliveryReceipt | null
+  receiptHistory: Array<DeliveryReceipt>
+  createdAt: number
+  updatedAt: number
+}
+
 export type SemanticConflict = {
   conflictId: string
   requestHumanId: string
@@ -441,6 +471,32 @@ export interface ContentRequestRepository {
     expectedPrimaryDeliverableId: string
     correlationId: string
   }): Promise<PrimaryDeliverableResult>
+  listDeliveryTargets(humanId: string): Promise<Array<DeliveryTarget>>
+  createDeliveryTarget(input: {
+    humanId: string
+    deliverableId: string
+    channel: string
+    destinationLabel: string
+    destinationUrl?: string
+    isRequired?: boolean
+    correlationId: string
+  }): Promise<DeliveryTarget>
+  setDeliveryTargetRequired(input: {
+    targetId: string
+    isRequired: boolean
+    correlationId: string
+  }): Promise<DeliveryTarget>
+  confirmDeliveryTarget(input: {
+    targetId: string
+    versionId: string
+    note?: string
+    integrationSuccessId?: string
+    correlationId: string
+  }): Promise<DeliveryTarget>
+  reopenDeliveryTarget(input: {
+    targetId: string
+    correlationId: string
+  }): Promise<DeliveryTarget>
   proposeAssigneeChange(
     input: AssigneeChangeProposal
   ): Promise<AssigneeChangeResult>
@@ -583,6 +639,32 @@ export interface ContentRequestService {
     expectedPrimaryDeliverableId: string
     correlationId: string
   }): Promise<PrimaryDeliverableResult>
+  listDeliveryTargets(humanId: string): Promise<Array<DeliveryTarget>>
+  createDeliveryTarget(input: {
+    humanId: string
+    deliverableId: string
+    channel: string
+    destinationLabel: string
+    destinationUrl?: string
+    isRequired?: boolean
+    correlationId: string
+  }): Promise<DeliveryTarget>
+  setDeliveryTargetRequired(input: {
+    targetId: string
+    isRequired: boolean
+    correlationId: string
+  }): Promise<DeliveryTarget>
+  confirmDeliveryTarget(input: {
+    targetId: string
+    versionId: string
+    note?: string
+    integrationSuccessId?: string
+    correlationId: string
+  }): Promise<DeliveryTarget>
+  reopenDeliveryTarget(input: {
+    targetId: string
+    correlationId: string
+  }): Promise<DeliveryTarget>
   proposeAssigneeChange(
     input: AssigneeChangeProposal
   ): Promise<AssigneeChangeResult>
@@ -700,6 +782,12 @@ export function createContentRequestService(
     promoteDeliverableVersion: (input) =>
       repository.promoteDeliverableVersion(input),
     setPrimaryDeliverable: (input) => repository.setPrimaryDeliverable(input),
+    listDeliveryTargets: (humanId) => repository.listDeliveryTargets(humanId),
+    createDeliveryTarget: (input) => repository.createDeliveryTarget(input),
+    setDeliveryTargetRequired: (input) =>
+      repository.setDeliveryTargetRequired(input),
+    confirmDeliveryTarget: (input) => repository.confirmDeliveryTarget(input),
+    reopenDeliveryTarget: (input) => repository.reopenDeliveryTarget(input),
     proposeAssigneeChange: (input) => repository.proposeAssigneeChange(input),
     listOpenSemanticConflicts: (humanId) =>
       repository.listOpenSemanticConflicts(humanId),

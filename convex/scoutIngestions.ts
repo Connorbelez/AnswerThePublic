@@ -10,6 +10,7 @@ import {
 import { requireEditor, requirePrincipal } from "./lib/authorization"
 import { requestQueueSortKey } from "./lib/requestOrdering"
 import { parseScoutReport } from "../src/domain/scout-report"
+import { deliveryChannelForScoutSource } from "../shared/delivery-channel"
 
 const citationValidator = v.object({
   label: v.string(),
@@ -215,7 +216,7 @@ export const apply = mutation({
           createdAt: now,
           updatedAt: now,
         })
-        await ctx.db.insert("deliverables", {
+        const primaryDeliverableId = await ctx.db.insert("deliverables", {
           organizationId: principal.organizationId,
           requestId,
           kind: "primary_response",
@@ -233,11 +234,31 @@ export const apply = mutation({
           body: opportunity.rawMarkdown,
           url: opportunity.sourceUrl,
           name: opportunity.title,
-          channel: opportunity.section,
+          channel: deliveryChannelForScoutSource(
+            opportunity.section,
+            opportunity.sourceUrl
+          ),
           rawOpportunityMarkdown: opportunity.rawMarkdown,
           captureKind: "automated_primary",
           capturedByPrincipalId: principal._id,
           capturedAt: now,
+        })
+        await ctx.db.insert("deliveryTargets", {
+          organizationId: principal.organizationId,
+          requestId,
+          deliverableId: primaryDeliverableId,
+          channel: deliveryChannelForScoutSource(
+            opportunity.section,
+            opportunity.sourceUrl
+          ),
+          destinationLabel: opportunity.title,
+          destinationUrl: opportunity.sourceUrl,
+          isOriginal: true,
+          isRequired: true,
+          retention: "active",
+          createdByPrincipalId: principal._id,
+          createdAt: now,
+          updatedAt: now,
         })
         await ctx.db.patch(requestId, { humanId, sourceSnapshotId })
         action = "created"

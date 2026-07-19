@@ -42,6 +42,11 @@ function usage() {
     "  primary <CR-ID> --deliverable-id <deliverable-id> --expected-primary-id <deliverable-id> [--idempotency-key key]",
     "  conflicts <CR-ID>",
     "  conflict-resolve <conflict-id> --value <selected-id> [--idempotency-key key]",
+    "  targets <CR-ID>",
+    "  target-create <CR-ID> --deliverable-id <id> --channel <channel> --destination <label> [--url url] [--required] [--idempotency-key key]",
+    "  target-required <target-id> --required <true|false> [--idempotency-key key]",
+    "  target-confirm <target-id> --version-id <id> [--note text] [--integration-success-id id] [--idempotency-key key]",
+    "  target-reopen <target-id> [--idempotency-key key]",
     "Environment: CONTENT_REQUESTS_API_URL, CONTENT_REQUESTS_ACCESS_TOKEN",
   ].join("\n")
 }
@@ -247,6 +252,46 @@ export async function runContentRequestsCli(
           readFlag(args, "--idempotency-key") ?? crypto.randomUUID(),
       }),
     }
+  } else if (["targets", "target-create"].includes(command)) {
+    if (!args[0]) throw new Error(`${command} requires a Content Request ID.`)
+    url = `${baseUrl}/api/v1/content-requests/${encodeURIComponent(args[0])}/delivery-targets`
+    if (command === "target-create")
+      init = {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          action: "create",
+          deliverableId: requireFlag(args, "--deliverable-id"),
+          channel: requireFlag(args, "--channel"),
+          destinationLabel: requireFlag(args, "--destination"),
+          destinationUrl: readFlag(args, "--url"),
+          isRequired: args.includes("--required"),
+          correlationId:
+            readFlag(args, "--idempotency-key") ?? crypto.randomUUID(),
+        }),
+      }
+  } else if (
+    ["target-required", "target-confirm", "target-reopen"].includes(command)
+  ) {
+    if (!args[0]) throw new Error(`${command} requires a target ID.`)
+    url = `${baseUrl}/api/v1/delivery-targets/${encodeURIComponent(args[0])}`
+    let body: Record<string, unknown>
+    if (command === "target-required") {
+      const required = requireFlag(args, "--required")
+      if (required !== "true" && required !== "false")
+        throw new Error("--required must be true or false.")
+      body = { action: "set_required", isRequired: required === "true" }
+    } else if (command === "target-confirm")
+      body = {
+        action: "confirm",
+        versionId: requireFlag(args, "--version-id"),
+        note: readFlag(args, "--note"),
+        integrationSuccessId: readFlag(args, "--integration-success-id"),
+      }
+    else body = { action: "reopen" }
+    body.correlationId =
+      readFlag(args, "--idempotency-key") ?? crypto.randomUUID()
+    init = { method: "POST", headers, body: JSON.stringify(body) }
   } else {
     throw new Error(`Unknown command: ${command}\n${usage()}`)
   }

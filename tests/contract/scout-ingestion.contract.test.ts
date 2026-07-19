@@ -4,6 +4,7 @@ import { createScoutIngestionHandler } from "@/application/scout-ingestion-http"
 import type { ScoutIngestionService } from "@/application/scout-ingestions"
 import { parseScoutReport } from "@/domain/scout-report"
 import { normalizeSourceUrl } from "../../shared/url-normalization"
+import { normalizeLegacyDeliveryChannel } from "../../shared/delivery-channel"
 import { runContentRequestsCli } from "@/cli/content-requests"
 import { AuthenticationRequiredError } from "@/application/workspace-session"
 
@@ -108,6 +109,15 @@ export const VALID_SCOUT_REPORT = `# FairLend Community + Media Opportunity Repo
 `
 
 describe("Scout report parser and adapters", () => {
+  it("does not interpret prototype keys as legacy scout sections", () => {
+    expect(normalizeLegacyDeliveryChannel("constructor", undefined)).toBe(
+      "constructor"
+    )
+    expect(normalizeLegacyDeliveryChannel("__proto__", undefined)).toBe(
+      "__proto__"
+    )
+  })
+
   it("normalizes only transport and known tracking noise", () => {
     expect(
       normalizeSourceUrl(

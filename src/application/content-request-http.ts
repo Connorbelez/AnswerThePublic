@@ -86,6 +86,20 @@ function safeErrorResponse(error: unknown, validationStatus = 400) {
       code,
       "Founder input must be explicitly handed off before reassignment."
     )
+  if (
+    code === "ORIGINAL_TARGET_REQUIRED" ||
+    code === "DELIVERY_TARGET_ALREADY_CONFIRMED" ||
+    code === "DELIVERY_ALREADY_CONFIRMED" ||
+    code === "DELIVERY_NOT_CONFIRMED" ||
+    code === "PROMOTED_VERSION_REQUIRED" ||
+    code === "HUMAN_CONFIRMATION_REQUIRED" ||
+    code === "INTEGRATION_SUCCESS_REQUIRED"
+  )
+    return jsonError(
+      409,
+      code,
+      "The delivery state does not allow that action."
+    )
   if (code === "VALIDATION_FAILED") {
     return jsonError(validationStatus, code, "The request payload is invalid.")
   }
@@ -577,6 +591,133 @@ export function createSemanticConflictItemHandler(
                 : correlationId(request),
           }),
         })
+      } catch (error) {
+        return safeErrorResponse(error)
+      }
+    },
+  }
+}
+
+export function createDeliveryTargetCollectionHandler(
+  serviceForRequest: ContentRequestServiceFactory
+) {
+  return {
+    GET: async ({
+      request,
+      params,
+    }: {
+      request: Request
+      params: { requestId: string }
+    }) => {
+      try {
+        const service = await serviceForRequest(request)
+        return Response.json({
+          data: await service.listDeliveryTargets(params.requestId),
+        })
+      } catch (error) {
+        return safeErrorResponse(error)
+      }
+    },
+    POST: async ({
+      request,
+      params,
+    }: {
+      request: Request
+      params: { requestId: string }
+    }) => {
+      const body = await requestBody(request)
+      if (
+        !body ||
+        body.action !== "create" ||
+        typeof body.deliverableId !== "string" ||
+        typeof body.channel !== "string" ||
+        typeof body.destinationLabel !== "string" ||
+        (body.destinationUrl !== undefined &&
+          typeof body.destinationUrl !== "string") ||
+        (body.isRequired !== undefined && typeof body.isRequired !== "boolean")
+      )
+        return jsonError(
+          400,
+          "VALIDATION_FAILED",
+          "The request payload is invalid."
+        )
+      try {
+        const service = await serviceForRequest(request)
+        const data = await service.createDeliveryTarget({
+          humanId: params.requestId,
+          deliverableId: body.deliverableId,
+          channel: body.channel,
+          destinationLabel: body.destinationLabel,
+          destinationUrl: body.destinationUrl,
+          isRequired: body.isRequired,
+          correlationId:
+            typeof body.correlationId === "string"
+              ? body.correlationId
+              : correlationId(request),
+        })
+        return Response.json({ data }, { status: 201 })
+      } catch (error) {
+        return safeErrorResponse(error)
+      }
+    },
+  }
+}
+
+export function createDeliveryTargetItemHandler(
+  serviceForRequest: ContentRequestServiceFactory
+) {
+  return {
+    POST: async ({
+      request,
+      params,
+    }: {
+      request: Request
+      params: { targetId: string }
+    }) => {
+      const body = await requestBody(request)
+      if (!body || typeof body.action !== "string")
+        return jsonError(
+          400,
+          "VALIDATION_FAILED",
+          "The request payload is invalid."
+        )
+      const operationId =
+        typeof body.correlationId === "string"
+          ? body.correlationId
+          : correlationId(request)
+      try {
+        const service = await serviceForRequest(request)
+        const data =
+          body.action === "set_required" && typeof body.isRequired === "boolean"
+            ? await service.setDeliveryTargetRequired({
+                targetId: params.targetId,
+                isRequired: body.isRequired,
+                correlationId: operationId,
+              })
+            : body.action === "confirm" && typeof body.versionId === "string"
+              ? await service.confirmDeliveryTarget({
+                  targetId: params.targetId,
+                  versionId: body.versionId,
+                  note: typeof body.note === "string" ? body.note : undefined,
+                  integrationSuccessId:
+                    typeof body.integrationSuccessId === "string"
+                      ? body.integrationSuccessId
+                      : undefined,
+                  correlationId: operationId,
+                })
+              : body.action === "reopen"
+                ? await service.reopenDeliveryTarget({
+                    targetId: params.targetId,
+                    correlationId: operationId,
+                  })
+                : null
+        return data
+          ? Response.json({ data })
+          : jsonError(
+              400,
+              "VALIDATION_FAILED",
+              "The request payload is invalid."
+            )
       } catch (error) {
         return safeErrorResponse(error)
       }

@@ -6,6 +6,8 @@ import {
   createContentRequestCollectionHandler,
   createDeliverableCollectionHandler,
   createDeliverableItemHandler,
+  createDeliveryTargetCollectionHandler,
+  createDeliveryTargetItemHandler,
   createSemanticConflictCollectionHandler,
   createSemanticConflictItemHandler,
 } from "@/application/content-request-http"
@@ -55,6 +57,11 @@ function serviceStub(overrides: Partial<ContentRequestService> = {}) {
     createDeliverableVersion: vi.fn(),
     promoteDeliverableVersion: vi.fn(),
     setPrimaryDeliverable: vi.fn(),
+    listDeliveryTargets: vi.fn(),
+    createDeliveryTarget: vi.fn(),
+    setDeliveryTargetRequired: vi.fn(),
+    confirmDeliveryTarget: vi.fn(),
+    reopenDeliveryTarget: vi.fn(),
     proposeAssigneeChange: vi.fn(),
     listOpenSemanticConflicts: vi.fn(),
     resolveSemanticConflict: vi.fn(),
@@ -505,4 +512,114 @@ describe("Content Request adapter contracts", () => {
       await expect(response.json()).resolves.toMatchObject({ error: { code } })
     }
   )
+
+  it("maps delivery target creation, confirmation, and reopen through shared adapters", async () => {
+    const createDeliveryTarget = vi
+      .fn()
+      .mockResolvedValue({ targetId: "target-2" })
+    const confirmDeliveryTarget = vi
+      .fn()
+      .mockResolvedValue({ currentReceiptId: "receipt-1" })
+    const reopenDeliveryTarget = vi
+      .fn()
+      .mockResolvedValue({ currentReceiptId: null })
+    const collection = createDeliveryTargetCollectionHandler(async () =>
+      serviceStub({ createDeliveryTarget })
+    )
+    const item = createDeliveryTargetItemHandler(async () =>
+      serviceStub({ confirmDeliveryTarget, reopenDeliveryTarget })
+    )
+    const created = await collection.POST({
+      request: new Request(
+        "https://fairlend.test/api/v1/content-requests/CR-1/delivery-targets",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            action: "create",
+            deliverableId: "deliverable-1",
+            channel: "linkedin",
+            destinationLabel: "LinkedIn",
+            correlationId: "create-target",
+          }),
+        }
+      ),
+      params: { requestId: "CR-1" },
+    })
+    expect(created.status).toBe(201)
+    expect(createDeliveryTarget).toHaveBeenCalledWith({
+      humanId: "CR-1",
+      deliverableId: "deliverable-1",
+      channel: "linkedin",
+      destinationLabel: "LinkedIn",
+      destinationUrl: undefined,
+      isRequired: undefined,
+      correlationId: "create-target",
+    })
+    await item.POST({
+      request: new Request(
+        "https://fairlend.test/api/v1/delivery-targets/target-2",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            action: "confirm",
+            versionId: "version-1",
+            note: "Posted",
+            correlationId: "confirm-target",
+          }),
+        }
+      ),
+      params: { targetId: "target-2" },
+    })
+    expect(confirmDeliveryTarget).toHaveBeenCalledWith({
+      targetId: "target-2",
+      versionId: "version-1",
+      note: "Posted",
+      integrationSuccessId: undefined,
+      correlationId: "confirm-target",
+    })
+    await item.POST({
+      request: new Request(
+        "https://fairlend.test/api/v1/delivery-targets/target-2",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            action: "reopen",
+            correlationId: "reopen-target",
+          }),
+        }
+      ),
+      params: { targetId: "target-2" },
+    })
+    expect(reopenDeliveryTarget).toHaveBeenCalledWith({
+      targetId: "target-2",
+      correlationId: "reopen-target",
+    })
+
+    const fetchImpl = vi.fn().mockResolvedValue(Response.json({ data: {} }))
+    await runContentRequestsCli(
+      [
+        "target-confirm",
+        "target-2",
+        "--version-id",
+        "version-1",
+        "--idempotency-key",
+        "stable-confirm",
+      ],
+      {
+        fetchImpl,
+        env: {
+          CONTENT_REQUESTS_API_URL: "https://fairlend.test",
+          CONTENT_REQUESTS_ACCESS_TOKEN: "token",
+        },
+        io: { writeOut: vi.fn(), writeError: vi.fn() },
+      }
+    )
+    expect(
+      JSON.parse((fetchImpl.mock.calls[0][1] as RequestInit).body as string)
+    ).toMatchObject({
+      action: "confirm",
+      versionId: "version-1",
+      correlationId: "stable-confirm",
+    })
+  })
 })

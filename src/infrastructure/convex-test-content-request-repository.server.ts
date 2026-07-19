@@ -257,6 +257,36 @@ export async function createConvexTestContentRequestRepository(
           input.expectedPrimaryDeliverableId as Id<"deliverables">,
       })
     },
+    async listDeliveryTargets(humanId) {
+      return backend.query(api.deliveryTracking.list, { humanId })
+    },
+    async createDeliveryTarget(input) {
+      return backend.mutation(api.deliveryTracking.createTarget, {
+        ...input,
+        deliverableId: input.deliverableId as Id<"deliverables">,
+      })
+    },
+    async setDeliveryTargetRequired(input) {
+      return backend.mutation(api.deliveryTracking.setRequired, {
+        ...input,
+        targetId: input.targetId as Id<"deliveryTargets">,
+      })
+    },
+    async confirmDeliveryTarget(input) {
+      return backend.mutation(api.deliveryTracking.confirm, {
+        ...input,
+        targetId: input.targetId as Id<"deliveryTargets">,
+        versionId: input.versionId as Id<"deliverableVersions">,
+        integrationSuccessId: input.integrationSuccessId as
+          Id<"integrationDeliverySuccesses"> | undefined,
+      })
+    },
+    async reopenDeliveryTarget(input) {
+      return backend.mutation(api.deliveryTracking.reopen, {
+        ...input,
+        targetId: input.targetId as Id<"deliveryTargets">,
+      })
+    },
     async proposeAssigneeChange(input) {
       return backend.mutation(api.semanticConflicts.proposeAssigneeChange, {
         ...input,

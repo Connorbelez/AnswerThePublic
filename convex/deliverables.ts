@@ -707,12 +707,30 @@ export const setPrimary = mutation({
       }
     }
     const now = Date.now()
+    const requestTargets = await ctx.db
+      .query("deliveryTargets")
+      .withIndex("by_request", (index) => index.eq("requestId", request._id))
+      .collect()
+    const originalTarget = requestTargets.find((target) => target.isOriginal)
+    const historicalReceipt = await ctx.db
+      .query("deliveryReceipts")
+      .withIndex("by_request_responded_at", (index) =>
+        index.eq("requestId", request._id)
+      )
+      .first()
+    if (historicalReceipt)
+      throw new ConvexError({ code: "DELIVERY_TARGET_ALREADY_CONFIRMED" })
     for (const deliverable of deliverables)
       if (deliverable.isPrimary !== (deliverable._id === selected._id))
         await ctx.db.patch(deliverable._id, {
           isPrimary: deliverable._id === selected._id,
           updatedAt: now,
         })
+    if (originalTarget)
+      await ctx.db.patch(originalTarget._id, {
+        deliverableId: selected._id,
+        updatedAt: now,
+      })
     await ctx.db.patch(request._id, {
       lifecycle: await lifecycleForPrimary(ctx, request, selected),
     })

@@ -401,3 +401,73 @@ export const setPrimaryDeliverable = createServerFn({ method: "POST" })
       await createContentRequestServiceFromRequest()
     ).setPrimaryDeliverable(data)
   })
+
+export const listDeliveryTargets = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).listDeliveryTargets(
+      data.humanId
+    )
+  })
+
+export const createDeliveryTarget = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      humanId: string
+      deliverableId: string
+      channel: string
+      destinationLabel: string
+      destinationUrl?: string
+      isRequired?: boolean
+      correlationId: string
+    }) => data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).createDeliveryTarget(data)
+  })
+
+export const setDeliveryTargetRequired = createServerFn({ method: "POST" })
+  .validator(
+    (data: { targetId: string; isRequired: boolean; correlationId: string }) =>
+      data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).setDeliveryTargetRequired(data)
+  })
+
+export const confirmDeliveryTarget = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      targetId: string
+      versionId: string
+      note?: string
+      correlationId: string
+    }) => data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).confirmDeliveryTarget(data)
+  })
+
+export const reopenDeliveryTarget = createServerFn({ method: "POST" })
+  .validator((data: { targetId: string; correlationId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).reopenDeliveryTarget(data)
+  })

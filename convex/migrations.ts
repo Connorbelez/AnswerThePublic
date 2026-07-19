@@ -4,7 +4,9 @@ import { internal } from "./_generated/api"
 import { internalMutation } from "./_generated/server"
 import { requestQueueSortKey } from "./lib/requestOrdering"
 import { lifecycleForPrimary } from "./lib/deliverableLifecycle"
+import { projectDeliveryLifecycle } from "./lib/deliveryLifecycle"
 import { normalizeSourceUrl } from "../shared/url-normalization"
+import { normalizeLegacyDeliveryChannel } from "../shared/delivery-channel"
 
 export const backfillAssignmentFields = internalMutation({
   args: { cursor: v.optional(v.string()) },
@@ -175,6 +177,108 @@ export const backfillPrimaryDeliverables = internalMutation({
       await ctx.scheduler.runAfter(
         0,
         internal.migrations.backfillPrimaryDeliverables,
+        { cursor: page.continueCursor }
+      )
+    return { migrated, done: page.isDone }
+  },
+})
+
+export const backfillOriginalDeliveryTargets = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  returns: v.object({ migrated: v.number(), done: v.boolean() }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("contentRequests").paginate({
+      cursor: args.cursor ?? null,
+      numItems: 100,
+    })
+    let migrated = 0
+    for (const request of page.page) {
+      const targets = await ctx.db
+        .query("deliveryTargets")
+        .withIndex("by_request", (index) => index.eq("requestId", request._id))
+        .collect()
+      const deliverables = await ctx.db
+        .query("deliverables")
+        .withIndex("by_request", (index) => index.eq("requestId", request._id))
+        .collect()
+      const primary = deliverables.find(
+        (deliverable) =>
+          deliverable.isPrimary &&
+          (deliverable.retention ?? "active") === "active"
+      )
+      if (!primary) continue
+      const source = request.sourceSnapshotId
+        ? await ctx.db.get(request.sourceSnapshotId)
+        : null
+      const now = Date.now()
+      const originalTargets = targets
+        .filter((target) => target.isOriginal)
+        .sort(
+          (a, b) =>
+            Number(Boolean(b.currentReceiptId)) -
+              Number(Boolean(a.currentReceiptId)) || a.createdAt - b.createdAt
+        )
+      const selected =
+        originalTargets.find((target) => target.currentReceiptId) ??
+        originalTargets.find((target) => target.retention === "active") ??
+        originalTargets[0]
+      let changed = false
+      if (selected) {
+        if (
+          selected.retention !== "active" ||
+          !selected.isRequired ||
+          selected.deliverableId !== primary._id ||
+          selected.channel !==
+            normalizeLegacyDeliveryChannel(source?.channel, source?.url)
+        ) {
+          await ctx.db.patch(selected._id, {
+            retention: "active",
+            isRequired: true,
+            deliverableId: primary._id,
+            channel: normalizeLegacyDeliveryChannel(
+              source?.channel,
+              source?.url
+            ),
+            updatedAt: now,
+          })
+          changed = true
+        }
+        for (const duplicate of originalTargets)
+          if (duplicate._id !== selected._id) {
+            await ctx.db.patch(duplicate._id, {
+              isOriginal: false,
+              isRequired: false,
+              retention: "archived",
+              updatedAt: now,
+            })
+            changed = true
+          }
+      } else {
+        await ctx.db.insert("deliveryTargets", {
+          organizationId: request.organizationId,
+          requestId: request._id,
+          deliverableId: primary._id,
+          channel: normalizeLegacyDeliveryChannel(source?.channel, source?.url),
+          destinationLabel:
+            source?.name?.trim() || "Original opportunity response",
+          destinationUrl: source?.url?.trim() || undefined,
+          isOriginal: true,
+          isRequired: true,
+          retention: "active",
+          createdByPrincipalId: request.createdByPrincipalId,
+          createdAt: now,
+          updatedAt: now,
+        })
+        changed = true
+      }
+      if (!changed) continue
+      await projectDeliveryLifecycle(ctx, request)
+      migrated += 1
+    }
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.backfillOriginalDeliveryTargets,
         { cursor: page.continueCursor }
       )
     return { migrated, done: page.isDone }
