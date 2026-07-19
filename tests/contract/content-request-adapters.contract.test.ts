@@ -4,6 +4,10 @@ import {
   createAgentJobCollectionHandler,
   createAgentJobItemHandler,
   createContentRequestCollectionHandler,
+  createDeliverableCollectionHandler,
+  createDeliverableItemHandler,
+  createSemanticConflictCollectionHandler,
+  createSemanticConflictItemHandler,
 } from "@/application/content-request-http"
 import type { ContentRequestService } from "@/application/content-requests"
 import { runContentRequestsCli } from "@/cli/content-requests"
@@ -46,6 +50,11 @@ function serviceStub(overrides: Partial<ContentRequestService> = {}) {
     getAgentJobInput: vi.fn(),
     completeAgentJob: vi.fn(),
     failAgentJob: vi.fn(),
+    listDeliverables: vi.fn(),
+    createDerivativeDeliverable: vi.fn(),
+    createDeliverableVersion: vi.fn(),
+    promoteDeliverableVersion: vi.fn(),
+    setPrimaryDeliverable: vi.fn(),
     proposeAssigneeChange: vi.fn(),
     listOpenSemanticConflicts: vi.fn(),
     resolveSemanticConflict: vi.fn(),
@@ -244,4 +253,256 @@ describe("Content Request adapter contracts", () => {
     expect(response.status).toBe(status)
     await expect(response.json()).resolves.toMatchObject({ error: { code } })
   })
+
+  it("maps deliverable candidate creation and promotion through the shared service", async () => {
+    const createDeliverableVersion = vi.fn().mockResolvedValue({
+      deliverableId: "deliverable-1",
+      currentCandidateVersionId: "version-2",
+      promotedVersionId: "version-1",
+    })
+    const promoteDeliverableVersion = vi.fn().mockResolvedValue({
+      deliverableId: "deliverable-1",
+      promotedVersionId: "version-2",
+    })
+    const item = createDeliverableItemHandler(async () =>
+      serviceStub({ createDeliverableVersion, promoteDeliverableVersion })
+    )
+    await item.POST({
+      request: new Request(
+        "https://fairlend.test/api/v1/deliverables/deliverable-1",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            action: "create_version",
+            body: "Candidate body",
+            correlationId: "candidate-2",
+          }),
+        }
+      ),
+      params: { deliverableId: "deliverable-1" },
+    })
+    await item.POST({
+      request: new Request(
+        "https://fairlend.test/api/v1/deliverables/deliverable-1",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            action: "promote",
+            versionId: "version-2",
+            expectedPromotedVersionId: "version-1",
+            correlationId: "promote-2",
+          }),
+        }
+      ),
+      params: { deliverableId: "deliverable-1" },
+    })
+    expect(createDeliverableVersion).toHaveBeenCalledWith({
+      deliverableId: "deliverable-1",
+      body: "Candidate body",
+      changeSummary: undefined,
+      correlationId: "candidate-2",
+    })
+    expect(promoteDeliverableVersion).toHaveBeenCalledWith({
+      deliverableId: "deliverable-1",
+      versionId: "version-2",
+      expectedPromotedVersionId: "version-1",
+      correlationId: "promote-2",
+    })
+
+    const listDeliverables = vi.fn().mockResolvedValue([])
+    const collection = createDeliverableCollectionHandler(async () =>
+      serviceStub({ listDeliverables })
+    )
+    await collection.GET({
+      request: new Request(
+        "https://fairlend.test/api/v1/content-requests/CR-1/deliverables"
+      ),
+      params: { requestId: "CR-1" },
+    })
+    expect(listDeliverables).toHaveBeenCalledWith("CR-1")
+  })
+
+  it("preserves deliverable idempotency and compare-and-propose values in the CLI", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(Response.json({ data: {} }))
+    const options = {
+      fetchImpl,
+      env: {
+        CONTENT_REQUESTS_API_URL: "https://fairlend.test",
+        CONTENT_REQUESTS_ACCESS_TOKEN: "test-token",
+      },
+      io: { writeOut: vi.fn(), writeError: vi.fn() },
+    }
+    await runContentRequestsCli(
+      [
+        "promote",
+        "deliverable-1",
+        "--version-id",
+        "version-2",
+        "--expected-version-id",
+        "version-1",
+        "--idempotency-key",
+        "stable-promotion",
+      ],
+      options
+    )
+    const request = fetchImpl.mock.calls[0][1] as RequestInit
+    expect(JSON.parse(request.body as string)).toEqual({
+      action: "promote",
+      versionId: "version-2",
+      expectedPromotedVersionId: "version-1",
+      correlationId: "stable-promotion",
+    })
+  })
+
+  it("maps a post-delivery primary reassignment to HTTP 409", async () => {
+    const collection = createDeliverableCollectionHandler(async () =>
+      serviceStub({
+        setPrimaryDeliverable: vi.fn().mockRejectedValue({
+          data: { code: "DELIVERED_PRIMARY_LOCKED" },
+        }),
+      })
+    )
+    const response = await collection.POST({
+      request: new Request(
+        "https://fairlend.test/api/v1/content-requests/CR-1/deliverables",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            action: "set_primary",
+            deliverableId: "deliverable-2",
+            expectedPrimaryDeliverableId: "deliverable-1",
+            correlationId: "locked-primary",
+          }),
+        }
+      ),
+      params: { requestId: "CR-1" },
+    })
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "DELIVERED_PRIMARY_LOCKED" },
+    })
+  })
+
+  it("lists and resolves durable semantic conflicts through HTTP and CLI", async () => {
+    const conflict = {
+      conflictId: "conflict-1",
+      requestHumanId: "CR-1",
+      field: "primaryDeliverableId" as const,
+      currentValue: "deliverable-1",
+      proposedValue: "deliverable-2",
+      expectedValue: "deliverable-0",
+      status: "open" as const,
+      correlationId: "stale-primary",
+      createdAt: 1,
+      resolvedValue: null,
+      resolvedAt: null,
+    }
+    const listOpenSemanticConflicts = vi.fn().mockResolvedValue([conflict])
+    const resolveSemanticConflict = vi.fn().mockResolvedValue({
+      ...conflict,
+      conflictId: "rebased-conflict",
+      currentValue: "deliverable-3",
+    })
+    const collection = createSemanticConflictCollectionHandler(async () =>
+      serviceStub({ listOpenSemanticConflicts })
+    )
+    const item = createSemanticConflictItemHandler(async () =>
+      serviceStub({ resolveSemanticConflict })
+    )
+    const listed = await collection.GET({
+      request: new Request(
+        "https://fairlend.test/api/v1/content-requests/CR-1/semantic-conflicts"
+      ),
+      params: { requestId: "CR-1" },
+    })
+    expect(listOpenSemanticConflicts).toHaveBeenCalledWith("CR-1")
+    await expect(listed.json()).resolves.toEqual({ data: [conflict] })
+
+    const resolved = await item.POST({
+      request: new Request(
+        "https://fairlend.test/api/v1/semantic-conflicts/conflict-1",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            action: "resolve",
+            selectedValue: "deliverable-2",
+            correlationId: "resolve-conflict",
+          }),
+        }
+      ),
+      params: { conflictId: "conflict-1" },
+    })
+    expect(resolveSemanticConflict).toHaveBeenCalledWith({
+      conflictId: "conflict-1",
+      selectedValue: "deliverable-2",
+      correlationId: "resolve-conflict",
+    })
+    await expect(resolved.json()).resolves.toMatchObject({
+      data: { conflictId: "rebased-conflict", status: "open" },
+    })
+
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(Response.json({ data: conflict }))
+    await runContentRequestsCli(
+      [
+        "conflict-resolve",
+        "conflict-1",
+        "--value",
+        "deliverable-2",
+        "--idempotency-key",
+        "stable-resolution",
+      ],
+      {
+        fetchImpl,
+        env: {
+          CONTENT_REQUESTS_API_URL: "https://fairlend.test",
+          CONTENT_REQUESTS_ACCESS_TOKEN: "test-token",
+        },
+        io: { writeOut: vi.fn(), writeError: vi.fn() },
+      }
+    )
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://fairlend.test/api/v1/semantic-conflicts/conflict-1",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          action: "resolve",
+          selectedValue: "deliverable-2",
+          correlationId: "stable-resolution",
+        }),
+      })
+    )
+  })
+
+  it.each([
+    ["FOUNDER_INPUT_HANDOFF_REQUIRED", 409],
+    ["ASSIGNEE_NOT_FOUND", 404],
+  ])(
+    "preserves actionable semantic resolution error %s as HTTP %s",
+    async (code, status) => {
+      const item = createSemanticConflictItemHandler(async () =>
+        serviceStub({
+          resolveSemanticConflict: vi
+            .fn()
+            .mockRejectedValue({ data: { code } }),
+        })
+      )
+      const response = await item.POST({
+        request: new Request(
+          "https://fairlend.test/api/v1/semantic-conflicts/conflict-1",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              action: "resolve",
+              selectedValue: "principal-2",
+            }),
+          }
+        ),
+        params: { conflictId: "conflict-1" },
+      })
+      expect(response.status).toBe(status)
+      await expect(response.json()).resolves.toMatchObject({ error: { code } })
+    }
+  )
 })

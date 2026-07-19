@@ -105,7 +105,7 @@ async function submittedWorkspace() {
     heads: ["durable-head"],
     correlationId: "submit-founder-input",
   })
-  return { workspace, founder, agent, agentTwo, request, job }
+  return { workspace, operator, founder, agent, agentTwo, request, job }
 }
 
 describe("founder submission and agent drafting jobs", () => {
@@ -261,6 +261,136 @@ describe("founder submission and agent drafting jobs", () => {
     expect(
       evidence.audit.filter((event) => event.operation === "agent_job.failed")
     ).toHaveLength(1)
+  })
+
+  it("allocates the next version when an editor drafts while the agent is running", async () => {
+    const { operator, agent, request, job } = await submittedWorkspace()
+    const claimed = await agent.mutation(api.agentJobs.claim, {
+      leaseToken: "interleaved-lease",
+      leaseMs: 30_000,
+    })
+    const [primary] = await operator.query(api.deliverables.list, {
+      humanId: request.humanId,
+    })
+    const editorDraft = await operator.mutation(
+      api.deliverables.createVersion,
+      {
+        deliverableId: primary.deliverableId,
+        body: "Operator draft while the agent runs.",
+        correlationId: "interleaved-editor-version",
+      }
+    )
+    await agent.mutation(api.agentJobs.complete, {
+      jobId: job.jobId,
+      leaseToken: "interleaved-lease",
+      leaseGeneration: claimed!.leaseGeneration,
+      body: "Agent candidate after the operator draft.",
+      correlationId: "interleaved-agent-completion",
+    })
+    const [completed] = await operator.query(api.deliverables.list, {
+      humanId: request.humanId,
+    })
+    expect(completed.versions.map((version) => version.ordinal)).toEqual([2, 1])
+    expect(completed.currentCandidateVersionId).toBe(
+      completed.versions.find((version) => version.ordinal === 2)?.versionId
+    )
+    expect(completed.promotedVersionId).toBe(editorDraft.promotedVersionId)
+  })
+
+  it("repairs an archived primary before persisting an agent result", async () => {
+    const { workspace, operator, agent, request, job } =
+      await submittedWorkspace()
+    const [archivedPrimary] = await operator.query(api.deliverables.list, {
+      humanId: request.humanId,
+    })
+    await workspace.run((ctx) =>
+      ctx.db.patch(archivedPrimary.deliverableId, { retention: "archived" })
+    )
+    const claimed = await agent.mutation(api.agentJobs.claim, {
+      leaseToken: "archived-primary-lease",
+      leaseMs: 30_000,
+    })
+    await agent.mutation(api.agentJobs.complete, {
+      jobId: job.jobId,
+      leaseToken: "archived-primary-lease",
+      leaseGeneration: claimed!.leaseGeneration,
+      body: "Draft on a repaired active primary.",
+      correlationId: "complete-after-primary-repair",
+    })
+    const visible = await operator.query(api.deliverables.list, {
+      humanId: request.humanId,
+    })
+    expect(visible).toEqual([
+      expect.objectContaining({
+        isPrimary: true,
+        promotedVersionId: expect.any(String),
+      }),
+    ])
+    expect(visible[0].deliverableId).not.toBe(archivedPrimary.deliverableId)
+    const archived = await workspace.run((ctx) =>
+      ctx.db.get(archivedPrimary.deliverableId)
+    )
+    expect(archived).toMatchObject({ retention: "archived", isPrimary: false })
+  })
+
+  it("preserves delivered lifecycle and primary on late agent completion", async () => {
+    const { workspace, operator, agent, request, job } =
+      await submittedWorkspace()
+    const claimed = await agent.mutation(api.agentJobs.claim, {
+      leaseToken: "late-completion-lease",
+      leaseMs: 30_000,
+    })
+    const [primary] = await operator.query(api.deliverables.list, {
+      humanId: request.humanId,
+    })
+    await operator.mutation(api.deliverables.createVersion, {
+      deliverableId: primary.deliverableId,
+      body: "Operator response delivered while the agent runs.",
+      correlationId: "operator-delivered-version",
+    })
+    await workspace.run((ctx) =>
+      ctx.db.patch(request.requestId, { lifecycle: "responded" })
+    )
+    const before = await workspace.run((ctx) =>
+      ctx.db
+        .query("notifications")
+        .withIndex("by_request_created_at", (index) =>
+          index.eq("requestId", request.requestId)
+        )
+        .collect()
+    )
+    await agent.mutation(api.agentJobs.complete, {
+      jobId: job.jobId,
+      leaseToken: "late-completion-lease",
+      leaseGeneration: claimed!.leaseGeneration,
+      body: "Late agent candidate.",
+      correlationId: "late-agent-completion",
+    })
+    const savedRequest = await workspace.run((ctx) =>
+      ctx.db.get(request.requestId)
+    )
+    const [savedPrimary] = await operator.query(api.deliverables.list, {
+      humanId: request.humanId,
+    })
+    const after = await workspace.run((ctx) =>
+      ctx.db
+        .query("notifications")
+        .withIndex("by_request_created_at", (index) =>
+          index.eq("requestId", request.requestId)
+        )
+        .collect()
+    )
+    expect(savedRequest?.lifecycle).toBe("responded")
+    expect(savedPrimary.deliverableId).toBe(primary.deliverableId)
+    expect(savedPrimary.versions.map((version) => version.body)).toContain(
+      "Late agent candidate."
+    )
+    expect(
+      after.filter((notification) => notification.type === "response_ready")
+    ).toHaveLength(
+      before.filter((notification) => notification.type === "response_ready")
+        .length
+    )
   })
 
   it("fences leases by claimant and makes an ambiguous claim retry idempotent", async () => {

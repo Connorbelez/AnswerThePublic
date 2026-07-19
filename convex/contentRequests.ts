@@ -454,6 +454,16 @@ export const createManual = mutation({
       updatedAt: now,
     })
     const humanId = humanIdFor(requestId)
+    await ctx.db.insert("deliverables", {
+      organizationId: principal.organizationId,
+      requestId,
+      kind: "primary_response",
+      name: "Primary response",
+      isPrimary: true,
+      retention: "active",
+      createdAt: now,
+      updatedAt: now,
+    })
     let sourceSnapshotId: Id<"sourceSnapshots"> | undefined
     if (args.source) {
       sourceSnapshotId = await ctx.db.insert("sourceSnapshots", {

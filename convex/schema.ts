@@ -359,6 +359,7 @@ export default defineSchema({
     kind: v.string(),
     name: v.string(),
     isPrimary: v.boolean(),
+    retention: v.optional(v.union(v.literal("active"), v.literal("archived"))),
     currentCandidateVersionId: v.optional(v.id("deliverableVersions")),
     promotedVersionId: v.optional(v.id("deliverableVersions")),
     createdAt: v.number(),
@@ -372,10 +373,61 @@ export default defineSchema({
     ordinal: v.number(),
     createdByPrincipalId: v.id("principals"),
     sourceJobId: v.optional(v.id("agentJobs")),
+    correlationId: v.optional(v.string()),
+    changeSummary: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_deliverable_ordinal", ["deliverableId", "ordinal"])
     .index("by_source_job", ["sourceJobId"]),
+  deliverablePromotionEvents: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    deliverableId: v.id("deliverables"),
+    versionId: v.id("deliverableVersions"),
+    previousVersionId: v.optional(v.id("deliverableVersions")),
+    expectedPromotedVersionId: v.optional(v.id("deliverableVersions")),
+    actorPrincipalId: v.id("principals"),
+    credentialId: v.string(),
+    operation: v.union(v.literal("promoted"), v.literal("auto_promoted")),
+    correlationId: v.string(),
+    occurredAt: v.number(),
+  })
+    .index("by_deliverable_occurred_at", ["deliverableId", "occurredAt"])
+    .index("by_organization_actor_correlation", [
+      "organizationId",
+      "actorPrincipalId",
+      "correlationId",
+    ]),
+  deliverableOperations: defineTable({
+    organizationId: v.string(),
+    actorPrincipalId: v.id("principals"),
+    requestId: v.id("contentRequests"),
+    operation: v.union(
+      v.literal("create_derivative"),
+      v.literal("create_version"),
+      v.literal("set_primary")
+    ),
+    correlationId: v.string(),
+    inputFingerprint: v.string(),
+    deliverableId: v.id("deliverables"),
+    versionId: v.optional(v.id("deliverableVersions")),
+    createdAt: v.number(),
+  }).index("by_organization_actor_operation_correlation", [
+    "organizationId",
+    "actorPrincipalId",
+    "operation",
+    "correlationId",
+  ]),
+  primaryDeliverableEvents: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    previousDeliverableId: v.id("deliverables"),
+    newDeliverableId: v.id("deliverables"),
+    actorPrincipalId: v.id("principals"),
+    credentialId: v.string(),
+    correlationId: v.string(),
+    occurredAt: v.number(),
+  }).index("by_request_occurred_at", ["requestId", "occurredAt"]),
   founderInputVersionRestoreOperations: defineTable({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),

@@ -180,6 +180,12 @@ The initial HTTP contract is available at:
   next drafting job with a bounded lease.
 - `GET /api/v1/agent-jobs/:jobId` — read the immutable source/founder versions
   for a claimed job. `POST` heartbeats, completes, or fails the lease.
+- `GET|POST /api/v1/content-requests/:humanId/deliverables` and
+  `POST /api/v1/deliverables/:deliverableId` — list/create derivatives, create
+  immutable candidates, explicitly promote versions, and reassign primary.
+- `GET /api/v1/content-requests/:humanId/semantic-conflicts` and
+  `POST /api/v1/semantic-conflicts/:conflictId` — inspect and explicitly resolve
+  incompatible assignee, primary-deliverable, or promoted-version changes.
 
 The API accepts the signed-in WorkOS session or a WorkOS bearer access token.
 Every create requires or generates a correlation ID and produces an audit event.
@@ -198,6 +204,12 @@ bun run content-requests -- job-claim --lease-token "$LEASE_TOKEN"
 bun run content-requests -- job-input "$JOB_ID"
 bun run content-requests -- job-heartbeat "$JOB_ID" --lease-token "$LEASE_TOKEN" --lease-generation "$LEASE_GENERATION"
 bun run content-requests -- job-complete "$JOB_ID" --lease-token "$LEASE_TOKEN" --lease-generation "$LEASE_GENERATION" --file ./response.md
+bun run content-requests -- deliverables CR-EXAMPLE
+bun run content-requests -- version "$DELIVERABLE_ID" --file ./regenerated.md --summary "Tighter opening" --idempotency-key version-20260718-01
+bun run content-requests -- promote "$DELIVERABLE_ID" --version-id "$VERSION_ID" --expected-version-id "$CURRENT_PROMOTED_VERSION_ID" --idempotency-key promote-20260718-01
+bun run content-requests -- primary CR-EXAMPLE --deliverable-id "$DELIVERABLE_ID" --expected-primary-id "$CURRENT_PRIMARY_ID" --idempotency-key primary-20260718-01
+bun run content-requests -- conflicts CR-EXAMPLE
+bun run content-requests -- conflict-resolve "$CONFLICT_ID" --value "$SELECTED_ID" --idempotency-key resolve-20260718-01
 ```
 
 Founder submission first verifies that every local Automerge head is durable,
@@ -205,7 +217,14 @@ then atomically records Founder complete and queues exactly one primary-response
 job. Agents should heartbeat long-running jobs; an expired lease is reclaimable.
 Transient failures retry up to three claims. Exhaustion notifies operators and a
 successful first draft is promoted once and advances the request to Ready to
-respond.
+respond. Promotion and primary reassignment use compare-and-propose values from
+the latest `deliverables` response. If another writer changed the singleton in
+the meantime, the API returns `attention_required` with a durable semantic
+conflict instead of overwriting it; editors resolve that conflict explicitly.
+Stable `--idempotency-key` values make ambiguous CLI retries safe. Deployments
+upgrading legacy data must run the paginated
+`migrations.backfillPrimaryDeliverables` internal mutation once; reruns are
+safe.
 
 Scout ingestion returns `201` with `applied` or `200` with
 `idempotent_replay`. Reusing an idempotency key for different Markdown returns

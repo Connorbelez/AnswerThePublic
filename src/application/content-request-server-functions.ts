@@ -357,3 +357,47 @@ export const markMyNotificationRead = createServerFn({ method: "POST" })
       await createContentRequestServiceFromRequest()
     ).markNotificationRead(data.notificationId)
   })
+
+export const listDeliverables = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).listDeliverables(
+      data.humanId
+    )
+  })
+
+export const promoteDeliverableVersion = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      deliverableId: string
+      versionId: string
+      expectedPromotedVersionId: string | null
+      correlationId: string
+    }) => data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).promoteDeliverableVersion(data)
+  })
+
+export const setPrimaryDeliverable = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      humanId: string
+      deliverableId: string
+      expectedPrimaryDeliverableId: string
+      correlationId: string
+    }) => data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).setPrimaryDeliverable(data)
+  })

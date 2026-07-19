@@ -244,6 +244,29 @@ export type AgentJobInput = {
   }>
 }
 
+export type DeliverableVersion = {
+  versionId: string
+  body: string
+  ordinal: number
+  createdByPrincipalId: string
+  sourceJobId: string | null
+  changeSummary: string | null
+  createdAt: number
+}
+
+export type Deliverable = {
+  deliverableId: string
+  requestHumanId: string
+  kind: string
+  name: string
+  isPrimary: boolean
+  currentCandidateVersionId: string | null
+  promotedVersionId: string | null
+  versions: Array<DeliverableVersion>
+  createdAt: number
+  updatedAt: number
+}
+
 export type SemanticConflict = {
   conflictId: string
   requestHumanId: string
@@ -270,6 +293,22 @@ export type AssigneeChangeProposal = {
 export type AssigneeChangeResult =
   | { outcome: "applied"; conflict: null }
   | { outcome: "attention_required"; conflict: SemanticConflict }
+
+export type DeliverablePromotionResult =
+  | { outcome: "applied"; deliverable: Deliverable; conflict: null }
+  | {
+      outcome: "attention_required"
+      deliverable: Deliverable
+      conflict: SemanticConflict
+    }
+
+export type PrimaryDeliverableResult =
+  | { outcome: "applied"; deliverables: Array<Deliverable>; conflict: null }
+  | {
+      outcome: "attention_required"
+      deliverables: Array<Deliverable>
+      conflict: SemanticConflict
+    }
 
 export interface ContentRequestRepository {
   createManual(input: PersistManualRequestInput): Promise<ContentRequest>
@@ -376,6 +415,32 @@ export interface ContentRequestRepository {
     correlationId: string,
     leaseGeneration: number
   ): Promise<AgentJob>
+  listDeliverables(humanId: string): Promise<Array<Deliverable>>
+  createDerivativeDeliverable(input: {
+    humanId: string
+    kind: string
+    name: string
+    body?: string
+    correlationId: string
+  }): Promise<Deliverable>
+  createDeliverableVersion(input: {
+    deliverableId: string
+    body: string
+    changeSummary?: string
+    correlationId: string
+  }): Promise<Deliverable>
+  promoteDeliverableVersion(input: {
+    deliverableId: string
+    versionId: string
+    expectedPromotedVersionId: string | null
+    correlationId: string
+  }): Promise<DeliverablePromotionResult>
+  setPrimaryDeliverable(input: {
+    humanId: string
+    deliverableId: string
+    expectedPrimaryDeliverableId: string
+    correlationId: string
+  }): Promise<PrimaryDeliverableResult>
   proposeAssigneeChange(
     input: AssigneeChangeProposal
   ): Promise<AssigneeChangeResult>
@@ -492,6 +557,32 @@ export interface ContentRequestService {
     correlationId: string,
     leaseGeneration: number
   ): Promise<AgentJob>
+  listDeliverables(humanId: string): Promise<Array<Deliverable>>
+  createDerivativeDeliverable(input: {
+    humanId: string
+    kind: string
+    name: string
+    body?: string
+    correlationId: string
+  }): Promise<Deliverable>
+  createDeliverableVersion(input: {
+    deliverableId: string
+    body: string
+    changeSummary?: string
+    correlationId: string
+  }): Promise<Deliverable>
+  promoteDeliverableVersion(input: {
+    deliverableId: string
+    versionId: string
+    expectedPromotedVersionId: string | null
+    correlationId: string
+  }): Promise<DeliverablePromotionResult>
+  setPrimaryDeliverable(input: {
+    humanId: string
+    deliverableId: string
+    expectedPrimaryDeliverableId: string
+    correlationId: string
+  }): Promise<PrimaryDeliverableResult>
   proposeAssigneeChange(
     input: AssigneeChangeProposal
   ): Promise<AssigneeChangeResult>
@@ -601,6 +692,14 @@ export function createContentRequestService(
         correlationId,
         leaseGeneration
       ),
+    listDeliverables: (humanId) => repository.listDeliverables(humanId),
+    createDerivativeDeliverable: (input) =>
+      repository.createDerivativeDeliverable(input),
+    createDeliverableVersion: (input) =>
+      repository.createDeliverableVersion(input),
+    promoteDeliverableVersion: (input) =>
+      repository.promoteDeliverableVersion(input),
+    setPrimaryDeliverable: (input) => repository.setPrimaryDeliverable(input),
     proposeAssigneeChange: (input) => repository.proposeAssigneeChange(input),
     listOpenSemanticConflicts: (humanId) =>
       repository.listOpenSemanticConflicts(humanId),

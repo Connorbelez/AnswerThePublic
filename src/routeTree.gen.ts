@@ -27,7 +27,11 @@ import { Route as ApiV1AgentJobsJobIdRouteImport } from './routes/api/v1/agent-j
 import { Route as ApiV1CliContentRequestsRouteImport } from './routes/api/v1/cli/content-requests'
 import { Route as ApiV1CliScoutIngestionsRouteImport } from './routes/api/v1/cli/scout-ingestions'
 import { Route as ApiV1ContentRequestsRequestIdRouteImport } from './routes/api/v1/content-requests.$requestId'
+import { Route as ApiV1DeliverablesDeliverableIdRouteImport } from './routes/api/v1/deliverables.$deliverableId'
+import { Route as ApiV1SemanticConflictsConflictIdRouteImport } from './routes/api/v1/semantic-conflicts.$conflictId'
 import { Route as ApiV1CliContentRequestsRequestIdRouteImport } from './routes/api/v1/cli/content-requests.$requestId'
+import { Route as ApiV1ContentRequestsRequestIdDeliverablesRouteImport } from './routes/api/v1/content-requests.$requestId.deliverables'
+import { Route as ApiV1ContentRequestsRequestIdSemanticConflictsRouteImport } from './routes/api/v1/content-requests.$requestId.semantic-conflicts'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -120,11 +124,35 @@ const ApiV1ContentRequestsRequestIdRoute =
     path: '/$requestId',
     getParentRoute: () => ApiV1ContentRequestsRoute,
   } as any)
+const ApiV1DeliverablesDeliverableIdRoute =
+  ApiV1DeliverablesDeliverableIdRouteImport.update({
+    id: '/api/v1/deliverables/$deliverableId',
+    path: '/api/v1/deliverables/$deliverableId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1SemanticConflictsConflictIdRoute =
+  ApiV1SemanticConflictsConflictIdRouteImport.update({
+    id: '/api/v1/semantic-conflicts/$conflictId',
+    path: '/api/v1/semantic-conflicts/$conflictId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1CliContentRequestsRequestIdRoute =
   ApiV1CliContentRequestsRequestIdRouteImport.update({
     id: '/$requestId',
     path: '/$requestId',
     getParentRoute: () => ApiV1CliContentRequestsRoute,
+  } as any)
+const ApiV1ContentRequestsRequestIdDeliverablesRoute =
+  ApiV1ContentRequestsRequestIdDeliverablesRouteImport.update({
+    id: '/deliverables',
+    path: '/deliverables',
+    getParentRoute: () => ApiV1ContentRequestsRequestIdRoute,
+  } as any)
+const ApiV1ContentRequestsRequestIdSemanticConflictsRoute =
+  ApiV1ContentRequestsRequestIdSemanticConflictsRouteImport.update({
+    id: '/semantic-conflicts',
+    path: '/semantic-conflicts',
+    getParentRoute: () => ApiV1ContentRequestsRequestIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -145,8 +173,12 @@ export interface FileRoutesByFullPath {
   '/api/v1/agent-jobs/$jobId': typeof ApiV1AgentJobsJobIdRoute
   '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
   '/api/v1/cli/scout-ingestions': typeof ApiV1CliScoutIngestionsRoute
-  '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRoute
+  '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRouteWithChildren
+  '/api/v1/deliverables/$deliverableId': typeof ApiV1DeliverablesDeliverableIdRoute
+  '/api/v1/semantic-conflicts/$conflictId': typeof ApiV1SemanticConflictsConflictIdRoute
   '/api/v1/cli/content-requests/$requestId': typeof ApiV1CliContentRequestsRequestIdRoute
+  '/api/v1/content-requests/$requestId/deliverables': typeof ApiV1ContentRequestsRequestIdDeliverablesRoute
+  '/api/v1/content-requests/$requestId/semantic-conflicts': typeof ApiV1ContentRequestsRequestIdSemanticConflictsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -165,8 +197,12 @@ export interface FileRoutesByTo {
   '/api/v1/agent-jobs/$jobId': typeof ApiV1AgentJobsJobIdRoute
   '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
   '/api/v1/cli/scout-ingestions': typeof ApiV1CliScoutIngestionsRoute
-  '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRoute
+  '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRouteWithChildren
+  '/api/v1/deliverables/$deliverableId': typeof ApiV1DeliverablesDeliverableIdRoute
+  '/api/v1/semantic-conflicts/$conflictId': typeof ApiV1SemanticConflictsConflictIdRoute
   '/api/v1/cli/content-requests/$requestId': typeof ApiV1CliContentRequestsRequestIdRoute
+  '/api/v1/content-requests/$requestId/deliverables': typeof ApiV1ContentRequestsRequestIdDeliverablesRoute
+  '/api/v1/content-requests/$requestId/semantic-conflicts': typeof ApiV1ContentRequestsRequestIdSemanticConflictsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -187,8 +223,12 @@ export interface FileRoutesById {
   '/api/v1/agent-jobs/$jobId': typeof ApiV1AgentJobsJobIdRoute
   '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
   '/api/v1/cli/scout-ingestions': typeof ApiV1CliScoutIngestionsRoute
-  '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRoute
+  '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRouteWithChildren
+  '/api/v1/deliverables/$deliverableId': typeof ApiV1DeliverablesDeliverableIdRoute
+  '/api/v1/semantic-conflicts/$conflictId': typeof ApiV1SemanticConflictsConflictIdRoute
   '/api/v1/cli/content-requests/$requestId': typeof ApiV1CliContentRequestsRequestIdRoute
+  '/api/v1/content-requests/$requestId/deliverables': typeof ApiV1ContentRequestsRequestIdDeliverablesRoute
+  '/api/v1/content-requests/$requestId/semantic-conflicts': typeof ApiV1ContentRequestsRequestIdSemanticConflictsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -211,7 +251,11 @@ export interface FileRouteTypes {
     | '/api/v1/cli/content-requests'
     | '/api/v1/cli/scout-ingestions'
     | '/api/v1/content-requests/$requestId'
+    | '/api/v1/deliverables/$deliverableId'
+    | '/api/v1/semantic-conflicts/$conflictId'
     | '/api/v1/cli/content-requests/$requestId'
+    | '/api/v1/content-requests/$requestId/deliverables'
+    | '/api/v1/content-requests/$requestId/semantic-conflicts'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -231,7 +275,11 @@ export interface FileRouteTypes {
     | '/api/v1/cli/content-requests'
     | '/api/v1/cli/scout-ingestions'
     | '/api/v1/content-requests/$requestId'
+    | '/api/v1/deliverables/$deliverableId'
+    | '/api/v1/semantic-conflicts/$conflictId'
     | '/api/v1/cli/content-requests/$requestId'
+    | '/api/v1/content-requests/$requestId/deliverables'
+    | '/api/v1/content-requests/$requestId/semantic-conflicts'
   id:
     | '__root__'
     | '/'
@@ -252,7 +300,11 @@ export interface FileRouteTypes {
     | '/api/v1/cli/content-requests'
     | '/api/v1/cli/scout-ingestions'
     | '/api/v1/content-requests/$requestId'
+    | '/api/v1/deliverables/$deliverableId'
+    | '/api/v1/semantic-conflicts/$conflictId'
     | '/api/v1/cli/content-requests/$requestId'
+    | '/api/v1/content-requests/$requestId/deliverables'
+    | '/api/v1/content-requests/$requestId/semantic-conflicts'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -269,6 +321,8 @@ export interface RootRouteChildren {
   ApiV1ScoutIngestionsRoute: typeof ApiV1ScoutIngestionsRoute
   ApiV1CliContentRequestsRoute: typeof ApiV1CliContentRequestsRouteWithChildren
   ApiV1CliScoutIngestionsRoute: typeof ApiV1CliScoutIngestionsRoute
+  ApiV1DeliverablesDeliverableIdRoute: typeof ApiV1DeliverablesDeliverableIdRoute
+  ApiV1SemanticConflictsConflictIdRoute: typeof ApiV1SemanticConflictsConflictIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -399,12 +453,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1ContentRequestsRequestIdRouteImport
       parentRoute: typeof ApiV1ContentRequestsRoute
     }
+    '/api/v1/deliverables/$deliverableId': {
+      id: '/api/v1/deliverables/$deliverableId'
+      path: '/api/v1/deliverables/$deliverableId'
+      fullPath: '/api/v1/deliverables/$deliverableId'
+      preLoaderRoute: typeof ApiV1DeliverablesDeliverableIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/semantic-conflicts/$conflictId': {
+      id: '/api/v1/semantic-conflicts/$conflictId'
+      path: '/api/v1/semantic-conflicts/$conflictId'
+      fullPath: '/api/v1/semantic-conflicts/$conflictId'
+      preLoaderRoute: typeof ApiV1SemanticConflictsConflictIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/cli/content-requests/$requestId': {
       id: '/api/v1/cli/content-requests/$requestId'
       path: '/$requestId'
       fullPath: '/api/v1/cli/content-requests/$requestId'
       preLoaderRoute: typeof ApiV1CliContentRequestsRequestIdRouteImport
       parentRoute: typeof ApiV1CliContentRequestsRoute
+    }
+    '/api/v1/content-requests/$requestId/deliverables': {
+      id: '/api/v1/content-requests/$requestId/deliverables'
+      path: '/deliverables'
+      fullPath: '/api/v1/content-requests/$requestId/deliverables'
+      preLoaderRoute: typeof ApiV1ContentRequestsRequestIdDeliverablesRouteImport
+      parentRoute: typeof ApiV1ContentRequestsRequestIdRoute
+    }
+    '/api/v1/content-requests/$requestId/semantic-conflicts': {
+      id: '/api/v1/content-requests/$requestId/semantic-conflicts'
+      path: '/semantic-conflicts'
+      fullPath: '/api/v1/content-requests/$requestId/semantic-conflicts'
+      preLoaderRoute: typeof ApiV1ContentRequestsRequestIdSemanticConflictsRouteImport
+      parentRoute: typeof ApiV1ContentRequestsRequestIdRoute
     }
   }
 }
@@ -435,12 +517,31 @@ const ApiV1AgentJobsRouteWithChildren = ApiV1AgentJobsRoute._addFileChildren(
   ApiV1AgentJobsRouteChildren,
 )
 
+interface ApiV1ContentRequestsRequestIdRouteChildren {
+  ApiV1ContentRequestsRequestIdDeliverablesRoute: typeof ApiV1ContentRequestsRequestIdDeliverablesRoute
+  ApiV1ContentRequestsRequestIdSemanticConflictsRoute: typeof ApiV1ContentRequestsRequestIdSemanticConflictsRoute
+}
+
+const ApiV1ContentRequestsRequestIdRouteChildren: ApiV1ContentRequestsRequestIdRouteChildren =
+  {
+    ApiV1ContentRequestsRequestIdDeliverablesRoute:
+      ApiV1ContentRequestsRequestIdDeliverablesRoute,
+    ApiV1ContentRequestsRequestIdSemanticConflictsRoute:
+      ApiV1ContentRequestsRequestIdSemanticConflictsRoute,
+  }
+
+const ApiV1ContentRequestsRequestIdRouteWithChildren =
+  ApiV1ContentRequestsRequestIdRoute._addFileChildren(
+    ApiV1ContentRequestsRequestIdRouteChildren,
+  )
+
 interface ApiV1ContentRequestsRouteChildren {
-  ApiV1ContentRequestsRequestIdRoute: typeof ApiV1ContentRequestsRequestIdRoute
+  ApiV1ContentRequestsRequestIdRoute: typeof ApiV1ContentRequestsRequestIdRouteWithChildren
 }
 
 const ApiV1ContentRequestsRouteChildren: ApiV1ContentRequestsRouteChildren = {
-  ApiV1ContentRequestsRequestIdRoute: ApiV1ContentRequestsRequestIdRoute,
+  ApiV1ContentRequestsRequestIdRoute:
+    ApiV1ContentRequestsRequestIdRouteWithChildren,
 }
 
 const ApiV1ContentRequestsRouteWithChildren =
@@ -475,6 +576,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1ScoutIngestionsRoute: ApiV1ScoutIngestionsRoute,
   ApiV1CliContentRequestsRoute: ApiV1CliContentRequestsRouteWithChildren,
   ApiV1CliScoutIngestionsRoute: ApiV1CliScoutIngestionsRoute,
+  ApiV1DeliverablesDeliverableIdRoute: ApiV1DeliverablesDeliverableIdRoute,
+  ApiV1SemanticConflictsConflictIdRoute: ApiV1SemanticConflictsConflictIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

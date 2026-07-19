@@ -35,6 +35,13 @@ function usage() {
     "  job-heartbeat <job-id> --lease-token <token> --lease-generation <n> [--lease-ms 300000]",
     "  job-complete <job-id> --lease-token <token> --lease-generation <n> --file <response.md>",
     "  job-fail <job-id> --lease-token <token> --lease-generation <n> --error-code <code> [--permanent]",
+    "  deliverables <CR-ID>",
+    "  derivative <CR-ID> --kind <kind> --name <name> [--file content.md] [--idempotency-key key]",
+    "  version <deliverable-id> --file content.md [--summary text] [--idempotency-key key]",
+    "  promote <deliverable-id> --version-id <version-id> --expected-version-id <version-id|none> [--idempotency-key key]",
+    "  primary <CR-ID> --deliverable-id <deliverable-id> --expected-primary-id <deliverable-id> [--idempotency-key key]",
+    "  conflicts <CR-ID>",
+    "  conflict-resolve <conflict-id> --value <selected-id> [--idempotency-key key]",
     "Environment: CONTENT_REQUESTS_API_URL, CONTENT_REQUESTS_ACCESS_TOKEN",
   ].join("\n")
 }
@@ -154,6 +161,91 @@ export async function runContentRequestsCli(
           leaseGeneration,
         }
       init = { method: "POST", headers, body: JSON.stringify(body) }
+    }
+  } else if (["deliverables", "derivative", "primary"].includes(command)) {
+    const requestId = args[0]
+    if (!requestId) throw new Error(`${command} requires a Content Request ID.`)
+    url = `${baseUrl}/api/v1/content-requests/${encodeURIComponent(requestId)}/deliverables`
+    if (command !== "deliverables") {
+      let body: Record<string, unknown>
+      if (command === "primary")
+        body = {
+          action: "set_primary",
+          deliverableId: requireFlag(args, "--deliverable-id"),
+          expectedPrimaryDeliverableId: requireFlag(
+            args,
+            "--expected-primary-id"
+          ),
+          correlationId:
+            readFlag(args, "--idempotency-key") ?? crypto.randomUUID(),
+        }
+      else {
+        const file = readFlag(args, "--file")
+        const readFile =
+          options.readFile ??
+          (async (path: string) =>
+            (await import("node:fs/promises")).readFile(path, "utf8"))
+        body = {
+          action: "create_derivative",
+          kind: requireFlag(args, "--kind"),
+          name: requireFlag(args, "--name"),
+          body: file ? await readFile(file) : undefined,
+          correlationId:
+            readFlag(args, "--idempotency-key") ?? crypto.randomUUID(),
+        }
+      }
+      init = { method: "POST", headers, body: JSON.stringify(body) }
+    }
+  } else if (["version", "promote"].includes(command)) {
+    const deliverableId = args[0]
+    if (!deliverableId) throw new Error(`${command} requires a deliverable ID.`)
+    url = `${baseUrl}/api/v1/deliverables/${encodeURIComponent(deliverableId)}`
+    if (command === "version") {
+      const readFile =
+        options.readFile ??
+        (async (path: string) =>
+          (await import("node:fs/promises")).readFile(path, "utf8"))
+      init = {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          action: "create_version",
+          body: await readFile(requireFlag(args, "--file")),
+          changeSummary: readFlag(args, "--summary"),
+          correlationId:
+            readFlag(args, "--idempotency-key") ?? crypto.randomUUID(),
+        }),
+      }
+    } else {
+      const expectedVersionId = requireFlag(args, "--expected-version-id")
+      init = {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          action: "promote",
+          versionId: requireFlag(args, "--version-id"),
+          expectedPromotedVersionId:
+            expectedVersionId === "none" ? null : expectedVersionId,
+          correlationId:
+            readFlag(args, "--idempotency-key") ?? crypto.randomUUID(),
+        }),
+      }
+    }
+  } else if (command === "conflicts") {
+    if (!args[0]) throw new Error("conflicts requires a Content Request ID.")
+    url = `${baseUrl}/api/v1/content-requests/${encodeURIComponent(args[0])}/semantic-conflicts`
+  } else if (command === "conflict-resolve") {
+    if (!args[0]) throw new Error("conflict-resolve requires a conflict ID.")
+    url = `${baseUrl}/api/v1/semantic-conflicts/${encodeURIComponent(args[0])}`
+    init = {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        action: "resolve",
+        selectedValue: requireFlag(args, "--value"),
+        correlationId:
+          readFlag(args, "--idempotency-key") ?? crypto.randomUUID(),
+      }),
     }
   } else {
     throw new Error(`Unknown command: ${command}\n${usage()}`)

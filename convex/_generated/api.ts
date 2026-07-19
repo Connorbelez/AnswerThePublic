@@ -11,6 +11,7 @@ import type { ComponentApi as TimelineComponentApi } from "convex-timeline/_gene
 
 import type * as principals from "../principals"
 import type * as contentRequests from "../contentRequests"
+import type * as deliverables from "../deliverables"
 import type * as agentJobs from "../agentJobs"
 import type * as founderInputs from "../founderInputs"
 import type * as notifications from "../notifications"
@@ -22,6 +23,7 @@ import type * as voiceCaptures from "../voiceCaptures"
 const fullApi: ApiFromModules<{
   agentJobs: typeof agentJobs
   contentRequests: typeof contentRequests
+  deliverables: typeof deliverables
   founderInputs: typeof founderInputs
   notifications: typeof notifications
   migrations: typeof migrations

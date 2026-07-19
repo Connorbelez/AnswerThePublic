@@ -3,6 +3,7 @@ import { ConvexError, v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
 import { mutation, query } from "./_generated/server"
 import { requireEditor, requirePrincipal } from "./lib/authorization"
+import { lifecycleForPrimary } from "./lib/deliverableLifecycle"
 import { enqueueNotification } from "./lib/notificationOutbox"
 
 const conflictValidator = v.object({
@@ -315,6 +316,182 @@ export const resolve = mutation({
     const request = await ctx.db.get(conflict.requestId)
     if (!request || request.organizationId !== actor.organizationId) {
       throw new ConvexError({ code: "NOT_FOUND" })
+    }
+    const resolveSingleton = async (
+      currentValue: string,
+      applySelectedValue: (now: number) => Promise<void>
+    ) => {
+      const now = Date.now()
+      const afterVersion = request.aggregateVersion + 1
+      if (
+        currentValue !== conflict.currentValue &&
+        currentValue !== args.selectedValue
+      ) {
+        await ctx.db.patch(conflict._id, {
+          status: "resolved",
+          resolvedByPrincipalId: actor._id,
+          resolvedValue: currentValue,
+          resolvedAt: now,
+        })
+        const rebasedConflictId = await ctx.db.insert("semanticConflicts", {
+          organizationId: actor.organizationId,
+          requestId: request._id,
+          field: conflict.field,
+          currentValue,
+          proposedValue: args.selectedValue,
+          expectedValue: conflict.currentValue,
+          status: "open",
+          createdByPrincipalId: actor._id,
+          correlationId,
+          createdAt: now,
+        })
+        await ctx.db.patch(request._id, {
+          aggregateVersion: afterVersion,
+          updatedAt: now,
+        })
+        await ctx.db.insert("auditEvents", {
+          organizationId: actor.organizationId,
+          requestId: request._id,
+          requestHumanId: request.humanId,
+          actorPrincipalId: actor._id,
+          credentialId: actor.credentialId,
+          operation: "content_request.semantic_conflict_rebased",
+          correlationId,
+          occurredAt: now,
+          beforeVersion: request.aggregateVersion,
+          afterVersion,
+        })
+        await ctx.db.insert("semanticConflictOperations", {
+          organizationId: actor.organizationId,
+          requestId: request._id,
+          actorPrincipalId: actor._id,
+          operation: "resolve",
+          correlationId,
+          selectedValue: args.selectedValue,
+          sourceConflictId: conflict._id,
+          conflictId: rebasedConflictId,
+          outcome: "attention_required",
+          createdAt: now,
+        })
+        const rebased = await ctx.db.get(rebasedConflictId)
+        if (!rebased) throw new ConvexError({ code: "WRITE_FAILED" })
+        return publicConflict(request.humanId, rebased)
+      }
+      await applySelectedValue(now)
+      await ctx.db.patch(request._id, {
+        aggregateVersion: afterVersion,
+        updatedAt: now,
+      })
+      await ctx.db.patch(conflict._id, {
+        status: "resolved",
+        resolvedByPrincipalId: actor._id,
+        resolvedValue: args.selectedValue,
+        resolvedAt: now,
+      })
+      await ctx.db.insert("auditEvents", {
+        organizationId: actor.organizationId,
+        requestId: request._id,
+        requestHumanId: request.humanId,
+        actorPrincipalId: actor._id,
+        credentialId: actor.credentialId,
+        operation: "content_request.semantic_conflict_resolved",
+        correlationId,
+        occurredAt: now,
+        beforeVersion: request.aggregateVersion,
+        afterVersion,
+      })
+      await ctx.db.insert("semanticConflictOperations", {
+        organizationId: actor.organizationId,
+        requestId: request._id,
+        actorPrincipalId: actor._id,
+        operation: "resolve",
+        correlationId,
+        selectedValue: args.selectedValue,
+        sourceConflictId: conflict._id,
+        conflictId: conflict._id,
+        outcome: "resolved",
+        createdAt: now,
+      })
+      const resolved = await ctx.db.get(conflict._id)
+      if (!resolved) throw new ConvexError({ code: "WRITE_FAILED" })
+      return publicConflict(request.humanId, resolved)
+    }
+    if (conflict.field === "primaryDeliverableId") {
+      if (request.lifecycle === "responded")
+        throw new ConvexError({ code: "DELIVERED_PRIMARY_LOCKED" })
+      const deliverables = await ctx.db
+        .query("deliverables")
+        .withIndex("by_request", (index) => index.eq("requestId", request._id))
+        .collect()
+      const current = deliverables.find((deliverable) => deliverable.isPrimary)
+      const selected = await ctx.db.get(
+        args.selectedValue as Id<"deliverables">
+      )
+      if (!current || !selected || selected.requestId !== request._id)
+        throw new ConvexError({ code: "NOT_FOUND" })
+      if ((selected.retention ?? "active") !== "active")
+        throw new ConvexError({ code: "DELIVERABLE_ARCHIVED" })
+      return resolveSingleton(current._id, async (now) => {
+        for (const deliverable of deliverables)
+          if (deliverable.isPrimary !== (deliverable._id === selected._id))
+            await ctx.db.patch(deliverable._id, {
+              isPrimary: deliverable._id === selected._id,
+              updatedAt: now,
+            })
+        if (current._id !== selected._id && request.lifecycle !== "responded")
+          await ctx.db.insert("primaryDeliverableEvents", {
+            organizationId: actor.organizationId,
+            requestId: request._id,
+            previousDeliverableId: current._id,
+            newDeliverableId: selected._id,
+            actorPrincipalId: actor._id,
+            credentialId: actor.credentialId,
+            correlationId,
+            occurredAt: now,
+          })
+        await ctx.db.patch(request._id, {
+          lifecycle: await lifecycleForPrimary(ctx, request, selected),
+        })
+      })
+    }
+    if (conflict.field === "promotedVersionId") {
+      const selected = await ctx.db.get(
+        args.selectedValue as Id<"deliverableVersions">
+      )
+      if (!selected || selected.requestId !== request._id)
+        throw new ConvexError({ code: "NOT_FOUND" })
+      const deliverable = await ctx.db.get(selected.deliverableId)
+      if (!deliverable || deliverable.requestId !== request._id)
+        throw new ConvexError({ code: "NOT_FOUND" })
+      if ((deliverable.retention ?? "active") !== "active")
+        throw new ConvexError({ code: "DELIVERABLE_ARCHIVED" })
+      const proposed = await ctx.db.get(
+        conflict.proposedValue as Id<"deliverableVersions">
+      )
+      if (!proposed || proposed.deliverableId !== deliverable._id)
+        throw new ConvexError({ code: "VALIDATION_FAILED" })
+      const currentValue = deliverable.promotedVersionId ?? ""
+      return resolveSingleton(currentValue, async (now) => {
+        await ctx.db.patch(deliverable._id, {
+          promotedVersionId: selected._id,
+          updatedAt: now,
+        })
+        if (deliverable.isPrimary && request.lifecycle !== "responded")
+          await ctx.db.patch(request._id, { lifecycle: "ready_to_respond" })
+        if (currentValue !== selected._id)
+          await ctx.db.insert("deliverablePromotionEvents", {
+            organizationId: actor.organizationId,
+            requestId: request._id,
+            deliverableId: deliverable._id,
+            versionId: selected._id,
+            previousVersionId: deliverable.promotedVersionId,
+            actorPrincipalId: actor._id,
+            credentialId: actor.credentialId,
+            operation: "promoted",
+            correlationId,
+            occurredAt: now,
+          })
+      })
     }
     if (conflict.field !== "assigneePrincipalId") {
       throw new ConvexError({ code: "UNSUPPORTED_CONFLICT_FIELD" })

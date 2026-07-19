@@ -20,6 +20,7 @@ import {
   listAssignablePrincipals,
   listFounderArchivedVersions,
   listFounderVoiceCaptures,
+  listDeliverables,
   listOpenSemanticConflicts,
   openContentRequest,
   markFounderVoiceTranscriptMerged,
@@ -36,6 +37,7 @@ import {
 import { loadWorkspaceSession } from "@/application/load-workspace-session"
 import { RequestAssignmentControl } from "@/components/request-assignment-control"
 import { SemanticConflictPanel } from "@/components/semantic-conflict-panel"
+import { DeliverablePanel } from "@/components/deliverable-panel"
 import { UnifiedContextCanvas } from "@/components/unified-context-canvas"
 import type { ContextDeckPreferences } from "@/application/content-requests"
 import { useFounderAutomerge } from "@/hooks/use-founder-automerge"
@@ -58,6 +60,7 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       contextDeckPreferences,
       founderInput,
       semanticConflicts,
+      deliverables,
     ] = await Promise.all([
       getContentRequest({ data: { humanId: params.requestId } }),
       listAssignablePrincipals(),
@@ -69,6 +72,9 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       session.status === "authenticated" && session.session.role !== "founder"
         ? listOpenSemanticConflicts({ data: { humanId: params.requestId } })
         : Promise.resolve([]),
+      session.status === "authenticated" && session.session.role !== "founder"
+        ? listDeliverables({ data: { humanId: params.requestId } })
+        : Promise.resolve([]),
     ])
     if (!request) throw notFound()
     return {
@@ -78,6 +84,7 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       contextDeckPreferences,
       founderInput,
       semanticConflicts,
+      deliverables,
     }
   },
   component: ContentRequestPage,
@@ -113,6 +120,7 @@ function ContentRequestPage() {
     contextDeckPreferences,
     founderInput,
     semanticConflicts,
+    deliverables,
   } = Route.useLoaderData()
   const session = appRoute.useLoaderData()
   const recordOpen = useServerFn(openContentRequest)
@@ -258,7 +266,9 @@ function ContentRequestPage() {
       <SemanticConflictPanel
         conflicts={semanticConflicts}
         principals={principals}
+        deliverables={deliverables}
       />
+      <DeliverablePanel humanId={request.humanId} deliverables={deliverables} />
       <Card>
         <CardHeader>
           <CardTitle>Assignment</CardTitle>

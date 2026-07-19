@@ -59,8 +59,33 @@ function safeErrorResponse(error: unknown, validationStatus = 400) {
   }
   if (code === "NOT_FOUND")
     return jsonError(404, code, "The requested resource was not found.")
+  if (code === "ASSIGNEE_NOT_FOUND")
+    return jsonError(404, code, "The selected assignee was not found.")
   if (code === "LEASE_LOST")
     return jsonError(409, code, "The job lease is no longer active.")
+  if (
+    code === "DELIVERED_PRIMARY_LOCKED" ||
+    code === "DELIVERABLE_ARCHIVED" ||
+    code === "PRIMARY_DELIVERABLE_MISSING" ||
+    code === "CONFLICT_ALREADY_RESOLVED"
+  )
+    return jsonError(
+      409,
+      code,
+      code === "DELIVERED_PRIMARY_LOCKED"
+        ? "The primary deliverable is locked after delivery."
+        : code === "DELIVERABLE_ARCHIVED"
+          ? "An archived deliverable cannot become primary."
+          : code === "PRIMARY_DELIVERABLE_MISSING"
+            ? "The request does not have a primary deliverable."
+            : "The semantic conflict was already resolved."
+    )
+  if (code === "FOUNDER_INPUT_HANDOFF_REQUIRED")
+    return jsonError(
+      409,
+      code,
+      "Founder input must be explicitly handed off before reassignment."
+    )
   if (code === "VALIDATION_FAILED") {
     return jsonError(validationStatus, code, "The request payload is invalid.")
   }
@@ -350,6 +375,208 @@ export function createAgentJobItemHandler(
             "The request payload is invalid."
           )
         return Response.json({ data })
+      } catch (error) {
+        return safeErrorResponse(error)
+      }
+    },
+  }
+}
+
+export function createDeliverableCollectionHandler(
+  serviceForRequest: ContentRequestServiceFactory
+) {
+  return {
+    GET: async ({
+      request,
+      params,
+    }: {
+      request: Request
+      params: { requestId: string }
+    }) => {
+      try {
+        return Response.json({
+          data: await (
+            await serviceForRequest(request)
+          ).listDeliverables(params.requestId),
+        })
+      } catch (error) {
+        return safeErrorResponse(error)
+      }
+    },
+    POST: async ({
+      request,
+      params,
+    }: {
+      request: Request
+      params: { requestId: string }
+    }) => {
+      const body = await requestBody(request)
+      if (!body || typeof body.action !== "string")
+        return jsonError(
+          400,
+          "VALIDATION_FAILED",
+          "The request payload is invalid."
+        )
+      try {
+        const service = await serviceForRequest(request)
+        const operationId =
+          typeof body.correlationId === "string"
+            ? body.correlationId
+            : correlationId(request)
+        const data =
+          body.action === "create_derivative" &&
+          typeof body.kind === "string" &&
+          typeof body.name === "string" &&
+          (body.body === undefined || typeof body.body === "string")
+            ? await service.createDerivativeDeliverable({
+                humanId: params.requestId,
+                kind: body.kind,
+                name: body.name,
+                body: body.body,
+                correlationId: operationId,
+              })
+            : body.action === "set_primary" &&
+                typeof body.deliverableId === "string" &&
+                typeof body.expectedPrimaryDeliverableId === "string"
+              ? await service.setPrimaryDeliverable({
+                  humanId: params.requestId,
+                  deliverableId: body.deliverableId,
+                  expectedPrimaryDeliverableId:
+                    body.expectedPrimaryDeliverableId,
+                  correlationId: operationId,
+                })
+              : null
+        return data === null
+          ? jsonError(
+              400,
+              "VALIDATION_FAILED",
+              "The request payload is invalid."
+            )
+          : Response.json({ data })
+      } catch (error) {
+        return safeErrorResponse(error)
+      }
+    },
+  }
+}
+
+export function createDeliverableItemHandler(
+  serviceForRequest: ContentRequestServiceFactory
+) {
+  return {
+    POST: async ({
+      request,
+      params,
+    }: {
+      request: Request
+      params: { deliverableId: string }
+    }) => {
+      const body = await requestBody(request)
+      if (!body || typeof body.action !== "string")
+        return jsonError(
+          400,
+          "VALIDATION_FAILED",
+          "The request payload is invalid."
+        )
+      try {
+        const service = await serviceForRequest(request)
+        const operationId =
+          typeof body.correlationId === "string"
+            ? body.correlationId
+            : correlationId(request)
+        const data =
+          body.action === "create_version" && typeof body.body === "string"
+            ? await service.createDeliverableVersion({
+                deliverableId: params.deliverableId,
+                body: body.body,
+                changeSummary:
+                  typeof body.changeSummary === "string"
+                    ? body.changeSummary
+                    : undefined,
+                correlationId: operationId,
+              })
+            : body.action === "promote" &&
+                typeof body.versionId === "string" &&
+                (typeof body.expectedPromotedVersionId === "string" ||
+                  body.expectedPromotedVersionId === null)
+              ? await service.promoteDeliverableVersion({
+                  deliverableId: params.deliverableId,
+                  versionId: body.versionId,
+                  expectedPromotedVersionId: body.expectedPromotedVersionId,
+                  correlationId: operationId,
+                })
+              : null
+        return data === null
+          ? jsonError(
+              400,
+              "VALIDATION_FAILED",
+              "The request payload is invalid."
+            )
+          : Response.json({ data })
+      } catch (error) {
+        return safeErrorResponse(error)
+      }
+    },
+  }
+}
+
+export function createSemanticConflictCollectionHandler(
+  serviceForRequest: ContentRequestServiceFactory
+) {
+  return {
+    GET: async ({
+      request,
+      params,
+    }: {
+      request: Request
+      params: { requestId: string }
+    }) => {
+      try {
+        const service = await serviceForRequest(request)
+        return Response.json({
+          data: await service.listOpenSemanticConflicts(params.requestId),
+        })
+      } catch (error) {
+        return safeErrorResponse(error)
+      }
+    },
+  }
+}
+
+export function createSemanticConflictItemHandler(
+  serviceForRequest: ContentRequestServiceFactory
+) {
+  return {
+    POST: async ({
+      request,
+      params,
+    }: {
+      request: Request
+      params: { conflictId: string }
+    }) => {
+      const body = await requestBody(request)
+      if (
+        !body ||
+        body.action !== "resolve" ||
+        typeof body.selectedValue !== "string"
+      )
+        return jsonError(
+          400,
+          "VALIDATION_FAILED",
+          "The request payload is invalid."
+        )
+      try {
+        const service = await serviceForRequest(request)
+        return Response.json({
+          data: await service.resolveSemanticConflict({
+            conflictId: params.conflictId,
+            selectedValue: body.selectedValue,
+            correlationId:
+              typeof body.correlationId === "string"
+                ? body.correlationId
+                : correlationId(request),
+          }),
+        })
       } catch (error) {
         return safeErrorResponse(error)
       }

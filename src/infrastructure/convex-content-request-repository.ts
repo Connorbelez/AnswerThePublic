@@ -271,6 +271,35 @@ export function createConvexContentRequestRepository({
         leaseGeneration,
       })
     },
+    async listDeliverables(humanId) {
+      return (await client()).query(api.deliverables.list, { humanId })
+    },
+    async createDerivativeDeliverable(input) {
+      return (await client()).mutation(api.deliverables.createDerivative, input)
+    },
+    async createDeliverableVersion(input) {
+      return (await client()).mutation(api.deliverables.createVersion, {
+        ...input,
+        deliverableId: input.deliverableId as Id<"deliverables">,
+      })
+    },
+    async promoteDeliverableVersion(input) {
+      return (await client()).mutation(api.deliverables.promote, {
+        ...input,
+        deliverableId: input.deliverableId as Id<"deliverables">,
+        versionId: input.versionId as Id<"deliverableVersions">,
+        expectedPromotedVersionId:
+          input.expectedPromotedVersionId as Id<"deliverableVersions"> | null,
+      })
+    },
+    async setPrimaryDeliverable(input) {
+      return (await client()).mutation(api.deliverables.setPrimary, {
+        ...input,
+        deliverableId: input.deliverableId as Id<"deliverables">,
+        expectedPrimaryDeliverableId:
+          input.expectedPrimaryDeliverableId as Id<"deliverables">,
+      })
+    },
     async proposeAssigneeChange(input) {
       return (await client()).mutation(
         api.semanticConflicts.proposeAssigneeChange,

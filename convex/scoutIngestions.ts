@@ -215,6 +215,16 @@ export const apply = mutation({
           createdAt: now,
           updatedAt: now,
         })
+        await ctx.db.insert("deliverables", {
+          organizationId: principal.organizationId,
+          requestId,
+          kind: "primary_response",
+          name: "Primary response",
+          isPrimary: true,
+          retention: "active",
+          createdAt: now,
+          updatedAt: now,
+        })
         humanId = humanIdFor(requestId)
         const sourceSnapshotId = await ctx.db.insert("sourceSnapshots", {
           organizationId: principal.organizationId,

@@ -535,43 +535,95 @@ export const complete = mutation({
     const body = args.body.trim()
     if (!body) throw new ConvexError({ code: "VALIDATION_FAILED" })
     const correlationId = requiredNonEmpty(args.correlationId)
+    const request = await ctx.db.get(job.requestId)
+    if (!request) throw new ConvexError({ code: "NOT_FOUND" })
     const deliverables = await ctx.db
       .query("deliverables")
       .withIndex("by_request", (q) => q.eq("requestId", job.requestId))
       .collect()
-    const deliverable = deliverables.find((candidate) => candidate.isPrimary)
+    let deliverable = deliverables.find(
+      (candidate) =>
+        candidate.isPrimary && (candidate.retention ?? "active") === "active"
+    )
     let deliverableId = deliverable?._id
-    if (!deliverableId)
+    const activePrimaries = deliverables.filter(
+      (candidate) =>
+        candidate.isPrimary && (candidate.retention ?? "active") === "active"
+    )
+    if (request.lifecycle === "responded" && activePrimaries.length !== 1)
+      throw new ConvexError({ code: "DELIVERED_PRIMARY_LOCKED" })
+    if (deliverable && request.lifecycle !== "responded")
+      for (const candidate of deliverables)
+        if (candidate.isPrimary && candidate._id !== deliverable._id)
+          await ctx.db.patch(candidate._id, {
+            isPrimary: false,
+            updatedAt: now,
+          })
+    if (!deliverableId) {
+      if (request.lifecycle === "responded")
+        throw new ConvexError({ code: "DELIVERED_PRIMARY_LOCKED" })
+      for (const candidate of deliverables)
+        if (candidate.isPrimary)
+          await ctx.db.patch(candidate._id, {
+            isPrimary: false,
+            updatedAt: now,
+          })
       deliverableId = await ctx.db.insert("deliverables", {
         organizationId: principal.organizationId,
         requestId: job.requestId,
         kind: "primary_response",
         name: "Primary response",
         isPrimary: true,
+        retention: "active",
         createdAt: now,
         updatedAt: now,
       })
+      deliverable = (await ctx.db.get(deliverableId)) ?? undefined
+      if (!deliverable) throw new ConvexError({ code: "WRITE_FAILED" })
+    }
     const existing = await ctx.db
       .query("deliverableVersions")
       .withIndex("by_source_job", (q) => q.eq("sourceJobId", job._id))
       .unique()
     let versionId = existing?._id
-    if (!versionId)
+    if (!versionId) {
+      const latestVersion = await ctx.db
+        .query("deliverableVersions")
+        .withIndex("by_deliverable_ordinal", (q) =>
+          q.eq("deliverableId", deliverableId)
+        )
+        .order("desc")
+        .first()
       versionId = await ctx.db.insert("deliverableVersions", {
         organizationId: principal.organizationId,
         requestId: job.requestId,
         deliverableId,
         body,
-        ordinal: 1,
+        ordinal: (latestVersion?.ordinal ?? 0) + 1,
         createdByPrincipalId: principal._id,
         sourceJobId: job._id,
+        correlationId,
+        changeSummary: "Initial agent draft",
         createdAt: now,
       })
+    }
     await ctx.db.patch(deliverableId, {
       currentCandidateVersionId: versionId,
-      promotedVersionId: versionId,
+      promotedVersionId: deliverable?.promotedVersionId ?? versionId,
       updatedAt: now,
     })
+    if (!deliverable?.promotedVersionId)
+      await ctx.db.insert("deliverablePromotionEvents", {
+        organizationId: principal.organizationId,
+        requestId: job.requestId,
+        deliverableId,
+        versionId,
+        actorPrincipalId: principal._id,
+        credentialId: principal.credentialId,
+        operation: "auto_promoted",
+        correlationId,
+        occurredAt: now,
+      })
     await ctx.db.patch(job._id, {
       status: "completed",
       resultVersionId: versionId,
@@ -580,11 +632,10 @@ export const complete = mutation({
       completedAt: now,
       updatedAt: now,
     })
-    const request = await ctx.db.get(job.requestId)
-    if (!request) throw new ConvexError({ code: "NOT_FOUND" })
     const afterVersion = request.aggregateVersion + 1
     await ctx.db.patch(request._id, {
-      lifecycle: "ready_to_respond",
+      lifecycle:
+        request.lifecycle === "responded" ? "responded" : "ready_to_respond",
       aggregateVersion: afterVersion,
       updatedAt: now,
     })
@@ -600,7 +651,8 @@ export const complete = mutation({
       beforeVersion: request.aggregateVersion,
       afterVersion,
     })
-    await notifyOperators(ctx, request, "response_ready", now)
+    if (request.lifecycle !== "responded")
+      await notifyOperators(ctx, request, "response_ready", now)
     return publicJob(ctx, await requiredJob(ctx, job._id))
   },
 })

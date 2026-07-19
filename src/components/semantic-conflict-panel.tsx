@@ -5,6 +5,7 @@ import { CircleAlert } from "lucide-react"
 
 import { resolveSemanticConflict } from "@/application/content-request-server-functions"
 import type {
+  Deliverable,
   PrincipalSummary,
   SemanticConflict,
 } from "@/application/content-requests"
@@ -14,9 +15,11 @@ import { Button } from "@/components/ui/button"
 export function SemanticConflictPanel({
   conflicts,
   principals,
+  deliverables,
 }: {
   conflicts: Array<SemanticConflict>
   principals: Array<PrincipalSummary>
+  deliverables: Array<Deliverable>
 }) {
   const resolveConflict = useServerFn(resolveSemanticConflict)
   const router = useRouter()
@@ -28,6 +31,30 @@ export function SemanticConflictPanel({
     principals.find((principal) => principal.principalId === principalId)
       ?.subject ?? principalId
 
+  const valueLabel = (conflict: SemanticConflict, value: string) => {
+    if (conflict.field === "assigneePrincipalId") return principalLabel(value)
+    if (conflict.field === "primaryDeliverableId")
+      return (
+        deliverables.find((deliverable) => deliverable.deliverableId === value)
+          ?.name ?? `deliverable ${value}`
+      )
+    for (const deliverable of deliverables) {
+      const version = deliverable.versions.find(
+        (candidate) => candidate.versionId === value
+      )
+      if (version)
+        return `${deliverable.name} · version ${version.ordinal} · ${version.body.slice(0, 48)}`
+    }
+    return `version ${value}`
+  }
+
+  const fieldLabel = (field: SemanticConflict["field"]) =>
+    field === "assigneePrincipalId"
+      ? "Assignee changed concurrently"
+      : field === "primaryDeliverableId"
+        ? "Primary deliverable changed concurrently"
+        : "Promoted version changed concurrently"
+
   return (
     <Alert variant="destructive" aria-label="Attention required conflicts">
       <CircleAlert />
@@ -35,11 +62,16 @@ export function SemanticConflictPanel({
       <AlertDescription>
         <p>
           Concurrent singleton changes were preserved. Select the intended
-          assignee; a newer third value will be preserved and rebased.
+          value; a newer third value will be preserved and rebased.
         </p>
         {conflicts.map((conflict) => (
-          <div className="semantic-conflict" key={conflict.conflictId}>
-            <span>Assignee changed concurrently</span>
+          <div
+            className="semantic-conflict"
+            key={conflict.conflictId}
+            role="group"
+            aria-label={fieldLabel(conflict.field)}
+          >
+            <span>{fieldLabel(conflict.field)}</span>
             <div className="semantic-conflict__actions">
               {[
                 ...new Set([conflict.currentValue, conflict.proposedValue]),
@@ -72,13 +104,17 @@ export function SemanticConflictPanel({
                     }
                   }}
                 >
-                  Use {principalLabel(value)}
+                  Use {valueLabel(conflict, value)}
                 </Button>
               ))}
             </div>
           </div>
         ))}
-        {error ? <p className="form-error">{error}</p> : null}
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
       </AlertDescription>
     </Alert>
   )
