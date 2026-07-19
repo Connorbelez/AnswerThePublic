@@ -141,7 +141,7 @@ export function DeliveryTargetChecklist({
         <CardTitle>Responded</CardTitle>
         {!readOnly ? (
           <Button
-            size="sm"
+            size="sm-touch"
             variant="outline"
             aria-expanded={adding}
             aria-controls="add-delivery-target"
@@ -231,7 +231,7 @@ export function DeliveryTargetChecklist({
               placeholder="https://…"
               type="url"
             />
-            <Button type="submit" size="sm" disabled={pending !== null}>
+            <Button type="submit" size="sm-touch" disabled={pending !== null}>
               Create optional channel
             </Button>
           </form>
@@ -373,7 +373,7 @@ export function DeliveryTargetChecklist({
                 <div className="flex flex-wrap gap-2">
                   {archived ? (
                     <Button
-                      size="sm"
+                      size="sm-touch"
                       variant="outline"
                       disabled={pending !== null}
                       aria-label={`Restore delivery target ${target.destinationLabel}`}
@@ -387,7 +387,7 @@ export function DeliveryTargetChecklist({
                     </Button>
                   ) : !target.isOriginal ? (
                     <Button
-                      size="sm"
+                      size="sm-touch"
                       variant="ghost"
                       disabled={pending !== null}
                       aria-label={`Archive delivery target ${target.destinationLabel}`}
@@ -402,7 +402,7 @@ export function DeliveryTargetChecklist({
                   ) : null}
                   {!archived && !target.isOriginal ? (
                     <Button
-                      size="sm"
+                      size="sm-touch"
                       variant="ghost"
                       disabled={pending !== null}
                       aria-label={`Make ${target.destinationLabel} ${target.isRequired ? "optional" : "required"}`}
@@ -423,7 +423,7 @@ export function DeliveryTargetChecklist({
                   ) : null}
                   {!archived && target.currentReceipt ? (
                     <Button
-                      size="sm"
+                      size="sm-touch"
                       variant="outline"
                       disabled={pending !== null}
                       aria-label={`Reopen delivery to ${target.destinationLabel}`}
@@ -442,7 +442,7 @@ export function DeliveryTargetChecklist({
                     </Button>
                   ) : !archived ? (
                     <Button
-                      size="sm"
+                      size="sm-touch"
                       disabled={pending !== null || !promotedVersionId}
                       aria-label={`Mark ${target.destinationLabel} responded`}
                       aria-describedby={

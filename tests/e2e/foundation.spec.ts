@@ -1,6 +1,22 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 
 test.setTimeout(60_000)
+
+async function expectMinimumTouchTarget(locator: Locator) {
+  const bounds = await locator.boundingBox()
+
+  expect(bounds?.width).toBeGreaterThanOrEqual(44)
+  expect(bounds?.height).toBeGreaterThanOrEqual(44)
+}
+
+async function expectNoHorizontalOverflow(page: Page) {
+  const width = await page.evaluate(() => ({
+    client: document.documentElement.clientWidth,
+    scroll: document.documentElement.scrollWidth,
+  }))
+
+  expect(width.scroll).toBeLessThanOrEqual(width.client)
+}
 
 test("an unauthenticated visitor is sent to the sign-in boundary", async ({
   page,
@@ -84,6 +100,12 @@ test("an authenticated founder sees their identity and role", async ({
   await expect(page.getByText("Founder library", { exact: true })).toBeVisible()
   await expect(page.getByText("Elie", { exact: true })).toBeVisible()
   await expect(page.getByText("Founder", { exact: true })).toBeVisible()
+
+  for (const name of ["Open navigation", "Notifications", "Sign out"]) {
+    await expectMinimumTouchTarget(page.getByRole("button", { name }))
+  }
+
+  await expectNoHorizontalOverflow(page)
   await context.close()
 })
 
@@ -221,8 +243,7 @@ test("the operator workspace is a mobile-first list with actionable filters and 
   await expect(page.getByText(title, { exact: true })).toBeVisible()
 
   const needsElie = page.getByRole("button", { name: "Needs Elie" })
-  const queueBounds = await needsElie.boundingBox()
-  expect(queueBounds?.height).toBeGreaterThanOrEqual(44)
+  await expectMinimumTouchTarget(needsElie)
   await needsElie.click()
   await expect(
     page.getByRole("heading", { name: "No matching requests" })
@@ -368,17 +389,18 @@ test("the canonical founder, agent, and operator journey reaches responded", asy
   )
   await confirmationNoteInput.pressSequentially(confirmationNote)
   await expect(confirmationNoteInput).toHaveValue(confirmationNote)
-  await operatorPage
-    .getByRole("button", { name: /^Mark .* responded$/ })
-    .click()
+  const markResponded = operatorPage.getByRole("button", {
+    name: /^Mark .* responded$/,
+  })
+  await expectMinimumTouchTarget(markResponded)
+  await markResponded.click()
+  const reopenDelivery = operatorPage.getByRole("button", {
+    name: /^Reopen delivery to /,
+  })
+  await expect(reopenDelivery).toBeVisible({ timeout: 15_000 })
+  await expectMinimumTouchTarget(reopenDelivery)
   await expect(
-    operatorPage.getByRole("button", { name: /^Reopen delivery to / })
-  ).toBeVisible({ timeout: 15_000 })
-  await expect(
-    operatorPage.getByText(
-      `Note: ${confirmationNote}`,
-      { exact: true }
-    )
+    operatorPage.getByText(`Note: ${confirmationNote}`, { exact: true })
   ).toBeVisible()
   await operatorPage.goto("/app")
   await operatorPage
@@ -480,6 +502,12 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
   await expect(
     founderPage.getByRole("button", { name: "Notifications" })
   ).toBeVisible()
+  const notificationButton = founderPage.getByRole("button", {
+    name: "Notifications",
+  })
+  await expect(notificationButton.locator(".notification-count")).toBeVisible()
+  await expectMinimumTouchTarget(notificationButton)
+  await expectNoHorizontalOverflow(founderPage)
   const stack = founderPage.getByRole("region", { name: "Content requests" })
   await expect(stack).toHaveAttribute("data-view", "stack")
   const stackTitles = await stack
@@ -537,9 +565,7 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
   const filterPin = founderPage.getByRole("button", {
     name: "Pin Original source",
   })
-  const pinBounds = await filterPin.boundingBox()
-  expect(pinBounds?.width).toBeGreaterThanOrEqual(44)
-  expect(pinBounds?.height).toBeGreaterThanOrEqual(44)
+  await expectMinimumTouchTarget(filterPin)
   await filterPin.click()
   await expect(
     founderPage.getByRole("article", { name: "Original source" })
@@ -548,15 +574,11 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
   const backAction = founderPage.getByRole("button", {
     name: "Back to content requests",
   })
-  const backBounds = await backAction.boundingBox()
-  expect(backBounds?.width).toBeGreaterThanOrEqual(44)
-  expect(backBounds?.height).toBeGreaterThanOrEqual(44)
+  await expectMinimumTouchTarget(backAction)
   const cardPin = founderPage.getByRole("button", {
     name: "Unpin Original source card",
   })
-  const cardPinBounds = await cardPin.boundingBox()
-  expect(cardPinBounds?.width).toBeGreaterThanOrEqual(44)
-  expect(cardPinBounds?.height).toBeGreaterThanOrEqual(44)
+  await expectMinimumTouchTarget(cardPin)
   const editor = founderPage.getByTestId("founder-editor")
   await expect(editor).toHaveAttribute("data-expanded", "false")
   const transitionDuration = await editor.evaluate(
@@ -564,8 +586,7 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
   )
   expect(Number.parseFloat(transitionDuration)).toBeLessThanOrEqual(0.001)
   const recordMode = founderPage.getByRole("button", { name: "Record input" })
-  const recordBounds = await recordMode.boundingBox()
-  expect(recordBounds?.height).toBeGreaterThanOrEqual(44)
+  await expectMinimumTouchTarget(recordMode)
   await recordMode.focus()
   await founderPage.keyboard.press("Enter")
   await expect(
@@ -589,8 +610,7 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
     ).toBeVisible()
   }
   const typeMode = founderPage.getByRole("button", { name: "Type input" })
-  const typeBounds = await typeMode.boundingBox()
-  expect(typeBounds?.height).toBeGreaterThanOrEqual(44)
+  await expectMinimumTouchTarget(typeMode)
   await typeMode.focus()
   await expect(typeMode).toBeFocused()
   await founderPage.keyboard.press("Enter")

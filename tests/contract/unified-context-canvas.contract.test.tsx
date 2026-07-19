@@ -272,9 +272,15 @@ describe("Variant G Unified Context Canvas", () => {
       screen.getByRole("list", { name: "Founder input version history" })
         .textContent
     ).toContain("Elie · version 1")
-    fireEvent.click(screen.getByRole("button", { name: "Restore" }))
+    const restoreArchived = screen.getByRole("button", { name: "Restore" })
+    const loadOlder = screen.getByRole("button", {
+      name: "Load older versions",
+    })
+    expect(restoreArchived.className).toContain("h-11")
+    expect(loadOlder.className).toContain("h-11")
+    fireEvent.click(restoreArchived)
     expect(onRestoreArchivedVersion).toHaveBeenCalledWith("archived-version-1")
-    fireEvent.click(screen.getByRole("button", { name: "Load older versions" }))
+    fireEvent.click(loadOlder)
     expect(onLoadOlderHistory).toHaveBeenCalledOnce()
     expect(
       screen
@@ -610,7 +616,7 @@ describe("Variant G Unified Context Canvas", () => {
 
   it("blocks founder submission while local voice work is pending", () => {
     const submit = vi.fn()
-    render(
+    const view = render(
       <UnifiedContextCanvas
         request={request}
         contextItems={context}
@@ -635,7 +641,15 @@ describe("Variant G Unified Context Canvas", () => {
             elapsedMs: 0,
             errorCode: null,
             queuedCount: 1,
-            captures: [],
+            captures: [
+              {
+                captureId: "voice-failed-1",
+                status: "failed",
+                failureCode: "TRANSCRIPTION_FAILED",
+                transcriptMergedAt: null,
+                discardedAt: null,
+              },
+            ],
             start: vi.fn(),
             pause: vi.fn(),
             resume: vi.fn(),
@@ -657,5 +671,17 @@ describe("Variant G Unified Context Canvas", () => {
         .getByRole("button", { name: "Submit to drafting" })
         .hasAttribute("disabled")
     ).toBe(true)
+    fireEvent.click(
+      within(view.container).getByRole("button", { name: "Record input" })
+    )
+    expect(
+      within(view.container).getByRole("button", {
+        name: /Retry transcription/,
+      }).className
+    ).toContain("h-11")
+    expect(
+      within(view.container).getByRole("button", { name: "Discard recording" })
+        .className
+    ).toContain("h-11")
   })
 })

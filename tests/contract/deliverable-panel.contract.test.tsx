@@ -78,9 +78,11 @@ describe("Deliverable panel contract", () => {
     const promote = screen.getByRole("button", {
       name: "Promote Primary response version 2",
     })
-    expect(
-      screen.getByRole("button", { name: "Make LinkedIn post primary" })
-    ).toBeTruthy()
+    const makePrimary = screen.getByRole("button", {
+      name: "Make LinkedIn post primary",
+    })
+    expect(promote.className).toContain("h-11")
+    expect(makePrimary.className).toContain("h-11")
     fireEvent.click(promote)
     await waitFor(() =>
       expect(screen.getByRole("alert").textContent).toContain(

@@ -776,62 +776,69 @@ export function UnifiedContextCanvas({
           >
             {displayedSaveStatus}
           </span>
-          {draftController ? (
-            <div
-              className="unified-editor__history-controls"
-              aria-label="Version history"
+          <div className="unified-editor__secondary-actions">
+            {draftController ? (
+              <div
+                className="unified-editor__history-controls"
+                aria-label="Version history"
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-touch"
+                  aria-label="Undo founder input"
+                  disabled={
+                    !draftController.canUndo || draftController.readOnly
+                  }
+                  onClick={() => {
+                    if (!draftController.readOnly) void draftController.onUndo()
+                  }}
+                >
+                  <Undo2 />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-touch"
+                  aria-label="Redo founder input"
+                  disabled={
+                    !draftController.canRedo || draftController.readOnly
+                  }
+                  onClick={() => {
+                    if (!draftController.readOnly) void draftController.onRedo()
+                  }}
+                >
+                  <Redo2 />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm-touch"
+                  aria-expanded={historyOpen}
+                  aria-controls="founder-version-history"
+                  onClick={() => {
+                    setHistoryOpen((current) => !current)
+                    setExpanded(true)
+                  }}
+                >
+                  <ScrollText /> History ({draftController.history?.length ?? 0}
+                  )
+                </Button>
+              </div>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm-touch"
+              aria-expanded={expanded}
+              aria-controls="founder-editor"
+              aria-label={expanded ? "Collapse editor" : "Expand editor"}
+              onClick={() => setExpanded((current) => !current)}
             >
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Undo founder input"
-                disabled={!draftController.canUndo || draftController.readOnly}
-                onClick={() => {
-                  if (!draftController.readOnly) void draftController.onUndo()
-                }}
-              >
-                <Undo2 />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Redo founder input"
-                disabled={!draftController.canRedo || draftController.readOnly}
-                onClick={() => {
-                  if (!draftController.readOnly) void draftController.onRedo()
-                }}
-              >
-                <Redo2 />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-expanded={historyOpen}
-                aria-controls="founder-version-history"
-                onClick={() => {
-                  setHistoryOpen((current) => !current)
-                  setExpanded(true)
-                }}
-              >
-                <ScrollText /> History ({draftController.history?.length ?? 0})
-              </Button>
-            </div>
-          ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            aria-expanded={expanded}
-            aria-controls="founder-editor"
-            aria-label={expanded ? "Collapse editor" : "Expand editor"}
-            onClick={() => setExpanded((current) => !current)}
-          >
-            {expanded ? <Minimize2 /> : <Maximize2 />}
-            {expanded ? "Collapse" : "Expand"}
-          </Button>
+              {expanded ? <Minimize2 /> : <Maximize2 />}
+              {expanded ? "Collapse" : "Expand"}
+            </Button>
+          </div>
         </div>
         {draftController && historyOpen ? (
           <ol
@@ -876,7 +883,7 @@ export function UnifiedContextCanvas({
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
+                  size="sm-touch"
                   disabled={draftController.readOnly}
                   onClick={() =>
                     !draftController.readOnly &&
@@ -894,7 +901,7 @@ export function UnifiedContextCanvas({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
+                  size="sm-touch"
                   onClick={() => void draftController.onLoadOlderHistory()}
                 >
                   Load older versions
@@ -980,6 +987,7 @@ export function UnifiedContextCanvas({
                       <Button
                         type="button"
                         variant="outline"
+                        size="sm-touch"
                         onClick={draftController.voice.pause}
                       >
                         <Pause /> Pause
@@ -988,6 +996,7 @@ export function UnifiedContextCanvas({
                       <Button
                         type="button"
                         variant="outline"
+                        size="sm-touch"
                         onClick={draftController.voice.resume}
                       >
                         <Play /> Resume
@@ -995,6 +1004,7 @@ export function UnifiedContextCanvas({
                     ) : (
                       <Button
                         type="button"
+                        size="sm-touch"
                         disabled={[
                           "requesting",
                           "saving",
@@ -1011,6 +1021,7 @@ export function UnifiedContextCanvas({
                       <Button
                         type="button"
                         variant="destructive"
+                        size="sm-touch"
                         onClick={() => void draftController.voice?.stop()}
                       >
                         <Square /> Stop
@@ -1020,6 +1031,7 @@ export function UnifiedContextCanvas({
                       <Button
                         type="button"
                         variant="outline"
+                        size="sm-touch"
                         onClick={() => void draftController.voice?.retry()}
                       >
                         <RotateCcw /> Retry upload
@@ -1032,6 +1044,7 @@ export function UnifiedContextCanvas({
                     <Button
                       type="button"
                       variant="outline"
+                      size="sm-touch"
                       onClick={() =>
                         void draftController.voice?.discardPending()
                       }
@@ -1049,7 +1062,7 @@ export function UnifiedContextCanvas({
                         <Button
                           type="button"
                           variant="ghost"
-                          size="sm"
+                          size="sm-touch"
                           onClick={() =>
                             void draftController.voice?.retry(capture.captureId)
                           }
@@ -1062,7 +1075,7 @@ export function UnifiedContextCanvas({
                         <Button
                           type="button"
                           variant="ghost"
-                          size="sm"
+                          size="sm-touch"
                           onClick={() =>
                             void draftController.voice?.discard(
                               capture.captureId
@@ -1089,6 +1102,7 @@ export function UnifiedContextCanvas({
             </span>
             <Button
               type="button"
+              size="sm-touch"
               disabled={
                 submitting ||
                 displayedSaveStatus !== "Saved" ||

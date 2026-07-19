@@ -773,8 +773,8 @@
 
 .unified-editor {
   display: flex;
-  height: 10.5rem;
-  max-height: 10.5rem;
+  height: 15rem;
+  max-height: 15rem;
   min-height: 0;
   flex: none;
   overflow: hidden;
@@ -795,9 +795,13 @@
 }
 
 .unified-editor__toolbar {
-  display: flex;
+  display: grid;
   flex: none;
   align-items: center;
+  grid-template-areas:
+    "modes modes"
+    "status actions";
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.6rem;
   padding: 0.75rem 0.75rem 0.35rem;
 }
@@ -809,8 +813,10 @@
 
 .unified-editor__modes {
   display: grid;
+  width: 100%;
   min-width: 0;
   flex: 1;
+  grid-area: modes;
   grid-template-columns: 1fr 1fr;
   gap: 0.2rem;
   padding: 0.2rem;
@@ -844,6 +850,7 @@
 .unified-editor__save-status {
   pointer-events: none;
   flex: none;
+  grid-area: status;
   color: rgb(23 33 27 / 72%);
   font-size: 0.72rem;
   font-weight: 700;
@@ -866,6 +873,14 @@
   flex: none;
   align-items: center;
   gap: 0.15rem;
+}
+
+.unified-editor__secondary-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  grid-area: actions;
 }
 
 .unified-editor__version-history {
@@ -983,6 +998,15 @@
 }
 
 @media (min-width: 48rem) {
+  .unified-editor {
+    height: 10.5rem;
+    max-height: 10.5rem;
+  }
+
+  .unified-editor__toolbar {
+    display: flex;
+  }
+
   .unified-context-deck__cards {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

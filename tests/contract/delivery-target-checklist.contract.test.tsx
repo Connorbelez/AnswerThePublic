@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { DeliveryTargetChecklist } from "@/components/delivery-target-checklist"
@@ -202,11 +208,26 @@ describe("Delivery target checklist contract", () => {
       />
     )
 
-    expect(
+    const criticalActions = [
       screen.getByRole("button", {
         name: "Reopen delivery to Original Reddit thread",
-      })
-    ).toBeTruthy()
+      }),
+      screen.getByRole("button", {
+        name: "Archive delivery target LinkedIn post",
+      }),
+      screen.getByRole("button", {
+        name: "Make LinkedIn post required",
+      }),
+      screen.getByRole("button", {
+        name: "Mark LinkedIn post responded",
+      }),
+      screen.getByRole("button", {
+        name: "Restore delivery target Archived newsletter",
+      }),
+    ]
+    for (const action of criticalActions) {
+      expect(action.className).toContain("h-11")
+    }
     expect(screen.getByText("Actor: Connor")).toBeTruthy()
     expect(screen.getByText("Note: Posted as FairLend")).toBeTruthy()
     expect(screen.getByText(/Version 1 confirmed/)).toBeTruthy()
@@ -386,9 +407,7 @@ describe("Delivery target checklist contract", () => {
         }),
       })
     )
-    expect(
-      await screen.findByText(`Note: ${receipt.note}`)
-    ).toBeTruthy()
+    expect(await screen.findByText(`Note: ${receipt.note}`)).toBeTruthy()
     expect(
       screen.getByRole("button", {
         name: "Reopen delivery to Original Reddit thread",

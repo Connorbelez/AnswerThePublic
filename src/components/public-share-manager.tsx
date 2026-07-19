@@ -159,23 +159,23 @@ export function PublicShareManager({
               </p>
             </div>
             <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setPending(true)
-                  void revokeShare({
-                    data: {
-                      shareId: share.shareId,
-                      correlationId: crypto.randomUUID(),
-                    },
-                  })
-                    .then(() => router.invalidate())
-                    .finally(() => setPending(false))
-                }}
-                disabled={pending}
-              >
-                <ShieldOff /> Revoke
+              type="button"
+              size="sm-touch"
+              variant="outline"
+              onClick={() => {
+                setPending(true)
+                void revokeShare({
+                  data: {
+                    shareId: share.shareId,
+                    correlationId: crypto.randomUUID(),
+                  },
+                })
+                  .then(() => router.invalidate())
+                  .finally(() => setPending(false))
+              }}
+              disabled={pending}
+            >
+              <ShieldOff /> Revoke
             </Button>
           </div>
         ))}

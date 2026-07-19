@@ -50,7 +50,12 @@ export function NotificationCentre({
     <Popover>
       <PopoverTrigger
         render={
-          <Button variant="ghost" size="icon" aria-label="Notifications" />
+          <Button
+            className="relative"
+            variant="ghost"
+            size="icon-touch"
+            aria-label="Notifications"
+          />
         }
       >
         <Bell />

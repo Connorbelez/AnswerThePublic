@@ -340,8 +340,8 @@ function RequestLibrary() {
             ).map(([value, label]) => (
               <Button
                 key={value}
-                size="sm"
-                className="min-h-11 shrink-0"
+                size="sm-touch"
+                className="shrink-0"
                 variant={queue === value ? "default" : "outline"}
                 aria-pressed={queue === value}
                 type="button"
@@ -355,19 +355,13 @@ function RequestLibrary() {
             ))}
           </div>
           <div className="flex gap-2">
-            <Button
-              type="submit"
-              size="sm"
-              className="min-h-11"
-              disabled={loading}
-            >
+            <Button type="submit" size="sm-touch" disabled={loading}>
               Apply filters
             </Button>
             {hasOperatorFilters ? (
               <Button
                 type="button"
-                size="sm"
-                className="min-h-11"
+                size="sm-touch"
                 variant="ghost"
                 onClick={() => {
                   setQueue("all")

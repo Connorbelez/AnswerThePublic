@@ -47,7 +47,11 @@ function ApplicationShell() {
     <div className="app-shell">
       <header className="app-header">
         <div className="app-header__brand">
-          <Button variant="ghost" size="icon" aria-label="Open navigation">
+          <Button
+            variant="ghost"
+            size="icon-touch"
+            aria-label="Open navigation"
+          >
             <Menu />
           </Button>
           <span className="wordmark">FairLend</span>

@@ -7,7 +7,7 @@ export function SignOutControl({ ownerKey }: { ownerKey: string }) {
   return (
     <Button
       variant="ghost"
-      size="icon"
+      size="icon-touch"
       aria-label="Sign out"
       onClick={async () => {
         await clearPrivateOfflineAccess(ownerKey)

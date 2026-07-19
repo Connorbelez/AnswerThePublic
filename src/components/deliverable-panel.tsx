@@ -82,7 +82,7 @@ export function DeliverablePanel({
                     {!promoted && !readOnly ? (
                       <Button
                         className="mt-3"
-                        size="sm"
+                        size="sm-touch"
                         variant="outline"
                         disabled={pending !== null}
                         aria-label={`Promote ${deliverable.name} version ${version.ordinal}`}
@@ -125,7 +125,7 @@ export function DeliverablePanel({
             {!deliverable.isPrimary && !readOnly ? (
               <Button
                 className="mt-3"
-                size="sm"
+                size="sm-touch"
                 variant="ghost"
                 disabled={pending !== null}
                 aria-label={`Make ${deliverable.name} primary`}
