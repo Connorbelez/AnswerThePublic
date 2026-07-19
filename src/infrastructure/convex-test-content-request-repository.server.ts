@@ -4,6 +4,7 @@ import type {
   AssignRequestInput,
   ContentRequestRepository,
   PersistManualRequestInput,
+  UpdateRequestInput,
 } from "@/application/content-requests"
 import type { ExternalIdentity } from "@/application/workspace-session"
 import { getConvexTestWorkspace } from "@/infrastructure/convex-test-workspace.server"
@@ -78,6 +79,15 @@ export async function createConvexTestContentRequestRepository(
     async list(limit) {
       return backend.query(api.contentRequests.list, { limit })
     },
+    async listPage(cursor, limit) {
+      const result = await backend.query(api.contentRequests.listPage, {
+        paginationOpts: { numItems: limit, cursor },
+      })
+      return {
+        page: result.page,
+        nextCursor: result.isDone ? null : result.continueCursor,
+      }
+    },
     async listOperatorWorkspace(input) {
       return backend.query(api.operatorWorkspace.list, {
         queue: input?.queue,
@@ -99,6 +109,9 @@ export async function createConvexTestContentRequestRepository(
     },
     async resolve(query) {
       return backend.query(api.contentRequests.resolve, { query })
+    },
+    async update(input: UpdateRequestInput) {
+      return backend.mutation(api.contentRequests.update, input)
     },
     async assign(input: AssignRequestInput) {
       const current = await backend.query(api.contentRequests.getByHumanId, {
@@ -183,13 +196,53 @@ export async function createConvexTestContentRequestRepository(
     async listMyNotifications() {
       return backend.query(api.contentRequests.listMyNotifications, {})
     },
-    async markNotificationRead(notificationId) {
+    async listMyNotificationsPage(cursor, limit) {
+      const result = await backend.query(
+        api.contentRequests.listMyNotificationsPage,
+        { paginationOpts: { numItems: limit, cursor } }
+      )
+      return {
+        page: result.page,
+        nextCursor: result.isDone ? null : result.continueCursor,
+      }
+    },
+    async markNotificationRead(notificationId, correlationId) {
       await backend.mutation(api.contentRequests.markNotificationRead, {
         notificationId: notificationId as Id<"notifications">,
+        correlationId,
       })
+    },
+    async listAuditEvents(humanId, cursor, limit) {
+      const result = await backend.query(
+        api.contentRequests.listAuditEventsPage,
+        {
+          humanId,
+          paginationOpts: { numItems: limit, cursor },
+        }
+      )
+      return {
+        page: result.page,
+        nextCursor: result.isDone ? null : result.continueCursor,
+      }
     },
     async listContext(humanId) {
       return backend.query(api.scoutIngestions.listContext, { humanId })
+    },
+    async upsertContext(input) {
+      return backend.mutation(api.scoutIngestions.upsertContext, input)
+    },
+    async listContextVersions(contextId, cursor, limit) {
+      const result = await backend.query(
+        api.scoutIngestions.listContextVersions,
+        {
+          contextId: contextId as Id<"contextItems">,
+          paginationOpts: { numItems: limit, cursor },
+        }
+      )
+      return {
+        page: result.page,
+        nextCursor: result.isDone ? null : result.continueCursor,
+      }
     },
     async getContextDeckPreferences(humanId) {
       return backend.query(api.scoutIngestions.getContextDeckPreferences, {
@@ -295,6 +348,15 @@ export async function createConvexTestContentRequestRepository(
     },
     async listAgentJobs() {
       return backend.query(api.agentJobs.list, {})
+    },
+    async listAgentJobsPage(cursor, limit) {
+      const result = await backend.query(api.agentJobs.listPage, {
+        paginationOpts: { numItems: limit, cursor },
+      })
+      return {
+        page: result.page,
+        nextCursor: result.isDone ? null : result.continueCursor,
+      }
     },
     async claimAgentJob(leaseToken, leaseMs) {
       return backend.mutation(api.agentJobs.claim, { leaseToken, leaseMs })

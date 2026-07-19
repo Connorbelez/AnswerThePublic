@@ -14,9 +14,7 @@ describe("principals Convex contract", () => {
   it("rejects anonymous writes", async () => {
     const t = convexTest(schema, modules)
 
-    await expect(
-      t.mutation(api.principals.syncCurrent)
-    ).rejects.toMatchObject({
+    await expect(t.mutation(api.principals.syncCurrent)).rejects.toMatchObject({
       data: { code: "UNAUTHENTICATED" },
     })
   })
@@ -50,5 +48,27 @@ describe("principals Convex contract", () => {
     await expect(t.mutation(api.principals.syncCurrent)).rejects.toMatchObject({
       data: { code: "ORGANIZATION_ACCESS_DENIED" },
     })
+  })
+
+  it("attributes agent mutations to the individually revocable WorkOS token jti", async () => {
+    const agent = convexTest(schema, modules).withIdentity({
+      subject: "agent_installation",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "agent-editor",
+      jti: "workos-installation-credential-17",
+    })
+    await agent.mutation(api.principals.syncCurrent)
+    await agent.mutation(api.contentRequests.createManual, {
+      title: "Agent-created request",
+      origin: "http_api",
+      correlationId: "agent-create-1",
+    })
+    const events = await agent.run((ctx) =>
+      ctx.db.query("auditEvents").collect()
+    )
+
+    expect(events).toHaveLength(1)
+    expect(events[0]?.credentialId).toBe("workos-installation-credential-17")
   })
 })

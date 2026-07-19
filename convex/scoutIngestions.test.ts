@@ -426,6 +426,28 @@ describe("Scout ingestion workflow contract", () => {
         bulletPoints: expect.arrayContaining(["Updated talking point"]),
       })
     )
+    const talkingPoints = context.find((item) => item.kind === "talking_points")
+    if (!talkingPoints) throw new Error("Missing talking-points context")
+    await app.mutation(api.scoutIngestions.upsertContext, {
+      humanId: first.requestHumanIds[0]!,
+      kind: "talking_points",
+      title: "Agent speaking notes",
+      bulletPoints: ["Agent-polished talking point"],
+      citations: [],
+      correlationId: "agent-context-after-ingestion",
+    })
+    const history = await app.query(api.scoutIngestions.listContextVersions, {
+      contextId: talkingPoints.contextId as never,
+      paginationOpts: { numItems: 10, cursor: null },
+    })
+    expect(history.page.map((version) => version.ordinal)).toEqual([3, 2, 1])
+    expect(history.page[0]?.bulletPoints).toEqual([
+      "Agent-polished talking point",
+    ])
+    expect(history.page[1]?.bulletPoints).toContain("Updated talking point")
+    expect(history.page[2]?.bulletPoints).toContain(
+      "Build a renewal decision framework"
+    )
   })
 
   it("promotes once to manual Critical, preserves naming/source, and notifies", async () => {
@@ -566,5 +588,64 @@ describe("Scout ingestion workflow contract", () => {
         resolved: false,
       }),
     ])
+  })
+
+  it("lets agent editors idempotently enrich derived context without mutating source evidence", async () => {
+    const app = await backend()
+    const request = await app.mutation(api.contentRequests.createManual, {
+      title: "Portable mortgage research",
+      origin: "http_api",
+      source: {
+        question: "Can I port my mortgage?",
+        body: "Immutable source body",
+      },
+      correlationId: "manual-context-request",
+    })
+    const input = {
+      humanId: request.humanId,
+      kind: "talking_points" as const,
+      title: "Speaking notes",
+      bulletPoints: ["Separate lender policy from borrower eligibility."],
+      citations: [
+        {
+          label: "FCAC",
+          url: "https://www.canada.ca/mortgages",
+          supports: "General mortgage guidance",
+        },
+      ],
+      correlationId: "context-upsert-1",
+    }
+    const first = await app.mutation(api.scoutIngestions.upsertContext, input)
+    const second = await app.mutation(api.scoutIngestions.upsertContext, {
+      ...input,
+      bulletPoints: ["A newer editorial framing."],
+      correlationId: "context-upsert-2",
+    })
+    const replay = await app.mutation(api.scoutIngestions.upsertContext, input)
+    const saved = await app.query(api.contentRequests.getByHumanId, {
+      humanId: request.humanId,
+    })
+    const audit = await app.query(api.contentRequests.listAuditEvents, {
+      humanId: request.humanId,
+    })
+
+    expect(replay).toEqual(first)
+    expect(second.bulletPoints).toEqual(["A newer editorial framing."])
+    expect(saved?.source).toEqual({
+      question: "Can I port my mortgage?",
+      body: "Immutable source body",
+    })
+    expect(
+      audit.filter((event) => event.operation === "context.upserted")
+    ).toHaveLength(2)
+    const versions = await app.run((ctx) =>
+      ctx.db.query("contextItemVersions").collect()
+    )
+    expect(versions.map((version) => version.ordinal)).toEqual([1, 2])
+    const history = await app.query(api.scoutIngestions.listContextVersions, {
+      contextId: first.contextId as never,
+      paginationOpts: { numItems: 10, cursor: null },
+    })
+    expect(history.page.map((version) => version.ordinal)).toEqual([2, 1])
   })
 })

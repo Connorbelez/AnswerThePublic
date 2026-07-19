@@ -8,7 +8,7 @@ export type ContentRequestServiceFactory = (
   request: Request
 ) => Promise<ContentRequestService>
 
-function jsonError(status: number, code: string, message: string) {
+export function jsonError(status: number, code: string, message: string) {
   return Response.json({ error: { code, message } }, { status })
 }
 
@@ -37,7 +37,7 @@ function domainErrorData(error: unknown) {
     : null
 }
 
-function safeErrorResponse(error: unknown, validationStatus = 400) {
+export function safeErrorResponse(error: unknown, validationStatus = 400) {
   const code = domainErrorCode(error)
   if (
     error instanceof AuthenticationRequiredError ||
@@ -125,6 +125,27 @@ function safeErrorResponse(error: unknown, validationStatus = 400) {
       409,
       code,
       "The correlation ID was already used for different request content."
+    )
+  }
+  if (code) {
+    const status =
+      code.includes("VALIDATION") ||
+      code === "INVALID_JSON" ||
+      code === "INVALID_ARGUMENT" ||
+      code === "INVALID_SHARE_EXPIRY" ||
+      code.includes("PAGINATION")
+        ? 400
+        : code === "AUTHORIZATION_NOT_CONFIGURED"
+          ? 503
+          : 409
+    return jsonError(
+      status,
+      code,
+      status === 400
+        ? "The operation arguments are invalid."
+        : status === 503
+          ? "Authorization is not configured."
+          : "The operation could not be applied in the current state."
     )
   }
   return jsonError(500, "INTERNAL_ERROR", "The request could not be completed.")

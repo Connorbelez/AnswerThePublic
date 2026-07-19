@@ -23,10 +23,12 @@ import { Route as ApiE2eAutomatedRequestRouteImport } from './routes/api/e2e/aut
 import { Route as ApiE2ePublicShareRouteImport } from './routes/api/e2e/public-share'
 import { Route as ApiV1AgentJobsRouteImport } from './routes/api/v1/agent-jobs'
 import { Route as ApiV1ContentRequestsRouteImport } from './routes/api/v1/content-requests'
+import { Route as ApiV1ControlRouteImport } from './routes/api/v1/control'
 import { Route as ApiV1ScoutIngestionsRouteImport } from './routes/api/v1/scout-ingestions'
 import { Route as AppRequestsRequestIdRouteImport } from './routes/app.requests.$requestId'
 import { Route as ApiV1AgentJobsJobIdRouteImport } from './routes/api/v1/agent-jobs.$jobId'
 import { Route as ApiV1CliContentRequestsRouteImport } from './routes/api/v1/cli/content-requests'
+import { Route as ApiV1CliControlRouteImport } from './routes/api/v1/cli/control'
 import { Route as ApiV1CliScoutIngestionsRouteImport } from './routes/api/v1/cli/scout-ingestions'
 import { Route as ApiV1ContentRequestsRequestIdRouteImport } from './routes/api/v1/content-requests.$requestId'
 import { Route as ApiV1DeliverablesDeliverableIdRouteImport } from './routes/api/v1/deliverables.$deliverableId'
@@ -107,6 +109,11 @@ const ApiV1ContentRequestsRoute = ApiV1ContentRequestsRouteImport.update({
   path: '/api/v1/content-requests',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1ControlRoute = ApiV1ControlRouteImport.update({
+  id: '/api/v1/control',
+  path: '/api/v1/control',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1ScoutIngestionsRoute = ApiV1ScoutIngestionsRouteImport.update({
   id: '/api/v1/scout-ingestions',
   path: '/api/v1/scout-ingestions',
@@ -125,6 +132,11 @@ const ApiV1AgentJobsJobIdRoute = ApiV1AgentJobsJobIdRouteImport.update({
 const ApiV1CliContentRequestsRoute = ApiV1CliContentRequestsRouteImport.update({
   id: '/api/v1/cli/content-requests',
   path: '/api/v1/cli/content-requests',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1CliControlRoute = ApiV1CliControlRouteImport.update({
+  id: '/api/v1/cli/control',
+  path: '/api/v1/cli/control',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1CliScoutIngestionsRoute = ApiV1CliScoutIngestionsRouteImport.update({
@@ -196,10 +208,12 @@ export interface FileRoutesByFullPath {
   '/api/e2e/public-share': typeof ApiE2ePublicShareRoute
   '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
+  '/api/v1/control': typeof ApiV1ControlRoute
   '/api/v1/scout-ingestions': typeof ApiV1ScoutIngestionsRoute
   '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
   '/api/v1/agent-jobs/$jobId': typeof ApiV1AgentJobsJobIdRoute
   '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
+  '/api/v1/cli/control': typeof ApiV1CliControlRoute
   '/api/v1/cli/scout-ingestions': typeof ApiV1CliScoutIngestionsRoute
   '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRouteWithChildren
   '/api/v1/deliverables/$deliverableId': typeof ApiV1DeliverablesDeliverableIdRoute
@@ -224,10 +238,12 @@ export interface FileRoutesByTo {
   '/api/e2e/public-share': typeof ApiE2ePublicShareRoute
   '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
+  '/api/v1/control': typeof ApiV1ControlRoute
   '/api/v1/scout-ingestions': typeof ApiV1ScoutIngestionsRoute
   '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
   '/api/v1/agent-jobs/$jobId': typeof ApiV1AgentJobsJobIdRoute
   '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
+  '/api/v1/cli/control': typeof ApiV1CliControlRoute
   '/api/v1/cli/scout-ingestions': typeof ApiV1CliScoutIngestionsRoute
   '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRouteWithChildren
   '/api/v1/deliverables/$deliverableId': typeof ApiV1DeliverablesDeliverableIdRoute
@@ -254,10 +270,12 @@ export interface FileRoutesById {
   '/api/e2e/public-share': typeof ApiE2ePublicShareRoute
   '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
+  '/api/v1/control': typeof ApiV1ControlRoute
   '/api/v1/scout-ingestions': typeof ApiV1ScoutIngestionsRoute
   '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
   '/api/v1/agent-jobs/$jobId': typeof ApiV1AgentJobsJobIdRoute
   '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
+  '/api/v1/cli/control': typeof ApiV1CliControlRoute
   '/api/v1/cli/scout-ingestions': typeof ApiV1CliScoutIngestionsRoute
   '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRouteWithChildren
   '/api/v1/deliverables/$deliverableId': typeof ApiV1DeliverablesDeliverableIdRoute
@@ -285,10 +303,12 @@ export interface FileRouteTypes {
     | '/api/e2e/public-share'
     | '/api/v1/agent-jobs'
     | '/api/v1/content-requests'
+    | '/api/v1/control'
     | '/api/v1/scout-ingestions'
     | '/app/requests/$requestId'
     | '/api/v1/agent-jobs/$jobId'
     | '/api/v1/cli/content-requests'
+    | '/api/v1/cli/control'
     | '/api/v1/cli/scout-ingestions'
     | '/api/v1/content-requests/$requestId'
     | '/api/v1/deliverables/$deliverableId'
@@ -313,10 +333,12 @@ export interface FileRouteTypes {
     | '/api/e2e/public-share'
     | '/api/v1/agent-jobs'
     | '/api/v1/content-requests'
+    | '/api/v1/control'
     | '/api/v1/scout-ingestions'
     | '/app/requests/$requestId'
     | '/api/v1/agent-jobs/$jobId'
     | '/api/v1/cli/content-requests'
+    | '/api/v1/cli/control'
     | '/api/v1/cli/scout-ingestions'
     | '/api/v1/content-requests/$requestId'
     | '/api/v1/deliverables/$deliverableId'
@@ -342,10 +364,12 @@ export interface FileRouteTypes {
     | '/api/e2e/public-share'
     | '/api/v1/agent-jobs'
     | '/api/v1/content-requests'
+    | '/api/v1/control'
     | '/api/v1/scout-ingestions'
     | '/app/requests/$requestId'
     | '/api/v1/agent-jobs/$jobId'
     | '/api/v1/cli/content-requests'
+    | '/api/v1/cli/control'
     | '/api/v1/cli/scout-ingestions'
     | '/api/v1/content-requests/$requestId'
     | '/api/v1/deliverables/$deliverableId'
@@ -370,8 +394,10 @@ export interface RootRouteChildren {
   ApiE2ePublicShareRoute: typeof ApiE2ePublicShareRoute
   ApiV1AgentJobsRoute: typeof ApiV1AgentJobsRouteWithChildren
   ApiV1ContentRequestsRoute: typeof ApiV1ContentRequestsRouteWithChildren
+  ApiV1ControlRoute: typeof ApiV1ControlRoute
   ApiV1ScoutIngestionsRoute: typeof ApiV1ScoutIngestionsRoute
   ApiV1CliContentRequestsRoute: typeof ApiV1CliContentRequestsRouteWithChildren
+  ApiV1CliControlRoute: typeof ApiV1CliControlRoute
   ApiV1CliScoutIngestionsRoute: typeof ApiV1CliScoutIngestionsRoute
   ApiV1DeliverablesDeliverableIdRoute: typeof ApiV1DeliverablesDeliverableIdRoute
   ApiV1DeliveryTargetsTargetIdRoute: typeof ApiV1DeliveryTargetsTargetIdRoute
@@ -478,6 +504,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1ContentRequestsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/control': {
+      id: '/api/v1/control'
+      path: '/api/v1/control'
+      fullPath: '/api/v1/control'
+      preLoaderRoute: typeof ApiV1ControlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/scout-ingestions': {
       id: '/api/v1/scout-ingestions'
       path: '/api/v1/scout-ingestions'
@@ -504,6 +537,13 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/cli/content-requests'
       fullPath: '/api/v1/cli/content-requests'
       preLoaderRoute: typeof ApiV1CliContentRequestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/cli/control': {
+      id: '/api/v1/cli/control'
+      path: '/api/v1/cli/control'
+      fullPath: '/api/v1/cli/control'
+      preLoaderRoute: typeof ApiV1CliControlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/cli/scout-ingestions': {
@@ -659,8 +699,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiE2ePublicShareRoute: ApiE2ePublicShareRoute,
   ApiV1AgentJobsRoute: ApiV1AgentJobsRouteWithChildren,
   ApiV1ContentRequestsRoute: ApiV1ContentRequestsRouteWithChildren,
+  ApiV1ControlRoute: ApiV1ControlRoute,
   ApiV1ScoutIngestionsRoute: ApiV1ScoutIngestionsRoute,
   ApiV1CliContentRequestsRoute: ApiV1CliContentRequestsRouteWithChildren,
+  ApiV1CliControlRoute: ApiV1CliControlRoute,
   ApiV1CliScoutIngestionsRoute: ApiV1CliScoutIngestionsRoute,
   ApiV1DeliverablesDeliverableIdRoute: ApiV1DeliverablesDeliverableIdRoute,
   ApiV1DeliveryTargetsTargetIdRoute: ApiV1DeliveryTargetsTargetIdRoute,

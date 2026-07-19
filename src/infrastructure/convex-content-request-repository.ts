@@ -7,27 +7,60 @@ import type {
   AssignRequestInput,
   ContentRequestRepository,
   PersistManualRequestInput,
+  UpdateRequestInput,
 } from "@/application/content-requests"
 
 type TokenProvider = () => Promise<string | null>
+type AdminIdentityProvider = () => Promise<{
+  adminKey: string
+  subject: string
+  organizationId: string
+  credentialId: string
+} | null>
 
 export function createConvexContentRequestRepository({
   getAccessToken,
+  getAdminIdentity,
 }: {
   getAccessToken: TokenProvider
+  getAdminIdentity?: AdminIdentityProvider
 }): ContentRequestRepository {
-  async function client() {
+  let cachedClient: Promise<ConvexHttpClient> | null = null
+  async function createClient() {
     const convexUrl = process.env.VITE_CONVEX_URL
     if (!convexUrl) {
       throw new Error("VITE_CONVEX_URL is required for Content Request access.")
     }
-    const accessToken = await getAccessToken()
-    if (!accessToken) {
+    const [accessToken, adminIdentity] = await Promise.all([
+      getAccessToken(),
+      getAdminIdentity?.() ?? null,
+    ])
+    if (!accessToken && !adminIdentity) {
       throw new Error("An access token is required for Content Request access.")
     }
     const convex = new ConvexHttpClient(convexUrl)
-    convex.setAuth(accessToken)
+    if (adminIdentity) {
+      ;(
+        convex as ConvexHttpClient & {
+          setAdminAuth(token: string, identity: Record<string, string>): void
+        }
+      ).setAdminAuth(adminIdentity.adminKey, {
+        subject: adminIdentity.subject,
+        issuer: "https://api.workos.com/agents",
+        org_id: adminIdentity.organizationId,
+        role: "agent-editor",
+        jti: adminIdentity.credentialId,
+        tokenIdentifier: adminIdentity.credentialId,
+      })
+      await convex.mutation(api.principals.syncCurrent, {})
+    } else {
+      convex.setAuth(accessToken!)
+    }
     return convex
+  }
+  function client() {
+    cachedClient ??= createClient()
+    return cachedClient
   }
 
   return {
@@ -41,6 +74,17 @@ export function createConvexContentRequestRepository({
     },
     async list(limit) {
       return (await client()).query(api.contentRequests.list, { limit })
+    },
+    async listPage(cursor, limit) {
+      const result = await (
+        await client()
+      ).query(api.contentRequests.listPage, {
+        paginationOpts: { numItems: limit, cursor },
+      })
+      return {
+        page: result.page,
+        nextCursor: result.isDone ? null : result.continueCursor,
+      }
     },
     async listOperatorWorkspace(input) {
       return (await client()).query(api.operatorWorkspace.list, {
@@ -63,6 +107,9 @@ export function createConvexContentRequestRepository({
     },
     async resolve(query) {
       return (await client()).query(api.contentRequests.resolve, { query })
+    },
+    async update(input: UpdateRequestInput) {
+      return (await client()).mutation(api.contentRequests.update, input)
     },
     async assign(input: AssignRequestInput) {
       const convex = await client()
@@ -156,17 +203,56 @@ export function createConvexContentRequestRepository({
     async listMyNotifications() {
       return (await client()).query(api.contentRequests.listMyNotifications, {})
     },
-    async markNotificationRead(notificationId) {
+    async listMyNotificationsPage(cursor, limit) {
+      const result = await (
+        await client()
+      ).query(api.contentRequests.listMyNotificationsPage, {
+        paginationOpts: { numItems: limit, cursor },
+      })
+      return {
+        page: result.page,
+        nextCursor: result.isDone ? null : result.continueCursor,
+      }
+    },
+    async markNotificationRead(notificationId, correlationId) {
       await (
         await client()
       ).mutation(api.contentRequests.markNotificationRead, {
         notificationId: notificationId as Id<"notifications">,
+        correlationId,
       })
+    },
+    async listAuditEvents(humanId, cursor, limit) {
+      const result = await (
+        await client()
+      ).query(api.contentRequests.listAuditEventsPage, {
+        humanId,
+        paginationOpts: { numItems: limit, cursor },
+      })
+      return {
+        page: result.page,
+        nextCursor: result.isDone ? null : result.continueCursor,
+      }
     },
     async listContext(humanId) {
       return (await client()).query(api.scoutIngestions.listContext, {
         humanId,
       })
+    },
+    async upsertContext(input) {
+      return (await client()).mutation(api.scoutIngestions.upsertContext, input)
+    },
+    async listContextVersions(contextId, cursor, limit) {
+      const result = await (
+        await client()
+      ).query(api.scoutIngestions.listContextVersions, {
+        contextId: contextId as Id<"contextItems">,
+        paginationOpts: { numItems: limit, cursor },
+      })
+      return {
+        page: result.page,
+        nextCursor: result.isDone ? null : result.continueCursor,
+      }
     },
     async getContextDeckPreferences(humanId) {
       return (await client()).query(
@@ -282,6 +368,17 @@ export function createConvexContentRequestRepository({
     },
     async listAgentJobs() {
       return (await client()).query(api.agentJobs.list, {})
+    },
+    async listAgentJobsPage(cursor, limit) {
+      const result = await (
+        await client()
+      ).query(api.agentJobs.listPage, {
+        paginationOpts: { numItems: limit, cursor },
+      })
+      return {
+        page: result.page,
+        nextCursor: result.isDone ? null : result.continueCursor,
+      }
     },
     async claimAgentJob(leaseToken, leaseMs) {
       return (await client()).mutation(api.agentJobs.claim, {

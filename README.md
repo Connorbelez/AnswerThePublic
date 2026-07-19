@@ -70,6 +70,12 @@ source or founder content.
    rejected with `PUBLIC_SHARE_SECRET_ROTATED`. Revoke or recreate those shares
    deliberately rather than returning a mismatched URL.
 
+   The TanStack server also needs `FAIRLEND_CONVEX_AGENT_ADMIN_KEY`, a
+   server-only Convex deploy/admin key. It is used only after WorkOS validates
+   an `auth.md` installation credential, and only with Convex's acting-as mode
+   so the existing `agent_editor` authorization and audit path remains in
+   force. Never expose this key through a `VITE_` variable or client bundle.
+
 5. Run the app with `bun run dev`.
 
 The checked-in generated Convex types let type checking and isolated contract
@@ -211,10 +217,27 @@ The initial HTTP contract is available at:
   `POST /api/v1/delivery-targets/:targetId` — manage required/optional channels,
   explicitly confirm delivery against an exact promoted version, or reopen a
   receipt without deleting its history.
+- `GET|POST /api/v1/control` (HTTP/ChatGPT) and
+  `GET|POST /api/v1/cli/control` (CLI provenance) — discover or execute the
+  complete authorized V1 operation registry. `POST` accepts one
+  `{ "command": ... }` or up to 25
+  ordered `{ "commands": [...] }` entries, supports top-level `fields`
+  projection, cursor/limit arguments, and stable per-command
+  `idempotencyKey` values. Errors always expose stable `code` and `message`
+  fields.
 
 The API accepts the signed-in WorkOS session or a WorkOS bearer access token.
 Every create requires or generates a correlation ID and produces an audit event.
 Fuzzy lookup returns candidates instead of guessing.
+
+Agent installations use the WorkOS AuthKit `auth.md` flow and the
+`agent-editor` role. Provision one WorkOS installation credential per agent or
+deployment instead of sharing a bearer token. Its `jti` is preserved as the
+audit `credentialId` for access tokens; API keys use their stable WorkOS
+registration ID. Every request revalidates revocation with WorkOS before Convex
+acts as the registered `agent_editor`, so revoking one installation removes
+only that installation's access. Tokens are never stored by this application or
+accepted in query strings.
 
 Local agents can use the same HTTP contract through the CLI:
 
@@ -239,7 +262,36 @@ bun run content-requests -- targets CR-EXAMPLE
 bun run content-requests -- target-retention "$TARGET_ID" --retention archived --idempotency-key archive-target-20260718-01
 bun run content-requests -- target-confirm "$TARGET_ID" --version-id "$VERSION_ID" --idempotency-key delivery-20260718-01
 bun run content-requests -- target-reopen "$TARGET_ID" --idempotency-key reopen-20260718-01
+bun run content-requests -- control request.workspace --json '{"queue":"needs_operator","limit":20}' --fields page,continueCursor
+bun run content-requests -- control request.resolve --json '{"query":"mortgage renewal"}'
+bun run content-requests -- control share.create --file ./share-command.json --idempotency-key share-20260718-01
+bun run content-requests -- bulk --file ./commands.json --idempotency-key batch-20260718-01
 ```
+
+The generic `control` command is the canonical agent-economical surface and has
+parity with the HTTP operation registry; the named CLI commands remain for
+interactive convenience. `bulk` input is either an array of command objects or
+`{ "commands": [...] }`. The control plane deliberately has no source update,
+founder-input update, or delete operation. `request.update` is restricted to
+the editorial metadata allowlist (`title`, `aliases`, `priority`, and
+`timingLabel`); it cannot alter raw source or founder material. Agents draft
+through deliverable versions, explicitly promote an exact version, and archive
+records instead of hard-deleting them.
+
+Collection operations use datastore cursors and preserve `nextCursor` while
+applying `fields` to each item in `page`, so `--fields humanId,title` reduces
+payload size without making records beyond the first 100 unreachable. Mutable
+derived context is stored as immutable attributable versions; use
+`context.versions` with `contextId`, `cursor`, and `limit` to inspect history.
+
+Bulk mutations require either a per-command `idempotencyKey` or a batch
+`x-idempotency-key`; the server deterministically suffixes a batch key by item
+index. For `job.claim`, that stable key is also the authoritative lease token,
+so an ambiguous retry cannot claim a second job. Bulk execution is ordered but
+intentionally non-atomic. Authentication and authorization are evaluated once
+before execution, and the response has
+one `{ index, ok, data }` or `{ index, ok, status, error }` result per command,
+so a later failure never hides earlier commits and retries remain deterministic.
 
 Founder submission first verifies that every local Automerge head is durable,
 then atomically records Founder complete and queues exactly one primary-response
@@ -314,6 +366,8 @@ instead of creating a duplicate.
 
 CLI exit code `2` means fuzzy lookup requires explicit disambiguation; HTTP or
 authorization failures return exit code `1` with a machine-readable JSON body.
+Exit code `3` means a bulk response committed at least one item but one or more
+per-item operations failed; inspect each indexed result before retrying.
 
 ## Verification
 

@@ -204,10 +204,50 @@ export default defineSchema({
     citations: v.array(
       v.object({ label: v.string(), url: v.string(), supports: v.string() })
     ),
-    ingestionRunId: v.id("ingestionRuns"),
+    ingestionRunId: v.optional(v.id("ingestionRuns")),
+    updatedByPrincipalId: v.optional(v.id("principals")),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_request_kind", ["requestId", "kind"]),
+  contextItemVersions: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    contextItemId: v.id("contextItems"),
+    ordinal: v.number(),
+    kind: v.union(
+      v.literal("source_metadata"),
+      v.literal("source_summary"),
+      v.literal("talking_points"),
+      v.literal("research_requirements"),
+      v.literal("missing_research"),
+      v.literal("citations"),
+      v.literal("guardrails"),
+      v.literal("operator_cue"),
+      v.literal("delivery_hint")
+    ),
+    title: v.string(),
+    bulletPoints: v.array(v.string()),
+    citations: v.array(
+      v.object({ label: v.string(), url: v.string(), supports: v.string() })
+    ),
+    actorPrincipalId: v.id("principals"),
+    credentialId: v.string(),
+    correlationId: v.string(),
+    createdAt: v.number(),
+  }).index("by_context_ordinal", ["contextItemId", "ordinal"]),
+  contextOperations: defineTable({
+    organizationId: v.string(),
+    actorPrincipalId: v.id("principals"),
+    requestId: v.id("contentRequests"),
+    correlationId: v.string(),
+    inputFingerprint: v.string(),
+    contextItemId: v.id("contextItems"),
+    versionId: v.id("contextItemVersions"),
+  }).index("by_organization_actor_correlation", [
+    "organizationId",
+    "actorPrincipalId",
+    "correlationId",
+  ]),
   contextDeckPreferences: defineTable({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),

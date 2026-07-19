@@ -59,6 +59,82 @@ describe("Content Request workflow contract", () => {
     ).resolves.toEqual(created)
   })
 
+  it("updates only allowlisted metadata and preserves immutable source text", async () => {
+    const backend = await operatorBackend()
+    const created = await backend.mutation(api.contentRequests.createManual, {
+      title: "Original title",
+      origin: "manual",
+      source: { question: "Immutable question", body: "Immutable body" },
+      correlationId: "create-before-metadata-update",
+    })
+    const input = {
+      humanId: created.humanId,
+      title: "Editorial title",
+      aliases: ["renewal explainer"],
+      priority: "high" as const,
+      timingLabel: "Answer this week",
+      correlationId: "metadata-update-1",
+    }
+    const updated = await backend.mutation(api.contentRequests.update, input)
+    const replay = await backend.mutation(api.contentRequests.update, input)
+
+    expect(updated).toMatchObject({
+      title: "Editorial title",
+      aliases: ["renewal explainer"],
+      priority: "high",
+      timingLabel: "Answer this week",
+      source: { question: "Immutable question", body: "Immutable body" },
+      aggregateVersion: 2,
+    })
+    expect(replay).toEqual(updated)
+    await expect(
+      backend.mutation(api.contentRequests.update, {
+        ...input,
+        title: "Conflicting replay",
+      })
+    ).rejects.toMatchObject({ data: { code: "IDEMPOTENCY_KEY_REUSED" } })
+  })
+
+  it("paginates beyond the legacy 100-request cap with datastore cursors", async () => {
+    const backend = await operatorBackend()
+    await backend.run(async (ctx) => {
+      const principal = await ctx.db.query("principals").first()
+      if (!principal) throw new Error("Missing principal")
+      for (let index = 0; index < 105; index += 1) {
+        const sortable = String(index).padStart(3, "0")
+        await ctx.db.insert("contentRequests", {
+          humanId: `CR-PAGE-${sortable}`,
+          organizationId: "org_fairlend",
+          title: `Paged request ${sortable}`,
+          normalizedTitle: `paged request ${sortable}`,
+          searchText: `paged request ${sortable}`,
+          queueSortKey: sortable,
+          aliases: [],
+          origin: "manual",
+          priority: "critical",
+          lifecycle: "pending",
+          disposition: "active",
+          retention: "active",
+          aggregateVersion: 1,
+          createdByPrincipalId: principal._id,
+          createdAt: index,
+          updatedAt: index,
+        })
+      }
+    })
+    const first = await backend.query(api.contentRequests.listPage, {
+      paginationOpts: { numItems: 100, cursor: null },
+    })
+    const second = await backend.query(api.contentRequests.listPage, {
+      paginationOpts: { numItems: 100, cursor: first.continueCursor },
+    })
+
+    expect(first.page).toHaveLength(100)
+    expect(first.isDone).toBe(false)
+    expect(second.page).toHaveLength(5)
+    expect(second.isDone).toBe(true)
+  })
+
   it("preserves supplied original source material and audits creation", async () => {
     const backend = await operatorBackend()
     const created = await backend.mutation(api.contentRequests.createManual, {
@@ -321,6 +397,7 @@ describe("Content Request workflow contract", () => {
 
     await founder.mutation(api.contentRequests.markNotificationRead, {
       notificationId: notifications[0].notificationId,
+      correlationId: "notification-read-founder",
     })
     const readNotifications = await founder.query(
       api.contentRequests.listMyNotifications,
@@ -333,8 +410,15 @@ describe("Content Request workflow contract", () => {
       )?.readAt
     ).toBeTypeOf("number")
     await expect(
+      founder.mutation(api.contentRequests.markNotificationRead, {
+        notificationId: notifications[1].notificationId,
+        correlationId: "notification-read-founder",
+      })
+    ).rejects.toMatchObject({ data: { code: "IDEMPOTENCY_KEY_REUSED" } })
+    await expect(
       operator.mutation(api.contentRequests.markNotificationRead, {
         notificationId: notifications[1].notificationId,
+        correlationId: "notification-read-operator",
       })
     ).rejects.toMatchObject({ data: { code: "RESOURCE_ACCESS_DENIED" } })
   })

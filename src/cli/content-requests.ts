@@ -48,6 +48,8 @@ function usage() {
     "  target-retention <target-id> --retention <active|archived> [--idempotency-key key]",
     "  target-confirm <target-id> --version-id <id> [--note text] [--integration-success-id id] [--idempotency-key key]",
     "  target-reopen <target-id> [--idempotency-key key]",
+    "  control <operation> [--json '{...}' | --file input.json] [--fields a,b] [--idempotency-key key]",
+    "  bulk --file commands.json [--idempotency-key stable-batch-key]",
     "Environment: CONTENT_REQUESTS_API_URL, CONTENT_REQUESTS_ACCESS_TOKEN",
   ].join("\n")
 }
@@ -78,7 +80,58 @@ export async function runContentRequestsCli(
 
   let url = `${baseUrl}/api/v1/cli/content-requests`
   let init: RequestInit = { headers }
-  if (command === "list") {
+  if (command === "control" || command === "bulk") {
+    const readFile =
+      options.readFile ??
+      (async (path: string) =>
+        (await import("node:fs/promises")).readFile(path, "utf8"))
+    url = `${baseUrl}/api/v1/cli/control`
+    let body: unknown
+    if (command === "bulk") {
+      const parsed = JSON.parse(await readFile(requireFlag(args, "--file"))) as
+        | Array<unknown>
+        | { commands?: Array<unknown> }
+      const envelope = Array.isArray(parsed) ? { commands: parsed } : parsed
+      const baseKey = readFlag(args, "--idempotency-key")
+      body = baseKey
+        ? {
+            commands: envelope.commands?.map((item, index) =>
+              typeof item === "object" && item !== null
+                ? { ...item, idempotencyKey: `${baseKey}:${index}` }
+                : item
+            ),
+          }
+        : envelope
+    } else {
+      const operation = args[0]
+      if (!operation) throw new Error("control requires an operation.")
+      const inline = readFlag(args, "--json")
+      const file = readFlag(args, "--file")
+      if (inline && file)
+        throw new Error("Use either --json or --file, not both.")
+      const argumentsValue = JSON.parse(
+        inline ?? (file ? await readFile(file) : "{}")
+      ) as unknown
+      if (
+        typeof argumentsValue !== "object" ||
+        argumentsValue === null ||
+        Array.isArray(argumentsValue)
+      )
+        throw new Error("Control arguments must be a JSON object.")
+      body = {
+        command: {
+          operation,
+          arguments: argumentsValue,
+          fields: readFlag(args, "--fields")
+            ?.split(",")
+            .map((field) => field.trim())
+            .filter(Boolean),
+          idempotencyKey: readFlag(args, "--idempotency-key"),
+        },
+      }
+    }
+    init = { method: "POST", headers, body: JSON.stringify(body) }
+  } else if (command === "list") {
     const limit = readFlag(args, "--limit")
     if (limit) url += `?limit=${encodeURIComponent(limit)}`
   } else if (command === "get") {
@@ -319,7 +372,7 @@ export async function runContentRequestsCli(
 
   const response = await fetchImpl(url, init)
   const payload = (await response.json()) as {
-    data?: { kind?: string }
+    data?: { kind?: string } | Array<{ ok?: boolean }>
     error?: { code?: string; message?: string }
   }
   io.writeOut(JSON.stringify(payload))
@@ -327,7 +380,19 @@ export async function runContentRequestsCli(
     io.writeError(payload.error?.message ?? `HTTP ${response.status}`)
     return 1
   }
-  return command === "find" && payload.data?.kind === "candidates" ? 2 : 0
+  if (
+    command === "bulk" &&
+    Array.isArray(payload.data) &&
+    payload.data.some((item) => item.ok === false)
+  ) {
+    io.writeError("One or more bulk commands failed.")
+    return 3
+  }
+  return (command === "find" || command === "control") &&
+    !Array.isArray(payload.data) &&
+    payload.data?.kind === "candidates"
+    ? 2
+    : 0
 }
 
 if (process.argv[1]?.endsWith("content-requests.ts")) {

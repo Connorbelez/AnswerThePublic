@@ -75,6 +75,11 @@ export type RequestResolution =
   | { kind: "candidates"; candidates: Array<RequestCandidate> }
   | { kind: "not_found"; candidates: Array<never> }
 
+export type CursorPage<T> = {
+  page: Array<T>
+  nextCursor: string | null
+}
+
 export type CreateManualRequestInput = {
   title: string
   source?: OriginalSource
@@ -91,6 +96,15 @@ export type AssignRequestInput = {
   assigneePrincipalId: string
   watcherPrincipalIds?: Array<string>
   reason?: string
+  correlationId: string
+}
+
+export type UpdateRequestInput = {
+  humanId: string
+  title?: string
+  aliases?: Array<string>
+  priority?: RequestPriority
+  timingLabel?: string | null
   correlationId: string
 }
 
@@ -111,6 +125,22 @@ export type ContentNotification = {
   deepLink: string
 }
 
+export type ContentRequestAuditEvent = {
+  eventId: string
+  operation: string
+  correlationId: string
+  requestHumanId: string
+  actorPrincipalId: string
+  credentialId: string
+  occurredAt: number
+  beforeVersion: number | null
+  afterVersion: number
+}
+export type ContentRequestAuditPage = {
+  page: Array<ContentRequestAuditEvent>
+  nextCursor: string | null
+}
+
 export type ContentContextKind =
   | "source_metadata"
   | "source_summary"
@@ -128,6 +158,23 @@ export type ContentContextItem = {
   title: string
   bulletPoints: Array<string>
   citations: Array<{ label: string; url: string; supports: string }>
+}
+
+export type UpsertContentContextInput = Omit<
+  ContentContextItem,
+  "contextId"
+> & {
+  humanId: string
+  correlationId: string
+}
+
+export type ContentContextVersion = ContentContextItem & {
+  versionId: string
+  ordinal: number
+  actorPrincipalId: string
+  credentialId: string
+  correlationId: string
+  createdAt: number
 }
 
 export type ContextDeckPreferences = {
@@ -475,10 +522,15 @@ export interface ContentRequestRepository {
   createManual(input: PersistManualRequestInput): Promise<ContentRequest>
   getByHumanId(humanId: string): Promise<ContentRequest | null>
   list(limit?: number): Promise<Array<ContentRequest>>
+  listPage(
+    cursor: string | null,
+    limit: number
+  ): Promise<CursorPage<ContentRequest>>
   listOperatorWorkspace(
     input?: OperatorWorkspaceInput
   ): Promise<OperatorWorkspacePage>
   resolve(query: string): Promise<RequestResolution>
+  update(input: UpdateRequestInput): Promise<ContentRequest>
   assign(input: AssignRequestInput): Promise<ContentRequest>
   open(humanId: string, correlationId: string): Promise<ContentRequest>
   setExpiration(
@@ -505,8 +557,26 @@ export interface ContentRequestRepository {
   getRelations(humanId: string): Promise<ContentRequestRelations>
   listAssignablePrincipals(): Promise<Array<PrincipalSummary>>
   listMyNotifications(): Promise<Array<ContentNotification>>
-  markNotificationRead(notificationId: string): Promise<void>
+  listMyNotificationsPage(
+    cursor: string | null,
+    limit: number
+  ): Promise<CursorPage<ContentNotification>>
+  markNotificationRead(
+    notificationId: string,
+    correlationId: string
+  ): Promise<void>
+  listAuditEvents(
+    humanId: string,
+    cursor: string | null,
+    limit: number
+  ): Promise<ContentRequestAuditPage>
   listContext(humanId: string): Promise<Array<ContentContextItem>>
+  upsertContext(input: UpsertContentContextInput): Promise<ContentContextItem>
+  listContextVersions(
+    contextId: string,
+    cursor: string | null,
+    limit: number
+  ): Promise<CursorPage<ContentContextVersion>>
   getContextDeckPreferences(
     humanId: string
   ): Promise<ContextDeckPreferences | null>
@@ -578,6 +648,10 @@ export interface ContentRequestRepository {
     correlationId: string
   ): Promise<AgentJob>
   listAgentJobs(): Promise<Array<AgentJob>>
+  listAgentJobsPage(
+    cursor: string | null,
+    limit: number
+  ): Promise<CursorPage<AgentJob>>
   claimAgentJob(leaseToken: string, leaseMs: number): Promise<AgentJob | null>
   heartbeatAgentJob(
     jobId: string,
@@ -689,10 +763,15 @@ export interface ContentRequestService {
   createManual(input: CreateManualRequestInput): Promise<ContentRequest>
   getByHumanId(humanId: string): Promise<ContentRequest | null>
   list(limit?: number): Promise<Array<ContentRequest>>
+  listPage(
+    cursor: string | null,
+    limit: number
+  ): Promise<CursorPage<ContentRequest>>
   listOperatorWorkspace(
     input?: OperatorWorkspaceInput
   ): Promise<OperatorWorkspacePage>
   resolve(query: string): Promise<RequestResolution>
+  update(input: UpdateRequestInput): Promise<ContentRequest>
   assign(input: AssignRequestInput): Promise<ContentRequest>
   open(humanId: string, correlationId: string): Promise<ContentRequest>
   setExpiration(
@@ -719,8 +798,26 @@ export interface ContentRequestService {
   getRelations(humanId: string): Promise<ContentRequestRelations>
   listAssignablePrincipals(): Promise<Array<PrincipalSummary>>
   listMyNotifications(): Promise<Array<ContentNotification>>
-  markNotificationRead(notificationId: string): Promise<void>
+  listMyNotificationsPage(
+    cursor: string | null,
+    limit: number
+  ): Promise<CursorPage<ContentNotification>>
+  markNotificationRead(
+    notificationId: string,
+    correlationId: string
+  ): Promise<void>
+  listAuditEvents(
+    humanId: string,
+    cursor: string | null,
+    limit: number
+  ): Promise<ContentRequestAuditPage>
   listContext(humanId: string): Promise<Array<ContentContextItem>>
+  upsertContext(input: UpsertContentContextInput): Promise<ContentContextItem>
+  listContextVersions(
+    contextId: string,
+    cursor: string | null,
+    limit: number
+  ): Promise<CursorPage<ContentContextVersion>>
   getContextDeckPreferences(
     humanId: string
   ): Promise<ContextDeckPreferences | null>
@@ -792,6 +889,10 @@ export interface ContentRequestService {
     correlationId: string
   ): Promise<AgentJob>
   listAgentJobs(): Promise<Array<AgentJob>>
+  listAgentJobsPage(
+    cursor: string | null,
+    limit: number
+  ): Promise<CursorPage<AgentJob>>
   claimAgentJob(leaseToken: string, leaseMs: number): Promise<AgentJob | null>
   heartbeatAgentJob(
     jobId: string,
@@ -908,8 +1009,10 @@ export function createContentRequestService(
       repository.createManual({ ...input, origin: creationOrigin }),
     getByHumanId: (humanId) => repository.getByHumanId(humanId),
     list: (limit) => repository.list(limit),
+    listPage: (cursor, limit) => repository.listPage(cursor, limit),
     listOperatorWorkspace: (input) => repository.listOperatorWorkspace(input),
     resolve: (query) => repository.resolve(query),
+    update: (input) => repository.update(input),
     assign: (input) => repository.assign(input),
     open: (humanId, correlationId) => repository.open(humanId, correlationId),
     setExpiration: (humanId, expiresAt, correlationId) =>
@@ -926,9 +1029,16 @@ export function createContentRequestService(
     getRelations: (humanId) => repository.getRelations(humanId),
     listAssignablePrincipals: () => repository.listAssignablePrincipals(),
     listMyNotifications: () => repository.listMyNotifications(),
-    markNotificationRead: (notificationId) =>
-      repository.markNotificationRead(notificationId),
+    listMyNotificationsPage: (cursor, limit) =>
+      repository.listMyNotificationsPage(cursor, limit),
+    markNotificationRead: (notificationId, correlationId) =>
+      repository.markNotificationRead(notificationId, correlationId),
+    listAuditEvents: (humanId, cursor, limit) =>
+      repository.listAuditEvents(humanId, cursor, limit),
     listContext: (humanId) => repository.listContext(humanId),
+    upsertContext: (input) => repository.upsertContext(input),
+    listContextVersions: (contextId, cursor, limit) =>
+      repository.listContextVersions(contextId, cursor, limit),
     getContextDeckPreferences: (humanId) =>
       repository.getContextDeckPreferences(humanId),
     saveContextDeckPreferences: (humanId, preferences, correlationId) =>
@@ -975,6 +1085,8 @@ export function createContentRequestService(
     submitFounderInput: (humanId, heads, correlationId) =>
       repository.submitFounderInput(humanId, heads, correlationId),
     listAgentJobs: () => repository.listAgentJobs(),
+    listAgentJobsPage: (cursor, limit) =>
+      repository.listAgentJobsPage(cursor, limit),
     claimAgentJob: (leaseToken, leaseMs) =>
       repository.claimAgentJob(leaseToken, leaseMs),
     heartbeatAgentJob: (jobId, leaseToken, leaseMs, leaseGeneration) =>

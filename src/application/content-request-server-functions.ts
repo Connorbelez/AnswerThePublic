@@ -458,7 +458,7 @@ export const markMyNotificationRead = createServerFn({ method: "POST" })
       await import("@/application/content-request-service-request.server")
     await (
       await createContentRequestServiceFromRequest()
-    ).markNotificationRead(data.notificationId)
+    ).markNotificationRead(data.notificationId, crypto.randomUUID())
   })
 
 export const listDeliverables = createServerFn({ method: "POST" })

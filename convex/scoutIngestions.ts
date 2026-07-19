@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server"
 import { ConvexError, v } from "convex/values"
 
 import type { Id } from "./_generated/dataModel"
@@ -355,22 +356,44 @@ export const apply = mutation({
           const existingContext = existingContexts.find(
             (item) => item.kind === context.kind
           )
+          let contextId: Id<"contextItems">
           if (existingContext) {
             await ctx.db.patch(existingContext._id, {
               ...context,
               ingestionRunId,
+              updatedByPrincipalId: principal._id,
               updatedAt: now,
             })
+            contextId = existingContext._id
           } else {
-            await ctx.db.insert("contextItems", {
+            contextId = await ctx.db.insert("contextItems", {
               organizationId: principal.organizationId,
               requestId,
               ...context,
               ingestionRunId,
+              updatedByPrincipalId: principal._id,
               createdAt: now,
               updatedAt: now,
             })
           }
+          const latestVersion = await ctx.db
+            .query("contextItemVersions")
+            .withIndex("by_context_ordinal", (index) =>
+              index.eq("contextItemId", contextId)
+            )
+            .order("desc")
+            .first()
+          await ctx.db.insert("contextItemVersions", {
+            organizationId: principal.organizationId,
+            requestId,
+            contextItemId: contextId,
+            ordinal: (latestVersion?.ordinal ?? 0) + 1,
+            ...context,
+            actorPrincipalId: principal._id,
+            credentialId: principal.credentialId,
+            correlationId: `${idempotencyKey}:${opportunity.itemId}:${context.kind}`,
+            createdAt: now,
+          })
         }
       }
       await ctx.db.insert("ingestionItems", {
@@ -447,6 +470,212 @@ export const listContext = query({
       bulletPoints: item.bulletPoints,
       citations: item.citations,
     }))
+  },
+})
+
+export const upsertContext = mutation({
+  args: {
+    humanId: v.string(),
+    kind: contextKindValidator,
+    title: v.string(),
+    bulletPoints: v.array(v.string()),
+    citations: v.array(citationValidator),
+    correlationId: v.string(),
+  },
+  returns: v.object({
+    contextId: v.string(),
+    kind: contextKindValidator,
+    title: v.string(),
+    bulletPoints: v.array(v.string()),
+    citations: v.array(citationValidator),
+  }),
+  handler: async (ctx, args) => {
+    const { principal, request } = await contextRequestForPrincipal(
+      ctx,
+      args.humanId.trim().toUpperCase()
+    )
+    requireEditor(principal)
+    requireActiveRequest(request)
+    const title = args.title.trim()
+    const bulletPoints = args.bulletPoints.map((point) => point.trim())
+    const citations = args.citations.map((citation) => ({
+      label: citation.label.trim(),
+      url: citation.url.trim(),
+      supports: citation.supports.trim(),
+    }))
+    const correlationId = args.correlationId.trim()
+    if (
+      !title ||
+      !correlationId ||
+      bulletPoints.length > 100 ||
+      citations.length > 100 ||
+      bulletPoints.some((point) => !point) ||
+      citations.some(
+        (citation) => !citation.label || !citation.url || !citation.supports
+      )
+    )
+      throw new ConvexError({ code: "VALIDATION_FAILED" })
+    const inputFingerprint = contentChecksum(
+      JSON.stringify({ kind: args.kind, title, bulletPoints, citations })
+    )
+    const priorOperation = await ctx.db
+      .query("contextOperations")
+      .withIndex("by_organization_actor_correlation", (index) =>
+        index
+          .eq("organizationId", principal.organizationId)
+          .eq("actorPrincipalId", principal._id)
+          .eq("correlationId", correlationId)
+      )
+      .unique()
+    if (priorOperation) {
+      const version = await ctx.db.get(priorOperation.versionId)
+      if (
+        priorOperation.requestId !== request._id ||
+        priorOperation.inputFingerprint !== inputFingerprint ||
+        !version
+      )
+        throw new ConvexError({ code: "IDEMPOTENCY_KEY_REUSED" })
+      return {
+        contextId: priorOperation.contextItemId,
+        kind: version.kind,
+        title: version.title,
+        bulletPoints: version.bulletPoints,
+        citations: version.citations,
+      }
+    }
+    const existing = await ctx.db
+      .query("contextItems")
+      .withIndex("by_request_kind", (index) =>
+        index.eq("requestId", request._id).eq("kind", args.kind)
+      )
+      .unique()
+    const now = Date.now()
+    const contextId = existing
+      ? (await ctx.db.patch(existing._id, {
+          title,
+          bulletPoints,
+          citations,
+          updatedByPrincipalId: principal._id,
+          updatedAt: now,
+        }),
+        existing._id)
+      : await ctx.db.insert("contextItems", {
+          organizationId: principal.organizationId,
+          requestId: request._id,
+          kind: args.kind,
+          title,
+          bulletPoints,
+          citations,
+          updatedByPrincipalId: principal._id,
+          createdAt: now,
+          updatedAt: now,
+        })
+    const latestVersion = await ctx.db
+      .query("contextItemVersions")
+      .withIndex("by_context_ordinal", (index) =>
+        index.eq("contextItemId", contextId)
+      )
+      .order("desc")
+      .first()
+    const versionId = await ctx.db.insert("contextItemVersions", {
+      organizationId: principal.organizationId,
+      requestId: request._id,
+      contextItemId: contextId,
+      ordinal: (latestVersion?.ordinal ?? 0) + 1,
+      kind: args.kind,
+      title,
+      bulletPoints,
+      citations,
+      actorPrincipalId: principal._id,
+      credentialId: principal.credentialId,
+      correlationId,
+      createdAt: now,
+    })
+    await ctx.db.insert("contextOperations", {
+      organizationId: principal.organizationId,
+      actorPrincipalId: principal._id,
+      requestId: request._id,
+      correlationId,
+      inputFingerprint,
+      contextItemId: contextId,
+      versionId,
+    })
+    await ctx.db.patch(request._id, {
+      aggregateVersion: request.aggregateVersion + 1,
+      updatedAt: now,
+    })
+    await ctx.db.insert("auditEvents", {
+      organizationId: principal.organizationId,
+      requestId: request._id,
+      requestHumanId: request.humanId,
+      actorPrincipalId: principal._id,
+      credentialId: principal.credentialId,
+      operation: "context.upserted",
+      correlationId,
+      occurredAt: now,
+      beforeVersion: request.aggregateVersion,
+      afterVersion: request.aggregateVersion + 1,
+      inputFingerprint,
+    })
+    await refreshOperatorWorkspaceProjection(ctx, request._id)
+    return { contextId, kind: args.kind, title, bulletPoints, citations }
+  },
+})
+
+export const listContextVersions = query({
+  args: {
+    contextId: v.id("contextItems"),
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: v.object({
+    page: v.array(
+      v.object({
+        versionId: v.string(),
+        contextId: v.string(),
+        ordinal: v.number(),
+        kind: contextKindValidator,
+        title: v.string(),
+        bulletPoints: v.array(v.string()),
+        citations: v.array(citationValidator),
+        actorPrincipalId: v.string(),
+        credentialId: v.string(),
+        correlationId: v.string(),
+        createdAt: v.number(),
+      })
+    ),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const principal = await requirePrincipal(ctx)
+    requireEditor(principal)
+    const context = await ctx.db.get(args.contextId)
+    if (!context || context.organizationId !== principal.organizationId)
+      throw new ConvexError({ code: "NOT_FOUND" })
+    const versions = await ctx.db
+      .query("contextItemVersions")
+      .withIndex("by_context_ordinal", (index) =>
+        index.eq("contextItemId", context._id)
+      )
+      .order("desc")
+      .paginate(args.paginationOpts)
+    return {
+      isDone: versions.isDone,
+      continueCursor: versions.continueCursor,
+      page: versions.page.map((version) => ({
+        versionId: version._id,
+        contextId: version.contextItemId,
+        ordinal: version.ordinal,
+        kind: version.kind,
+        title: version.title,
+        bulletPoints: version.bulletPoints,
+        citations: version.citations,
+        actorPrincipalId: version.actorPrincipalId,
+        credentialId: version.credentialId,
+        correlationId: version.correlationId,
+        createdAt: version.createdAt,
+      })),
+    }
   },
 })
 

@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server"
 import { ConvexError, v } from "convex/values"
 
 import type { Doc, Id } from "./_generated/dataModel"
@@ -554,6 +555,124 @@ export const createManual = mutation({
   },
 })
 
+/**
+ * Updates only editorial request metadata. Original source snapshots and
+ * founder input are intentionally absent from this mutation's schema.
+ */
+export const update = mutation({
+  args: {
+    humanId: v.string(),
+    title: v.optional(v.string()),
+    aliases: v.optional(v.array(v.string())),
+    priority: v.optional(requestPriorityValidator),
+    timingLabel: v.optional(v.union(v.string(), v.null())),
+    correlationId: v.string(),
+  },
+  returns: contentRequestValidator,
+  handler: async (ctx, args) => {
+    const principal = await requirePrincipal(ctx)
+    requireEditor(principal)
+    const request = await ctx.db
+      .query("contentRequests")
+      .withIndex("by_organization_human_id", (index) =>
+        index
+          .eq("organizationId", principal.organizationId)
+          .eq("humanId", args.humanId.trim().toUpperCase())
+      )
+      .unique()
+    if (!request) throw new ConvexError({ code: "NOT_FOUND" })
+    requireActiveRequest(request)
+    if (
+      args.title === undefined &&
+      args.aliases === undefined &&
+      args.priority === undefined &&
+      args.timingLabel === undefined
+    )
+      throw new ConvexError({ code: "VALIDATION_FAILED", field: "update" })
+    const title =
+      args.title === undefined
+        ? request.title
+        : cleanRequiredText(args.title, "title")
+    const aliases =
+      args.aliases === undefined
+        ? request.aliases
+        : args.aliases.map((alias) => cleanRequiredText(alias, "aliases"))
+    if (aliases.length > 100)
+      throw new ConvexError({ code: "VALIDATION_FAILED", field: "aliases" })
+    const priority = args.priority ?? request.priority
+    const timingLabel =
+      args.timingLabel === undefined
+        ? request.timingLabel
+        : (cleanOptionalText(args.timingLabel ?? undefined) ?? undefined)
+    const correlationId = cleanRequiredText(args.correlationId, "correlationId")
+    const inputFingerprint = JSON.stringify({
+      humanId: request.humanId,
+      title: args.title === undefined ? null : title,
+      aliases: args.aliases === undefined ? null : aliases,
+      priority: args.priority ?? null,
+      timingLabel:
+        args.timingLabel === undefined
+          ? "__unchanged__"
+          : (timingLabel ?? null),
+    })
+    const prior = await ctx.db
+      .query("auditEvents")
+      .withIndex("by_organization_actor_operation_correlation", (index) =>
+        index
+          .eq("organizationId", principal.organizationId)
+          .eq("actorPrincipalId", principal._id)
+          .eq("operation", "content_request.updated")
+          .eq("correlationId", correlationId)
+      )
+      .unique()
+    if (prior) {
+      if (
+        prior.requestId !== request._id ||
+        prior.inputFingerprint !== inputFingerprint
+      )
+        throw new ConvexError({ code: "IDEMPOTENCY_KEY_REUSED" })
+      return toPublicRequest(ctx, request)
+    }
+    const source = request.sourceSnapshotId
+      ? await ctx.db.get(request.sourceSnapshotId)
+      : null
+    const now = Date.now()
+    const afterVersion = request.aggregateVersion + 1
+    await ctx.db.patch(request._id, {
+      title,
+      normalizedTitle: normalizeText(title),
+      searchText: searchTextFor(title, aliases, source ?? undefined),
+      aliases,
+      priority,
+      timingLabel,
+      queueSortKey: requestQueueSortKey(
+        request.origin,
+        priority,
+        request.createdAt
+      ),
+      aggregateVersion: afterVersion,
+      updatedAt: now,
+    })
+    await ctx.db.insert("auditEvents", {
+      organizationId: principal.organizationId,
+      requestId: request._id,
+      requestHumanId: request.humanId,
+      actorPrincipalId: principal._id,
+      credentialId: principal.credentialId,
+      operation: "content_request.updated",
+      correlationId,
+      occurredAt: now,
+      beforeVersion: request.aggregateVersion,
+      afterVersion,
+      inputFingerprint,
+    })
+    await refreshOperatorWorkspaceProjection(ctx, request._id)
+    const updated = await ctx.db.get(request._id)
+    if (!updated) throw new ConvexError({ code: "WRITE_FAILED" })
+    return toPublicRequest(ctx, updated)
+  },
+})
+
 export const getByHumanId = query({
   args: { humanId: v.string() },
   returns: v.union(contentRequestValidator, v.null()),
@@ -613,6 +732,33 @@ export const list = query({
             .order("asc")
             .take(limit)
     return Promise.all(requests.map((request) => toPublicRequest(ctx, request)))
+  },
+})
+
+export const listPage = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: v.object({
+    page: v.array(contentRequestValidator),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const principal = await requirePrincipal(ctx)
+    requireEditor(principal)
+    const requests = await ctx.db
+      .query("contentRequests")
+      .withIndex("by_organization_queue_sort", (index) =>
+        index.eq("organizationId", principal.organizationId)
+      )
+      .order("asc")
+      .paginate(args.paginationOpts)
+    return {
+      isDone: requests.isDone,
+      continueCursor: requests.continueCursor,
+      page: await Promise.all(
+        requests.page.map((request) => toPublicRequest(ctx, request))
+      ),
+    }
   },
 })
 
@@ -952,8 +1098,50 @@ export const listMyNotifications = query({
   },
 })
 
+export const listMyNotificationsPage = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: v.object({
+    page: v.array(notificationValidator),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const principal = await requirePrincipal(ctx)
+    const notifications = await ctx.db
+      .query("notifications")
+      .withIndex("by_recipient_created_at", (index) =>
+        index.eq("recipientPrincipalId", principal._id)
+      )
+      .order("desc")
+      .paginate(args.paginationOpts)
+    return {
+      isDone: notifications.isDone,
+      continueCursor: notifications.continueCursor,
+      page: await Promise.all(
+        notifications.page.map(async (notification) => {
+          const request = await ctx.db.get(notification.requestId)
+          if (!request) throw new ConvexError({ code: "NOT_FOUND" })
+          return {
+            notificationId: notification._id,
+            requestHumanId: request.humanId,
+            type: notification.type,
+            emailQueued: notification.emailQueued,
+            emailStatus: notification.emailStatus,
+            createdAt: notification.createdAt,
+            readAt: notification.readAt ?? null,
+            deepLink: `/app/requests/${request.humanId}`,
+          }
+        })
+      ),
+    }
+  },
+})
+
 export const markNotificationRead = mutation({
-  args: { notificationId: v.id("notifications") },
+  args: {
+    notificationId: v.id("notifications"),
+    correlationId: v.string(),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
     const principal = await requirePrincipal(ctx)
@@ -965,9 +1153,50 @@ export const markNotificationRead = mutation({
     ) {
       throw new ConvexError({ code: "RESOURCE_ACCESS_DENIED" })
     }
-    if (!notification.readAt) {
-      await ctx.db.patch(notification._id, { readAt: Date.now() })
+    const request = await ctx.db.get(notification.requestId)
+    if (!request) throw new ConvexError({ code: "NOT_FOUND" })
+    const correlationId = args.correlationId.trim()
+    if (!correlationId)
+      throw new ConvexError({
+        code: "VALIDATION_FAILED",
+        field: "correlationId",
+      })
+    const inputFingerprint = `notification:${notification._id}`
+    const priorAudit = await ctx.db
+      .query("auditEvents")
+      .withIndex("by_organization_actor_operation_correlation", (index) =>
+        index
+          .eq("organizationId", principal.organizationId)
+          .eq("actorPrincipalId", principal._id)
+          .eq("operation", "notification.read")
+          .eq("correlationId", correlationId)
+      )
+      .unique()
+    if (priorAudit) {
+      if (
+        priorAudit.requestId !== request._id ||
+        priorAudit.inputFingerprint !== inputFingerprint
+      )
+        throw new ConvexError({ code: "IDEMPOTENCY_KEY_REUSED" })
+      return null
     }
+    const now = Date.now()
+    if (!notification.readAt) {
+      await ctx.db.patch(notification._id, { readAt: now })
+    }
+    await ctx.db.insert("auditEvents", {
+      organizationId: principal.organizationId,
+      requestId: request._id,
+      requestHumanId: request.humanId,
+      actorPrincipalId: principal._id,
+      credentialId: principal.credentialId,
+      operation: "notification.read",
+      correlationId,
+      occurredAt: now,
+      beforeVersion: request.aggregateVersion,
+      afterVersion: request.aggregateVersion,
+      inputFingerprint,
+    })
     return null
   },
 })
@@ -1004,5 +1233,49 @@ export const listAuditEvents = query({
       beforeVersion: event.beforeVersion ?? null,
       afterVersion: event.afterVersion,
     }))
+  },
+})
+
+export const listAuditEventsPage = query({
+  args: { humanId: v.string(), paginationOpts: paginationOptsValidator },
+  returns: v.object({
+    page: v.array(auditEventValidator),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const principal = await requirePrincipal(ctx)
+    requireEditor(principal)
+    const request = await ctx.db
+      .query("contentRequests")
+      .withIndex("by_organization_human_id", (index) =>
+        index
+          .eq("organizationId", principal.organizationId)
+          .eq("humanId", args.humanId.trim().toUpperCase())
+      )
+      .unique()
+    if (!request) return { page: [], isDone: true, continueCursor: "" }
+    const events = await ctx.db
+      .query("auditEvents")
+      .withIndex("by_request_occurred_at", (index) =>
+        index.eq("requestId", request._id)
+      )
+      .order("desc")
+      .paginate(args.paginationOpts)
+    return {
+      isDone: events.isDone,
+      continueCursor: events.continueCursor,
+      page: events.page.map((event) => ({
+        eventId: event._id,
+        operation: event.operation,
+        correlationId: event.correlationId,
+        requestHumanId: event.requestHumanId,
+        actorPrincipalId: event.actorPrincipalId,
+        credentialId: event.credentialId,
+        occurredAt: event.occurredAt,
+        beforeVersion: event.beforeVersion ?? null,
+        afterVersion: event.afterVersion,
+      })),
+    }
   },
 })

@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server"
 import { ConvexError, v } from "convex/values"
 
 import type { Doc } from "./_generated/dataModel"
@@ -824,6 +825,31 @@ export const list = query({
       .order("desc")
       .take(limit)
     return Promise.all(jobs.map((job) => publicJob(ctx, job)))
+  },
+})
+
+export const listPage = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: v.object({
+    page: v.array(jobValidator),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const principal = await requirePrincipal(ctx)
+    assertAgent(principal)
+    const jobs = await ctx.db
+      .query("agentJobs")
+      .withIndex("by_organization_created_at", (query) =>
+        query.eq("organizationId", principal.organizationId)
+      )
+      .order("desc")
+      .paginate(args.paginationOpts)
+    return {
+      isDone: jobs.isDone,
+      continueCursor: jobs.continueCursor,
+      page: await Promise.all(jobs.page.map((job) => publicJob(ctx, job))),
+    }
   },
 })
 
