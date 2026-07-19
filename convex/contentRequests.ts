@@ -10,6 +10,7 @@ import {
 } from "./_generated/server"
 import { requireEditor, requirePrincipal } from "./lib/authorization"
 import { enqueueNotification } from "./lib/notificationOutbox"
+import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 import { requestQueueSortKey } from "./lib/requestOrdering"
 import {
   requestDispositionValidator,
@@ -44,13 +45,14 @@ const explicitRequestOriginValidator = v.union(
   v.literal("http_api")
 )
 
-const contentRequestValidator = v.object({
+export const contentRequestValidator = v.object({
   requestId: v.id("contentRequests"),
   humanId: v.string(),
   title: v.string(),
   aliases: v.array(v.string()),
   origin: requestOriginValidator,
   priority: requestPriorityValidator,
+  timingLabel: v.union(v.string(), v.null()),
   lifecycle: requestLifecycleValidator,
   disposition: requestDispositionValidator,
   retention: requestRetentionValidator,
@@ -165,7 +167,7 @@ function publicSource(snapshot: Doc<"sourceSnapshots"> | null) {
   }
 }
 
-async function toPublicRequest(
+export async function toPublicRequest(
   ctx: RequestContext,
   request: Doc<"contentRequests">
 ) {
@@ -192,6 +194,7 @@ async function toPublicRequest(
     aliases: request.aliases,
     origin: request.origin,
     priority: request.priority,
+    timingLabel: request.timingLabel ?? null,
     lifecycle: request.lifecycle,
     disposition: request.disposition,
     retention: request.retention,
@@ -430,6 +433,7 @@ export const createManual = mutation({
         "critical_escalation",
         now
       )
+      await refreshOperatorWorkspaceProjection(ctx, upgraded._id)
       return toPublicRequest(ctx, upgraded)
     }
     const requestId = await ctx.db.insert("contentRequests", {
@@ -508,6 +512,7 @@ export const createManual = mutation({
     })
     const request = await ctx.db.get(requestId)
     if (!request) throw new ConvexError({ code: "WRITE_FAILED" })
+    await refreshOperatorWorkspaceProjection(ctx, requestId)
     return toPublicRequest(ctx, request)
   },
 })
@@ -771,6 +776,7 @@ export const assign = internalMutation({
     }
     const updated = await ctx.db.get(request._id)
     if (!updated) throw new ConvexError({ code: "WRITE_FAILED" })
+    await refreshOperatorWorkspaceProjection(ctx, request._id)
     return toPublicRequest(ctx, updated)
   },
 })

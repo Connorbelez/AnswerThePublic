@@ -22,6 +22,24 @@ export async function createConvexTestContentRequestRepository(
     async list(limit) {
       return backend.query(api.contentRequests.list, { limit })
     },
+    async listOperatorWorkspace(input) {
+      return backend.query(api.operatorWorkspace.list, {
+        queue: input?.queue,
+        search: input?.search,
+        priority: input?.priority,
+        origin: input?.origin,
+        lifecycle: input?.lifecycle,
+        disposition: input?.disposition,
+        assigneePrincipalId: input?.assigneePrincipalId as
+          | Id<"principals">
+          | undefined,
+        deliveryChannel: input?.deliveryChannel,
+        paginationOpts: {
+          numItems: Math.min(Math.max(input?.limit ?? 50, 1), 100),
+          cursor: input?.cursor ?? null,
+        },
+      })
+    },
     async resolve(query) {
       return backend.query(api.contentRequests.resolve, { query })
     },
@@ -278,7 +296,8 @@ export async function createConvexTestContentRequestRepository(
         targetId: input.targetId as Id<"deliveryTargets">,
         versionId: input.versionId as Id<"deliverableVersions">,
         integrationSuccessId: input.integrationSuccessId as
-          Id<"integrationDeliverySuccesses"> | undefined,
+          | Id<"integrationDeliverySuccesses">
+          | undefined,
       })
     },
     async reopenDeliveryTarget(input) {

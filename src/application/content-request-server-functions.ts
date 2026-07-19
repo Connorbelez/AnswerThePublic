@@ -6,6 +6,7 @@ import type {
   ContextDeckPreferences,
   CreateManualRequestInput,
   FinalizeFounderVoiceCaptureInput,
+  OperatorWorkspaceInput,
 } from "@/application/content-requests"
 
 export const listContentRequests = createServerFn({ method: "POST" }).handler(
@@ -15,6 +16,16 @@ export const listContentRequests = createServerFn({ method: "POST" }).handler(
     return (await createContentRequestServiceFromRequest()).list()
   }
 )
+
+export const listOperatorWorkspace = createServerFn({ method: "POST" })
+  .validator((data: OperatorWorkspaceInput) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).listOperatorWorkspace(data)
+  })
 
 export const getContentRequest = createServerFn({ method: "POST" })
   .validator((data: { humanId: string }) => data)

@@ -5,6 +5,7 @@ import { internalMutation } from "./_generated/server"
 import { requestQueueSortKey } from "./lib/requestOrdering"
 import { lifecycleForPrimary } from "./lib/deliverableLifecycle"
 import { projectDeliveryLifecycle } from "./lib/deliveryLifecycle"
+import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 import { normalizeSourceUrl } from "../shared/url-normalization"
 import { normalizeLegacyDeliveryChannel } from "../shared/delivery-channel"
 
@@ -282,5 +283,44 @@ export const backfillOriginalDeliveryTargets = internalMutation({
         { cursor: page.continueCursor }
       )
     return { migrated, done: page.isDone }
+  },
+})
+
+export const backfillOperatorWorkspace = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  returns: v.object({ migrated: v.number(), done: v.boolean() }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("contentRequests").paginate({
+      cursor: args.cursor ?? null,
+      numItems: 50,
+    })
+    for (const request of page.page) {
+      const targets = await ctx.db
+        .query("deliveryTargets")
+        .withIndex("by_request", (index) => index.eq("requestId", request._id))
+        .collect()
+      for (const target of targets) {
+        if (target.hasHistoricalReceipt !== undefined) continue
+        const receipt = await ctx.db
+          .query("deliveryReceipts")
+          .withIndex("by_target_responded_at", (index) =>
+            index.eq("targetId", target._id)
+          )
+          .first()
+        await ctx.db.patch(target._id, {
+          hasHistoricalReceipt: Boolean(receipt),
+        })
+      }
+      await refreshOperatorWorkspaceProjection(ctx, request._id)
+    }
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.backfillOperatorWorkspace,
+        {
+          cursor: page.continueCursor,
+        }
+      )
+    return { migrated: page.page.length, done: page.isDone }
   },
 })

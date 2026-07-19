@@ -1,5 +1,9 @@
 export type RequestOrigin =
-  "manual" | "automated_scout" | "chatgpt_app" | "cli" | "http_api"
+  | "manual"
+  | "automated_scout"
+  | "chatgpt_app"
+  | "cli"
+  | "http_api"
 
 export type RequestPriority = "critical" | "high" | "normal" | "low"
 
@@ -34,6 +38,7 @@ export type ContentRequest = {
   aliases: Array<string>
   origin: RequestOrigin
   priority: RequestPriority
+  timingLabel?: string | null
   lifecycle: RequestLifecycle
   disposition: RequestDisposition
   retention: RequestRetention
@@ -206,7 +211,12 @@ export type AgentJob = {
   jobId: string
   requestHumanId: string
   status:
-    "queued" | "running" | "retry_wait" | "failed" | "completed" | "cancelled"
+    | "queued"
+    | "running"
+    | "retry_wait"
+    | "failed"
+    | "completed"
+    | "cancelled"
   attempts: number
   maxAttempts: number
   leaseGeneration: number
@@ -297,6 +307,45 @@ export type DeliveryTarget = {
   updatedAt: number
 }
 
+export type OperatorQueue =
+  | "needs_elie"
+  | "agent_drafting"
+  | "needs_operator"
+  | "delivered"
+  | "attention_required"
+
+export type OperatorWorkspaceItem = {
+  request: ContentRequest
+  queue: OperatorQueue
+  agentJobStatus: AgentJob["status"] | null
+  requiredDeliveryConfirmed: number
+  requiredDeliveryTotal: number
+  openConflictCount: number
+  attentionReasonCount: number
+  attentionReasons: Array<string>
+  deliveryChannels: Array<string>
+  nextActionChangedAt: number
+}
+
+export type OperatorWorkspacePage = {
+  page: Array<OperatorWorkspaceItem>
+  isDone: boolean
+  continueCursor: string
+}
+
+export type OperatorWorkspaceInput = {
+  queue?: OperatorQueue
+  search?: string
+  priority?: RequestPriority
+  origin?: RequestOrigin
+  lifecycle?: RequestLifecycle
+  disposition?: RequestDisposition
+  assigneePrincipalId?: string
+  deliveryChannel?: string
+  cursor?: string | null
+  limit?: number
+}
+
 export type SemanticConflict = {
   conflictId: string
   requestHumanId: string
@@ -344,6 +393,9 @@ export interface ContentRequestRepository {
   createManual(input: PersistManualRequestInput): Promise<ContentRequest>
   getByHumanId(humanId: string): Promise<ContentRequest | null>
   list(limit?: number): Promise<Array<ContentRequest>>
+  listOperatorWorkspace(
+    input?: OperatorWorkspaceInput
+  ): Promise<OperatorWorkspacePage>
   resolve(query: string): Promise<RequestResolution>
   assign(input: AssignRequestInput): Promise<ContentRequest>
   open(humanId: string, correlationId: string): Promise<ContentRequest>
@@ -512,6 +564,9 @@ export interface ContentRequestService {
   createManual(input: CreateManualRequestInput): Promise<ContentRequest>
   getByHumanId(humanId: string): Promise<ContentRequest | null>
   list(limit?: number): Promise<Array<ContentRequest>>
+  listOperatorWorkspace(
+    input?: OperatorWorkspaceInput
+  ): Promise<OperatorWorkspacePage>
   resolve(query: string): Promise<RequestResolution>
   assign(input: AssignRequestInput): Promise<ContentRequest>
   open(humanId: string, correlationId: string): Promise<ContentRequest>
@@ -685,6 +740,7 @@ export function createContentRequestService(
       repository.createManual({ ...input, origin: creationOrigin }),
     getByHumanId: (humanId) => repository.getByHumanId(humanId),
     list: (limit) => repository.list(limit),
+    listOperatorWorkspace: (input) => repository.listOperatorWorkspace(input),
     resolve: (query) => repository.resolve(query),
     assign: (input) => repository.assign(input),
     open: (humanId, correlationId) => repository.open(humanId, correlationId),

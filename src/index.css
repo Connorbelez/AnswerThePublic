@@ -326,6 +326,11 @@
   scroll-snap-align: start;
 }
 
+.request-list--list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .request-list--grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -837,6 +842,7 @@
 }
 
 .unified-editor__save-status {
+  pointer-events: none;
   flex: none;
   color: rgb(23 33 27 / 72%);
   font-size: 0.72rem;

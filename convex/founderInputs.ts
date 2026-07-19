@@ -14,6 +14,7 @@ import {
 } from "./_generated/server"
 import { requireEditor, requirePrincipal } from "./lib/authorization"
 import { requestQueueSortKey } from "./lib/requestOrdering"
+import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 
 const founderInputValidator = v.object({
   documentId: v.id("founderInputDocuments"),
@@ -381,6 +382,7 @@ export const saveText = mutation({
       beforeVersion: request.aggregateVersion,
       afterVersion: nextVersion,
     })
+    await refreshOperatorWorkspaceProjection(ctx, request._id)
     const saved = await ctx.db.get(documentId)
     if (!saved) throw new ConvexError({ code: "WRITE_FAILED" })
     const latestRequest = advancesLifecycle
@@ -655,6 +657,7 @@ export const submitAutomergeChanges = mutation({
       beforeVersion: request.aggregateVersion,
       afterVersion,
     })
+    await refreshOperatorWorkspaceProjection(ctx, request._id)
     const saved = await ctx.db.get(founderDocumentId)
     if (!saved) throw new ConvexError({ code: "WRITE_FAILED" })
     const latestArchivedVersion = await ctx.db

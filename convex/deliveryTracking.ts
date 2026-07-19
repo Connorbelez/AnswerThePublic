@@ -11,6 +11,7 @@ import {
 import { requireEditor, requirePrincipal } from "./lib/authorization"
 import { projectDeliveryLifecycle } from "./lib/deliveryLifecycle"
 import { enqueueNotification } from "./lib/notificationOutbox"
+import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 
 const receiptValidator = v.object({
   receiptId: v.id("deliveryReceipts"),
@@ -173,6 +174,7 @@ async function audit(
     beforeVersion: request.aggregateVersion,
     afterVersion,
   })
+  await refreshOperatorWorkspaceProjection(ctx, request._id)
 }
 
 async function notifyOperators(
@@ -528,6 +530,7 @@ export const confirm = mutation({
     })
     await ctx.db.patch(target._id, {
       currentReceiptId: receiptId,
+      hasHistoricalReceipt: true,
       updatedAt: now,
     })
     if (integration)

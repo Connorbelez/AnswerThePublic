@@ -1,7 +1,10 @@
 import { Link } from "@tanstack/react-router"
 import { ArrowRight } from "lucide-react"
 
-import type { ContentRequest } from "@/application/content-requests"
+import type {
+  ContentRequest,
+  OperatorWorkspaceItem,
+} from "@/application/content-requests"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -19,7 +22,29 @@ function formatTimestamp(timestamp: number) {
   }).format(timestamp)
 }
 
-export function ContentRequestCard({ request }: { request: ContentRequest }) {
+const queueLabels: Record<OperatorWorkspaceItem["queue"], string> = {
+  needs_elie: "Needs Elie",
+  agent_drafting: "Agent drafting",
+  needs_operator: "Needs operator",
+  delivered: "Delivered",
+  attention_required: "Attention required",
+}
+
+const lifecycleLabels: Record<ContentRequest["lifecycle"], string> = {
+  pending: "Pending",
+  in_progress: "In progress",
+  founder_complete: "Founder complete",
+  ready_to_respond: "Ready to respond",
+  responded: "Responded",
+}
+
+export function ContentRequestCard({
+  request,
+  operational,
+}: {
+  request: ContentRequest
+  operational?: Omit<OperatorWorkspaceItem, "request">
+}) {
   return (
     <Link
       className="request-card-link"
@@ -38,6 +63,8 @@ export function ContentRequestCard({ request }: { request: ContentRequest }) {
             </Badge>
             <span>{request.humanId}</span>
             <span>{requestOriginLabel(request.origin)}</span>
+            <span>{lifecycleLabels[request.lifecycle]}</span>
+            {request.timingLabel ? <span>{request.timingLabel}</span> : null}
             <time dateTime={new Date(request.createdAt).toISOString()}>
               Created {formatTimestamp(request.createdAt)}
             </time>
@@ -64,6 +91,40 @@ export function ContentRequestCard({ request }: { request: ContentRequest }) {
           </span>
           {request.hasFounderDraft ? (
             <Badge variant="outline">Founder draft saved</Badge>
+          ) : null}
+          {operational ? (
+            <div
+              className="flex flex-wrap gap-2"
+              aria-label="Operational status"
+            >
+              <Badge
+                variant={
+                  operational.queue === "attention_required"
+                    ? "destructive"
+                    : "secondary"
+                }
+              >
+                {queueLabels[operational.queue]}
+              </Badge>
+              <Badge variant="outline">
+                Job: {operational.agentJobStatus ?? "not started"}
+              </Badge>
+              <Badge variant="outline">
+                Delivery {operational.requiredDeliveryConfirmed}/
+                {operational.requiredDeliveryTotal}
+              </Badge>
+              {operational.openConflictCount ? (
+                <Badge variant="destructive">
+                  {operational.openConflictCount} open conflict
+                  {operational.openConflictCount === 1 ? "" : "s"}
+                </Badge>
+              ) : null}
+              {operational.attentionReasons.map((reason) => (
+                <Badge key={reason} variant="destructive">
+                  {reason}
+                </Badge>
+              ))}
+            </div>
           ) : null}
           <ArrowRight aria-hidden="true" />
         </CardContent>

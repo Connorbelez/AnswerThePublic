@@ -34,6 +34,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Toggle } from "@/components/ui/toggle"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { useHydrated } from "@/hooks/use-hydrated"
 import { cn } from "@/lib/utils"
 
 type CanvasItem = ContentContextItem & {
@@ -308,6 +309,7 @@ export function UnifiedContextCanvas({
     }
   }
 }) {
+  const hydrated = useHydrated()
   const items = useMemo(
     () => contextItemsFor(request, contextItems),
     [contextItems, request]
@@ -736,6 +738,7 @@ export function UnifiedContextCanvas({
           <ToggleGroup
             className="unified-editor__modes"
             aria-label="Input method"
+            disabled={!hydrated}
             value={[inputMode]}
             onValueChange={(values) => {
               const next = values[0]

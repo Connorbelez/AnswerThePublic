@@ -5,6 +5,7 @@ import { mutation, query } from "./_generated/server"
 import { requireEditor, requirePrincipal } from "./lib/authorization"
 import { lifecycleForPrimary } from "./lib/deliverableLifecycle"
 import { enqueueNotification } from "./lib/notificationOutbox"
+import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 
 const conflictValidator = v.object({
   conflictId: v.id("semanticConflicts"),
@@ -192,6 +193,7 @@ export const proposeAssigneeChange = mutation({
       })
       const conflict = await ctx.db.get(conflictId)
       if (!conflict) throw new ConvexError({ code: "WRITE_FAILED" })
+      await refreshOperatorWorkspaceProjection(ctx, request._id)
       return {
         outcome: "attention_required" as const,
         conflict: publicConflict(request.humanId, conflict),
@@ -252,6 +254,7 @@ export const proposeAssigneeChange = mutation({
       outcome: "applied",
       createdAt: now,
     })
+    await refreshOperatorWorkspaceProjection(ctx, request._id)
     return { outcome: "applied" as const, conflict: null }
   },
 })
@@ -375,6 +378,7 @@ export const resolve = mutation({
         })
         const rebased = await ctx.db.get(rebasedConflictId)
         if (!rebased) throw new ConvexError({ code: "WRITE_FAILED" })
+        await refreshOperatorWorkspaceProjection(ctx, request._id)
         return publicConflict(request.humanId, rebased)
       }
       await applySelectedValue(now)
@@ -414,6 +418,7 @@ export const resolve = mutation({
       })
       const resolved = await ctx.db.get(conflict._id)
       if (!resolved) throw new ConvexError({ code: "WRITE_FAILED" })
+      await refreshOperatorWorkspaceProjection(ctx, request._id)
       return publicConflict(request.humanId, resolved)
     }
     if (conflict.field === "primaryDeliverableId") {
@@ -591,6 +596,7 @@ export const resolve = mutation({
       })
       const rebasedConflict = await ctx.db.get(rebasedConflictId)
       if (!rebasedConflict) throw new ConvexError({ code: "WRITE_FAILED" })
+      await refreshOperatorWorkspaceProjection(ctx, request._id)
       return publicConflict(request.humanId, rebasedConflict)
     }
     await ctx.db.patch(request._id, {
@@ -651,6 +657,7 @@ export const resolve = mutation({
     })
     const resolved = await ctx.db.get(conflict._id)
     if (!resolved) throw new ConvexError({ code: "WRITE_FAILED" })
+    await refreshOperatorWorkspaceProjection(ctx, request._id)
     return publicConflict(request.humanId, resolved)
   },
 })

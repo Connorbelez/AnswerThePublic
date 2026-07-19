@@ -42,6 +42,24 @@ export function createConvexContentRequestRepository({
     async list(limit) {
       return (await client()).query(api.contentRequests.list, { limit })
     },
+    async listOperatorWorkspace(input) {
+      return (await client()).query(api.operatorWorkspace.list, {
+        queue: input?.queue,
+        search: input?.search,
+        priority: input?.priority,
+        origin: input?.origin,
+        lifecycle: input?.lifecycle,
+        disposition: input?.disposition,
+        assigneePrincipalId: input?.assigneePrincipalId as
+          | Id<"principals">
+          | undefined,
+        deliveryChannel: input?.deliveryChannel,
+        paginationOpts: {
+          numItems: Math.min(Math.max(input?.limit ?? 50, 1), 100),
+          cursor: input?.cursor ?? null,
+        },
+      })
+    },
     async resolve(query) {
       return (await client()).query(api.contentRequests.resolve, { query })
     },
@@ -321,7 +339,8 @@ export function createConvexContentRequestRepository({
         targetId: input.targetId as Id<"deliveryTargets">,
         versionId: input.versionId as Id<"deliverableVersions">,
         integrationSuccessId: input.integrationSuccessId as
-          Id<"integrationDeliverySuccesses"> | undefined,
+          | Id<"integrationDeliverySuccesses">
+          | undefined,
       })
     },
     async reopenDeliveryTarget(input) {

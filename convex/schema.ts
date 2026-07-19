@@ -88,6 +88,12 @@ export default defineSchema({
       "normalizedSourceUrl",
     ])
     .index("by_organization_queue_sort", ["organizationId", "queueSortKey"])
+    .index("by_organization_retention_disposition_queue_sort", [
+      "organizationId",
+      "retention",
+      "disposition",
+      "queueSortKey",
+    ])
     .index("by_organization_assignee_created_at", [
       "organizationId",
       "assigneePrincipalId",
@@ -324,7 +330,8 @@ export default defineSchema({
       "createdAt",
     ])
     .index("by_status_created_at", ["status", "createdAt"])
-    .index("by_request", ["requestId"]),
+    .index("by_request", ["requestId"])
+    .index("by_request_created_at", ["requestId", "createdAt"]),
   agentJobLeaseEvents: defineTable({
     organizationId: v.string(),
     jobId: v.id("agentJobs"),
@@ -439,12 +446,140 @@ export default defineSchema({
     isRequired: v.boolean(),
     retention: v.union(v.literal("active"), v.literal("archived")),
     currentReceiptId: v.optional(v.id("deliveryReceipts")),
+    hasHistoricalReceipt: v.optional(v.boolean()),
     createdByPrincipalId: v.id("principals"),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_request", ["requestId"])
     .index("by_deliverable", ["deliverableId"]),
+  operatorWorkspaceItems: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    humanId: v.string(),
+    normalizedTitle: v.string(),
+    searchText: v.string(),
+    active: v.boolean(),
+    retained: v.boolean(),
+    manualCritical: v.boolean(),
+    orderBucket: v.string(),
+    queue: v.union(
+      v.literal("needs_elie"),
+      v.literal("agent_drafting"),
+      v.literal("needs_operator"),
+      v.literal("delivered"),
+      v.literal("attention_required")
+    ),
+    priority: requestPriorityValidator,
+    origin: requestOriginValidator,
+    lifecycle: requestLifecycleValidator,
+    disposition: requestDispositionValidator,
+    assigneePrincipalId: v.id("principals"),
+    agentJobStatus: v.optional(
+      v.union(
+        v.literal("queued"),
+        v.literal("running"),
+        v.literal("retry_wait"),
+        v.literal("failed"),
+        v.literal("completed"),
+        v.literal("cancelled")
+      )
+    ),
+    requiredDeliveryConfirmed: v.number(),
+    requiredDeliveryTotal: v.number(),
+    openConflictCount: v.number(),
+    attentionReasonCount: v.number(),
+    attentionReasons: v.array(v.string()),
+    deliveryChannels: v.array(v.string()),
+    sortKey: v.string(),
+    nextActionChangedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_request", ["requestId"])
+    .index("by_organization_human_id", ["organizationId", "humanId"])
+    .index("by_organization_normalized_title", [
+      "organizationId",
+      "normalizedTitle",
+    ])
+    .index("by_organization_normalized_title_retained_disposition_sort", [
+      "organizationId",
+      "normalizedTitle",
+      "retained",
+      "disposition",
+      "sortKey",
+    ])
+    .index("by_organization_active_sort", [
+      "organizationId",
+      "active",
+      "sortKey",
+    ])
+    .index("by_organization_active_queue_sort", [
+      "organizationId",
+      "active",
+      "queue",
+      "sortKey",
+    ])
+    .searchIndex("search_workspace", {
+      searchField: "searchText",
+      filterFields: [
+        "organizationId",
+        "active",
+        "retained",
+        "manualCritical",
+        "orderBucket",
+        "queue",
+        "priority",
+        "origin",
+        "lifecycle",
+        "disposition",
+        "assigneePrincipalId",
+      ],
+    }),
+  operatorWorkspaceSearchRows: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    humanId: v.string(),
+    normalizedTitle: v.string(),
+    searchText: v.string(),
+    channelKey: v.string(),
+    active: v.boolean(),
+    retained: v.boolean(),
+    manualCritical: v.boolean(),
+    orderBucket: v.string(),
+    queue: v.union(
+      v.literal("needs_elie"),
+      v.literal("agent_drafting"),
+      v.literal("needs_operator"),
+      v.literal("delivered"),
+      v.literal("attention_required")
+    ),
+    priority: requestPriorityValidator,
+    origin: requestOriginValidator,
+    lifecycle: requestLifecycleValidator,
+    disposition: requestDispositionValidator,
+    assigneePrincipalId: v.id("principals"),
+    sortKey: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_request", ["requestId"])
+    .searchIndex("search_workspace_rows", {
+      searchField: "searchText",
+      filterFields: [
+        "organizationId",
+        "channelKey",
+        "active",
+        "retained",
+        "manualCritical",
+        "orderBucket",
+        "queue",
+        "priority",
+        "origin",
+        "lifecycle",
+        "disposition",
+        "assigneePrincipalId",
+        "normalizedTitle",
+      ],
+    }),
   deliveryReceipts: defineTable({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),
@@ -572,6 +707,7 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_request_type", ["requestId", "type"])
+    .index("by_request_resolved", ["requestId", "resolved"])
     .index("by_organization_resolved", ["organizationId", "resolved"]),
   semanticConflicts: defineTable({
     organizationId: v.string(),

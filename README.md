@@ -15,6 +15,14 @@ and Critical escalations create an in-app notification plus a transactional-emai
 outbox item. Elie's assignment-scoped library supports a touch-scroll stack and a
 compact grid without changing the request's stable URL.
 
+Operators work from five server-computed next-action queues: Needs Elie, Agent
+drafting, Needs operator, Delivered, and Attention required. Queue membership is
+derived from lifecycle, the latest agent job, open semantic conflicts, and active
+required delivery receipts; it is never stored as a second mutable status.
+Manual Critical work retains precedence within every queue. Cards expose
+assignee, draft presence, job state, conflicts, and required-channel progress,
+while filters preserve each request's stable route.
+
 Maintained scout reports now enter through one deterministic ingestion boundary.
 The complete Markdown document is parsed and validated before any database call;
 one Convex mutation then upserts the report, immutable opportunity evidence, and
@@ -232,7 +240,11 @@ Stable `--idempotency-key` values make ambiguous CLI retries safe. Deployments
 upgrading legacy data must run the paginated
 `migrations.backfillPrimaryDeliverables` internal mutation once; reruns are
 safe. Then run `migrations.backfillOriginalDeliveryTargets` to create the
-required original-destination checklist item for pre-existing requests.
+required original-destination checklist item for pre-existing requests. Finally,
+run the paginated `migrations.backfillOperatorWorkspace` mutation. It records
+the bounded historical-receipt flag on legacy targets and materializes the
+authoritative operator queue/search projection; it is idempotent and schedules
+subsequent 50-request pages automatically.
 
 Every new request receives one required original-opportunity target. Additional
 targets default optional. Clipboard actions never mutate delivery state. A

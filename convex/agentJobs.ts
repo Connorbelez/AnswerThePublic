@@ -10,6 +10,7 @@ import {
 } from "./_generated/server"
 import { requirePrincipal } from "./lib/authorization"
 import { enqueueNotification } from "./lib/notificationOutbox"
+import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 
 const jobValidator = v.object({
   jobId: v.id("agentJobs"),
@@ -180,6 +181,7 @@ async function auditJobEvent(
     occurredAt: now,
     afterVersion: request.aggregateVersion,
   })
+  await refreshOperatorWorkspaceProjection(ctx, request._id)
   return request
 }
 
@@ -337,6 +339,7 @@ export const submitFounderInput = mutation({
       beforeVersion: request.aggregateVersion,
       afterVersion,
     })
+    await refreshOperatorWorkspaceProjection(ctx, request._id)
     return publicJob(ctx, await requiredJob(ctx, jobId))
   },
 })
@@ -653,6 +656,7 @@ export const complete = mutation({
     })
     if (request.lifecycle !== "responded")
       await notifyOperators(ctx, request, "response_ready", now)
+    await refreshOperatorWorkspaceProjection(ctx, request._id)
     return publicJob(ctx, await requiredJob(ctx, job._id))
   },
 })
@@ -736,6 +740,7 @@ export const fail = mutation({
       afterVersion: request.aggregateVersion,
     })
     if (!retry) await notifyOperators(ctx, request, "drafting_failed", now)
+    await refreshOperatorWorkspaceProjection(ctx, request._id)
     return publicJob(ctx, await requiredJob(ctx, job._id))
   },
 })

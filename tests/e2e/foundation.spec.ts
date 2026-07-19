@@ -103,6 +103,75 @@ test("an operator creates a minimal manual request and opens its stable route", 
   await context.close()
 })
 
+test("the operator workspace is a mobile-first list with actionable filters and grid switching", async ({
+  browser,
+  browserName,
+}) => {
+  const desktop = browserName === "chromium"
+  const context = await browser.newContext({
+    viewport: desktop
+      ? { width: 1280, height: 900 }
+      : { width: 390, height: 844 },
+    extraHTTPHeaders: {
+      "x-fairlend-e2e-key": "local-playwright-only",
+      "x-fairlend-e2e-user": JSON.stringify({
+        subject: `operator_workspace_${browserName}`,
+        organizationId: "org_fairlend",
+        email: "operator@fairlend.ca",
+        displayName: "FairLend operator",
+        workosRole: "operator-editor",
+      }),
+    },
+  })
+  const page = await context.newPage()
+  const title = `Operator queue request ${browserName}`
+  await page.goto("/app/new")
+  await page.getByLabel("Title").fill(title)
+  await page.getByRole("button", { name: "Create Critical request" }).click()
+  await page.goto("/app")
+
+  await expect(
+    page.getByText("Operator workspace", { exact: true })
+  ).toBeVisible()
+  const list = page.getByRole("region", { name: "Content requests" })
+  await expect(list).toHaveAttribute("data-view", "list")
+  await expect(list).toHaveCSS("display", "grid")
+  await expect(
+    list.getByText("Critical", { exact: true }).first()
+  ).toBeVisible()
+  await expect(list.getByText("Pending", { exact: true }).first()).toBeVisible()
+  await expect(list.getByText("Job: not started").first()).toBeVisible()
+  await expect(list.getByText(/Delivery 0\/\d+/).first()).toBeVisible()
+  await page
+    .getByRole("searchbox", { name: "Search content requests" })
+    .fill(title)
+  await page.getByRole("button", { name: "Apply filters" }).click()
+  await expect(page.getByText(title, { exact: true })).toBeVisible()
+
+  const needsElie = page.getByRole("button", { name: "Needs Elie" })
+  const queueBounds = await needsElie.boundingBox()
+  expect(queueBounds?.height).toBeGreaterThanOrEqual(44)
+  await needsElie.click()
+  await expect(
+    page.getByRole("heading", { name: "No matching requests" })
+  ).toBeVisible({ timeout: 15_000 })
+  await page.getByRole("button", { name: "Clear filters" }).click()
+  await expect(page.getByText(title, { exact: true })).toBeVisible()
+
+  await page.getByRole("button", { name: "Grid view" }).click()
+  await expect(list).toHaveAttribute("data-view", "grid")
+  const gridColumns = await list.evaluate(
+    (element) => getComputedStyle(element).gridTemplateColumns.split(" ").length
+  )
+  expect(gridColumns).toBeGreaterThanOrEqual(desktop ? 3 : 2)
+  await page.getByRole("button", { name: "List view" }).click()
+  await expect(list).toHaveAttribute("data-view", "list")
+  await page.getByText(title, { exact: true }).click()
+  await expect(page).toHaveURL(/\/app\/requests\/CR-[A-Z0-9]+$/)
+  await expect(page.getByRole("heading", { name: title })).toBeVisible()
+  await context.close()
+})
+
 test("an operator assigns Elie and his mobile library switches from stack to grid", async ({
   browser,
   browserName,

@@ -16,6 +16,7 @@ import type * as deliveryTracking from "../deliveryTracking"
 import type * as agentJobs from "../agentJobs"
 import type * as founderInputs from "../founderInputs"
 import type * as notifications from "../notifications"
+import type * as operatorWorkspace from "../operatorWorkspace"
 import type * as migrations from "../migrations"
 import type * as scoutIngestions from "../scoutIngestions"
 import type * as semanticConflicts from "../semanticConflicts"
@@ -28,6 +29,7 @@ const fullApi: ApiFromModules<{
   deliveryTracking: typeof deliveryTracking
   founderInputs: typeof founderInputs
   notifications: typeof notifications
+  operatorWorkspace: typeof operatorWorkspace
   migrations: typeof migrations
   principals: typeof principals
   scoutIngestions: typeof scoutIngestions

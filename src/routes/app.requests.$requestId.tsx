@@ -23,6 +23,7 @@ import {
   listDeliverables,
   listDeliveryTargets,
   listOpenSemanticConflicts,
+  listOperatorWorkspace,
   openContentRequest,
   markFounderVoiceTranscriptMerged,
   pullFounderAutomergeChanges,
@@ -64,6 +65,7 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       semanticConflicts,
       deliverables,
       deliveryTargets,
+      operatorWorkspace,
     ] = await Promise.all([
       getContentRequest({ data: { humanId: params.requestId } }),
       listAssignablePrincipals(),
@@ -81,6 +83,11 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       session.status === "authenticated" && session.session.role !== "founder"
         ? listDeliveryTargets({ data: { humanId: params.requestId } })
         : Promise.resolve([]),
+      session.status === "authenticated" && session.session.role !== "founder"
+        ? listOperatorWorkspace({
+            data: { search: params.requestId, limit: 1 },
+          })
+        : Promise.resolve(null),
     ])
     if (!request) throw notFound()
     return {
@@ -92,6 +99,7 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       semanticConflicts,
       deliverables,
       deliveryTargets,
+      operatorItem: operatorWorkspace?.page[0] ?? null,
     }
   },
   component: ContentRequestPage,
@@ -129,6 +137,7 @@ function ContentRequestPage() {
     semanticConflicts,
     deliverables,
     deliveryTargets,
+    operatorItem,
   } = Route.useLoaderData()
   const session = appRoute.useLoaderData()
   const recordOpen = useServerFn(openContentRequest)
@@ -271,6 +280,20 @@ function ContentRequestPage() {
           ) : null}
         </CardContent>
       </Card>
+      {operatorItem?.attentionReasons.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Attention required</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="grid gap-2 pl-5">
+              {operatorItem.attentionReasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
       <SemanticConflictPanel
         conflicts={semanticConflicts}
         principals={principals}

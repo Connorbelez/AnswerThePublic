@@ -9,6 +9,7 @@ import {
 } from "./_generated/server"
 import { requireEditor, requirePrincipal } from "./lib/authorization"
 import { lifecycleForPrimary } from "./lib/deliverableLifecycle"
+import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 
 const versionValidator = v.object({
   versionId: v.id("deliverableVersions"),
@@ -172,6 +173,7 @@ async function audit(
     beforeVersion: request.aggregateVersion,
     afterVersion,
   })
+  await refreshOperatorWorkspaceProjection(ctx, request._id)
 }
 
 async function priorOperation(

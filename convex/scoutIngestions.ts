@@ -9,6 +9,7 @@ import {
 } from "./_generated/server"
 import { requireEditor, requirePrincipal } from "./lib/authorization"
 import { requestQueueSortKey } from "./lib/requestOrdering"
+import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 import { parseScoutReport } from "../src/domain/scout-report"
 import { deliveryChannelForScoutSource } from "../shared/delivery-channel"
 
@@ -359,6 +360,7 @@ export const apply = mutation({
         afterVersion: existing ? existing.aggregateVersion + 1 : 1,
         beforeVersion: existing?.aggregateVersion,
       })
+      await refreshOperatorWorkspaceProjection(ctx, requestId)
       requestHumanIds.push(humanId)
     }
     const result = { created, updated, manualPreserved, requestHumanIds }
