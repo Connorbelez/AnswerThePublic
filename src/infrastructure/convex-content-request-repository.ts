@@ -75,6 +75,12 @@ export function createConvexContentRequestRepository({
     async list(limit) {
       return (await client()).query(api.contentRequests.list, { limit })
     },
+    async listFounderWorkspace(founderEmail, limit) {
+      return (await client()).query(api.contentRequests.listFounderWorkspace, {
+        founderEmail,
+        limit,
+      })
+    },
     async listPage(cursor, limit) {
       const result = await (
         await client()
@@ -259,16 +265,21 @@ export function createConvexContentRequestRepository({
         nextCursor: result.isDone ? null : result.continueCursor,
       }
     },
-    async getContextDeckPreferences(humanId) {
+    async getContextDeckPreferences(humanId, founderWorkspace) {
       return (await client()).query(
         api.scoutIngestions.getContextDeckPreferences,
-        { humanId }
+        { humanId, founderWorkspace }
       )
     },
-    async saveContextDeckPreferences(humanId, preferences, correlationId) {
+    async saveContextDeckPreferences(
+      humanId,
+      preferences,
+      correlationId,
+      founderWorkspace
+    ) {
       return (await client()).mutation(
         api.scoutIngestions.saveContextDeckPreferences,
-        { humanId, ...preferences, correlationId }
+        { humanId, ...preferences, correlationId, founderWorkspace }
       )
     },
     async getFounderInput(humanId) {

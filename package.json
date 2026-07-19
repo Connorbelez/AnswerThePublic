@@ -6,7 +6,9 @@
     "#/*": "./src/*"
   },
   "scripts": {
-    "dev": "vite dev --port 3000",
+    "dev": "bun run auth:sync-dev && convex dev --codegen disable --start \"vite dev --port 3000\"",
+    "dev:web": "vite dev --port 3000",
+    "auth:sync-dev": "bun scripts/sync-convex-workos-env.ts",
     "content-requests": "bun src/cli/content-requests.ts",
     "generate-routes": "tsr generate",
     "build": "vite build",
@@ -49,6 +51,7 @@
     "cmdk": "^1.1.1",
     "convex": "^1.42.3",
     "convex-timeline": "^0.1.2",
+    "cookie-es": "^3.1.1",
     "date-fns": "^4.4.0",
     "embla-carousel-react": "^8.6.0",
     "fast-sha256": "^1.3.0",

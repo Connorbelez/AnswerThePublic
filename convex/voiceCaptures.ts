@@ -9,7 +9,11 @@ import {
   mutation,
   query,
 } from "./_generated/server"
-import { requireActiveRequest, requirePrincipal } from "./lib/authorization"
+import {
+  requireActiveRequest,
+  requireFounderWorkspacePrincipal,
+  requirePrincipal,
+} from "./lib/authorization"
 import {
   assertWithinRequestLimit,
   MAX_VOICE_CAPTURES_PER_REQUEST,
@@ -61,9 +65,6 @@ async function assignedFounderRequest(
   requireMutable = false
 ) {
   const principal = await requirePrincipal(ctx)
-  if (principal.role !== "founder") {
-    throw new ConvexError({ code: "ROLE_ACCESS_DENIED" })
-  }
   const request = await ctx.db
     .query("contentRequests")
     .withIndex("by_organization_human_id", (index) =>
@@ -73,12 +74,11 @@ async function assignedFounderRequest(
     )
     .unique()
   if (!request) throw new ConvexError({ code: "NOT_FOUND" })
-  if (
-    (request.assigneePrincipalId ?? request.createdByPrincipalId) !==
-    principal._id
-  ) {
-    throw new ConvexError({ code: "RESOURCE_ACCESS_DENIED" })
-  }
+  const founderPrincipal = await requireFounderWorkspacePrincipal(
+    ctx,
+    principal,
+    request
+  )
   if (requireMutable) {
     requireActiveRequest(request)
     if (!["pending", "in_progress"].includes(request.lifecycle))
@@ -89,10 +89,10 @@ async function assignedFounderRequest(
     .withIndex("by_request", (index) => index.eq("requestId", request._id))
     .unique()
   if (!document) throw new ConvexError({ code: "FOUNDER_INPUT_REQUIRED" })
-  if (document.founderPrincipalId !== principal._id) {
+  if (document.founderPrincipalId !== founderPrincipal._id) {
     throw new ConvexError({ code: "FOUNDER_INPUT_HANDOFF_REQUIRED" })
   }
-  return { principal, request, document }
+  return { principal, founderPrincipal, request, document }
 }
 
 export const createUploadUrl = mutation({
@@ -117,11 +117,8 @@ export const finalizeUpload = mutation({
   },
   returns: captureValidator,
   handler: async (ctx, args) => {
-    const { principal, request, document } = await assignedFounderRequest(
-      ctx,
-      args.humanId,
-      true
-    )
+    const { principal, founderPrincipal, request, document } =
+      await assignedFounderRequest(ctx, args.humanId, true)
     const clientCaptureId = args.clientCaptureId.trim()
     const correlationId = args.correlationId.trim()
     if (
@@ -143,7 +140,7 @@ export const finalizeUpload = mutation({
       .withIndex("by_organization_founder_client", (index) =>
         index
           .eq("organizationId", principal.organizationId)
-          .eq("founderPrincipalId", principal._id)
+          .eq("founderPrincipalId", founderPrincipal._id)
           .eq("clientCaptureId", clientCaptureId)
       )
       .unique()
@@ -177,7 +174,7 @@ export const finalizeUpload = mutation({
       organizationId: principal.organizationId,
       requestId: request._id,
       documentId: document._id,
-      founderPrincipalId: principal._id,
+      founderPrincipalId: founderPrincipal._id,
       clientCaptureId,
       storageId: args.storageId,
       mimeType: args.mimeType,

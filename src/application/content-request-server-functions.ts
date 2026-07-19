@@ -19,6 +19,18 @@ export const listContentRequests = createServerFn({ method: "POST" }).handler(
   }
 )
 
+export const listElieWorkspace = createServerFn({ method: "POST" }).handler(
+  async () => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).listFounderWorkspace(
+      process.env.FAIRLEND_ELIE_EMAIL ?? "elie@fairlend.ca"
+    )
+  }
+)
+
 export const listOperatorWorkspace = createServerFn({ method: "POST" })
   .validator((data: OperatorWorkspaceInput) => data)
   .handler(async ({ data }) => {
@@ -140,13 +152,13 @@ export const getContentRequestContext = createServerFn({ method: "POST" })
   })
 
 export const getContextDeckPreferences = createServerFn({ method: "POST" })
-  .validator((data: { humanId: string }) => data)
+  .validator((data: { humanId: string; founderWorkspace?: boolean }) => data)
   .handler(async ({ data }) => {
     const { createContentRequestServiceFromRequest } =
       await import("@/application/content-request-service-request.server")
     return (
       await createContentRequestServiceFromRequest()
-    ).getContextDeckPreferences(data.humanId)
+    ).getContextDeckPreferences(data.humanId, data.founderWorkspace)
   })
 
 export const saveContextDeckPreferences = createServerFn({ method: "POST" })
@@ -155,6 +167,7 @@ export const saveContextDeckPreferences = createServerFn({ method: "POST" })
       humanId: string
       preferences: ContextDeckPreferences
       correlationId: string
+      founderWorkspace?: boolean
     }) => data
   )
   .handler(async ({ data }) => {
@@ -165,7 +178,8 @@ export const saveContextDeckPreferences = createServerFn({ method: "POST" })
     ).saveContextDeckPreferences(
       data.humanId,
       data.preferences,
-      data.correlationId
+      data.correlationId,
+      data.founderWorkspace
     )
   })
 

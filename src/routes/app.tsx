@@ -6,6 +6,8 @@ import { ApplicationNavigation } from "@/components/application-navigation"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { NotificationCentre } from "@/components/notification-centre"
 import { SignOutControl } from "@/components/sign-out-control"
+import { Separator } from "@/components/ui/separator"
+import { WorkspaceViewSwitcher } from "@/components/workspace-view-switcher"
 
 const roleLabels = {
   founder: "Founder",
@@ -50,6 +52,9 @@ function ApplicationShell() {
           <span className="wordmark">FairLend</span>
         </div>
         <div className="identity">
+          {session.role === "administrator" ? (
+            <WorkspaceViewSwitcher workspaceView={session.workspaceView} />
+          ) : null}
           <NotificationCentre notifications={session.notifications} />
           <SignOutControl
             ownerKey={`${session.organizationId}:${session.principalId}`}
@@ -63,6 +68,16 @@ function ApplicationShell() {
           </Avatar>
         </div>
       </header>
+      <Separator />
+      {session.role === "administrator" && session.workspaceView === "elie" ? (
+        <div
+          className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-center text-xs font-medium text-amber-950"
+          role="status"
+        >
+          QA view: you are seeing Elie’s workspace. Your administrator
+          permissions remain active.
+        </div>
+      ) : null}
       <Outlet />
     </div>
   )

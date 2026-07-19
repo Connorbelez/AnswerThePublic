@@ -2,6 +2,7 @@ import { ConvexHttpClient } from "convex/browser"
 
 import { api } from "../../convex/_generated/api"
 import { getWorkosServerConfig } from "@/config/workos-runtime-config"
+import { readWorkosAccessTokenClaims } from "@/infrastructure/workos-access-token-claims.server"
 
 export async function provisionPrincipalFromWorkos({
   accessToken,
@@ -30,8 +31,18 @@ export async function provisionPrincipalFromWorkos({
 
   const client = new ConvexHttpClient(convexUrl)
   client.setAuth(accessToken)
-  await client.mutation(api.principals.syncCurrentProfile, {
-    verifiedEmail,
-    provisioningKey,
-  })
+  try {
+    await client.mutation(api.principals.syncCurrentProfile, {
+      verifiedEmail,
+      provisioningKey,
+    })
+  } catch (error) {
+    if (String(error).includes("NoAuthProvider")) {
+      console.error(
+        "[authkit-convex] WorkOS JWT provider mismatch diagnostics",
+        readWorkosAccessTokenClaims(accessToken)
+      )
+    }
+    throw error
+  }
 }

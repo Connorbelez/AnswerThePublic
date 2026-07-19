@@ -11,6 +11,7 @@ import {
 import {
   requireActiveRequest,
   requireEditor,
+  requireFounderWorkspacePrincipal,
   requirePrincipal,
 } from "./lib/authorization"
 import { contentRequestCreationDefaults } from "./lib/contentRequestDefaults"
@@ -704,17 +705,22 @@ async function contextRequestForPrincipal(
 }
 
 export const getContextDeckPreferences = query({
-  args: { humanId: v.string() },
+  args: { humanId: v.string(), founderWorkspace: v.optional(v.boolean()) },
   returns: v.union(contextDeckPreferencesValidator, v.null()),
   handler: async (ctx, args) => {
     const { principal, request } = await contextRequestForPrincipal(
       ctx,
       args.humanId
     )
+    const preferencePrincipalId = args.founderWorkspace
+      ? (await requireFounderWorkspacePrincipal(ctx, principal, request))._id
+      : principal._id
     const preferences = await ctx.db
       .query("contextDeckPreferences")
       .withIndex("by_request_principal", (index) =>
-        index.eq("requestId", request._id).eq("principalId", principal._id)
+        index
+          .eq("requestId", request._id)
+          .eq("principalId", preferencePrincipalId)
       )
       .unique()
     return preferences
@@ -734,6 +740,7 @@ export const saveContextDeckPreferences = mutation({
     pinnedContextIds: v.array(v.string()),
     knownContextIds: v.array(v.string()),
     correlationId: v.string(),
+    founderWorkspace: v.optional(v.boolean()),
   },
   returns: contextDeckPreferencesValidator,
   handler: async (ctx, args) => {
@@ -741,6 +748,9 @@ export const saveContextDeckPreferences = mutation({
       ctx,
       args.humanId
     )
+    const preferencePrincipalId = args.founderWorkspace
+      ? (await requireFounderWorkspacePrincipal(ctx, principal, request))._id
+      : principal._id
     const context = await ctx.db
       .query("contextItems")
       .withIndex("by_request_kind", (index) =>
@@ -772,7 +782,9 @@ export const saveContextDeckPreferences = mutation({
     const existing = await ctx.db
       .query("contextDeckPreferences")
       .withIndex("by_request_principal", (index) =>
-        index.eq("requestId", request._id).eq("principalId", principal._id)
+        index
+          .eq("requestId", request._id)
+          .eq("principalId", preferencePrincipalId)
       )
       .unique()
     const correlationId = args.correlationId.trim()
@@ -809,7 +821,7 @@ export const saveContextDeckPreferences = mutation({
       await ctx.db.insert("contextDeckPreferences", {
         organizationId: principal.organizationId,
         requestId: request._id,
-        principalId: principal._id,
+        principalId: preferencePrincipalId,
         ...value,
         updatedAt: now,
       })

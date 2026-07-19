@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as LogoutRouteImport } from './routes/logout'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as UnauthorizedRouteImport } from './routes/unauthorized'
+import { Route as ApiWorkspaceViewRouteImport } from './routes/api/workspace-view'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppNewRouteImport } from './routes/app.new'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
@@ -63,6 +64,11 @@ const SignInRoute = SignInRouteImport.update({
 const UnauthorizedRoute = UnauthorizedRouteImport.update({
   id: '/unauthorized',
   path: '/unauthorized',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWorkspaceViewRoute = ApiWorkspaceViewRouteImport.update({
+  id: '/api/workspace-view',
+  path: '/api/workspace-view',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -205,6 +211,7 @@ export interface FileRoutesByFullPath {
   '/logout': typeof LogoutRoute
   '/sign-in': typeof SignInRoute
   '/unauthorized': typeof UnauthorizedRoute
+  '/api/workspace-view': typeof ApiWorkspaceViewRoute
   '/app/new': typeof AppNewRoute
   '/share/$token': typeof ShareTokenRoute
   '/app/': typeof AppIndexRoute
@@ -236,6 +243,7 @@ export interface FileRoutesByTo {
   '/logout': typeof LogoutRoute
   '/sign-in': typeof SignInRoute
   '/unauthorized': typeof UnauthorizedRoute
+  '/api/workspace-view': typeof ApiWorkspaceViewRoute
   '/app/new': typeof AppNewRoute
   '/share/$token': typeof ShareTokenRoute
   '/app': typeof AppIndexRoute
@@ -269,6 +277,7 @@ export interface FileRoutesById {
   '/logout': typeof LogoutRoute
   '/sign-in': typeof SignInRoute
   '/unauthorized': typeof UnauthorizedRoute
+  '/api/workspace-view': typeof ApiWorkspaceViewRoute
   '/app/new': typeof AppNewRoute
   '/share/$token': typeof ShareTokenRoute
   '/app/': typeof AppIndexRoute
@@ -303,6 +312,7 @@ export interface FileRouteTypes {
     | '/logout'
     | '/sign-in'
     | '/unauthorized'
+    | '/api/workspace-view'
     | '/app/new'
     | '/share/$token'
     | '/app/'
@@ -334,6 +344,7 @@ export interface FileRouteTypes {
     | '/logout'
     | '/sign-in'
     | '/unauthorized'
+    | '/api/workspace-view'
     | '/app/new'
     | '/share/$token'
     | '/app'
@@ -366,6 +377,7 @@ export interface FileRouteTypes {
     | '/logout'
     | '/sign-in'
     | '/unauthorized'
+    | '/api/workspace-view'
     | '/app/new'
     | '/share/$token'
     | '/app/'
@@ -399,6 +411,7 @@ export interface RootRouteChildren {
   LogoutRoute: typeof LogoutRoute
   SignInRoute: typeof SignInRoute
   UnauthorizedRoute: typeof UnauthorizedRoute
+  ApiWorkspaceViewRoute: typeof ApiWorkspaceViewRoute
   ShareTokenRoute: typeof ShareTokenRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiAuthSignInRoute: typeof ApiAuthSignInRoute
@@ -452,6 +465,13 @@ declare module '@tanstack/react-router' {
       path: '/unauthorized'
       fullPath: '/unauthorized'
       preLoaderRoute: typeof UnauthorizedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workspace-view': {
+      id: '/api/workspace-view'
+      path: '/api/workspace-view'
+      fullPath: '/api/workspace-view'
+      preLoaderRoute: typeof ApiWorkspaceViewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app/': {
@@ -712,6 +732,7 @@ const rootRouteChildren: RootRouteChildren = {
   LogoutRoute: LogoutRoute,
   SignInRoute: SignInRoute,
   UnauthorizedRoute: UnauthorizedRoute,
+  ApiWorkspaceViewRoute: ApiWorkspaceViewRoute,
   ShareTokenRoute: ShareTokenRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiAuthSignInRoute: ApiAuthSignInRoute,

@@ -13,6 +13,7 @@ import type {
 } from "@/application/content-requests"
 import {
   listContentRequests,
+  listElieWorkspace,
   listAssignablePrincipals,
   listOperatorWorkspace,
 } from "@/application/content-request-server-functions"
@@ -32,10 +33,13 @@ export const Route = createFileRoute("/app/")({
     const session = await loadWorkspaceSession()
     if (
       session.status === "authenticated" &&
-      session.session.role === "founder"
+      session.session.workspaceView === "elie"
     )
       return {
-        requests: await listContentRequests(),
+        requests:
+          session.session.role === "administrator"
+            ? await listElieWorkspace()
+            : await listContentRequests(),
         operatorWorkspace: null,
         principals: [],
       }
@@ -69,8 +73,8 @@ type WorkspaceFilters = {
 function RequestLibrary() {
   const { requests, operatorWorkspace, principals } = Route.useLoaderData()
   const session = appRoute.useLoaderData()
-  const canCreate = session.role !== "founder"
-  const isFounder = session.role === "founder"
+  const isFounder = session.workspaceView === "elie"
+  const canCreate = !isFounder
   const [view, setView] = useState<"stack" | "list" | "grid">(
     isFounder ? "stack" : "list"
   )

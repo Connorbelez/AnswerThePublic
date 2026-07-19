@@ -43,6 +43,37 @@ export function requireEditor(principal: Doc<"principals">) {
   }
 }
 
+export async function requireFounderWorkspacePrincipal(
+  ctx: QueryCtx | MutationCtx,
+  principal: Doc<"principals">,
+  request: Pick<
+    Doc<"contentRequests">,
+    "assigneePrincipalId" | "createdByPrincipalId"
+  >
+) {
+  const assigneePrincipalId =
+    request.assigneePrincipalId ?? request.createdByPrincipalId
+  if (principal.role === "founder") {
+    if (assigneePrincipalId !== principal._id) {
+      throw new ConvexError({ code: "RESOURCE_ACCESS_DENIED" })
+    }
+    return principal
+  }
+  if (principal.role !== "administrator") {
+    throw new ConvexError({ code: "ROLE_ACCESS_DENIED" })
+  }
+  const founder = await ctx.db.get(assigneePrincipalId)
+  if (
+    !founder ||
+    founder.organizationId !== principal.organizationId ||
+    founder.kind === "system" ||
+    founder.role !== "founder"
+  ) {
+    throw new ConvexError({ code: "RESOURCE_ACCESS_DENIED" })
+  }
+  return founder
+}
+
 export function requireActiveRequest(
   request: Pick<Doc<"contentRequests">, "retention" | "disposition">
 ) {

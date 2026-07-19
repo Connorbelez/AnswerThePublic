@@ -516,9 +516,18 @@ describe("Content Request workflow contract", () => {
       issuer: "https://api.workos.com/",
       org_id: "org_fairlend",
       role: "founder",
+      email: "elie@fairlend.ca",
+    })
+    const administrator = workspace.withIdentity({
+      subject: "user_admin",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "administrator",
+      email: "admin@fairlend.ca",
     })
     await operator.mutation(api.principals.syncCurrent)
     const founderPrincipal = await founder.mutation(api.principals.syncCurrent)
+    await administrator.mutation(api.principals.syncCurrent)
     const assigned = await operator.mutation(api.contentRequests.createManual, {
       title: "Assigned to Elie",
       origin: "manual",
@@ -539,6 +548,16 @@ describe("Content Request workflow contract", () => {
     expect(founderLibrary.map((request) => request.title)).toEqual([
       "Assigned to Elie",
     ])
+    await expect(
+      administrator.query(api.contentRequests.listFounderWorkspace, {
+        founderEmail: "ELIE@FAIRLEND.CA",
+      })
+    ).resolves.toEqual(founderLibrary)
+    await expect(
+      operator.query(api.contentRequests.listFounderWorkspace, {
+        founderEmail: "elie@fairlend.ca",
+      })
+    ).rejects.toMatchObject({ data: { code: "ROLE_ACCESS_DENIED" } })
     const opened = await founder.mutation(api.contentRequests.open, {
       humanId: assigned.humanId,
       correlationId: "corr-open-1",

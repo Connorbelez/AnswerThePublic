@@ -54,15 +54,20 @@ source or founder content.
 2. Copy `.env.example` to `.env.local` and supply the WorkOS and Convex values.
 3. In WorkOS, register `http://localhost:3000/api/auth/callback` as a redirect
    URI and `http://localhost:3000/api/auth/sign-in` as the sign-in endpoint.
-4. Provision the required Convex environment values, then run `bunx convex dev`
-   to regenerate `_generated` files and synchronize the schema/auth
-   configuration:
+4. Copy the managed WorkOS environment ID and its default application's client
+   ID from the WorkOS Applications page into `.env.local`. The client ID, API
+   key, environment ID, and organization ID must all belong to the same WorkOS
+   environment. Synchronize that identity boundary to the personal Convex dev
+   deployment, then provision the remaining Convex-only secrets:
 
    ```sh
-   bunx convex env set WORKOS_CLIENT_ID "client_..."
-   bunx convex env set FAIRLEND_WORKOS_ORGANIZATION_ID "org_..."
+   bun run auth:sync-dev
    bunx convex env set PUBLIC_SHARE_TOKEN_SECRET "$(openssl rand -hex 32)"
    ```
+
+   `auth:sync-dev` refuses production deployments. It copies the four WorkOS
+   identity variables from `.env.local` into the configured personal Convex dev
+   deployment so AuthKit tokens and Convex's JWT providers cannot drift.
 
    Set the public-share secret separately in every Convex deployment. Keep it
    stable: existing public URLs remain valid after rotation because only token
@@ -76,7 +81,12 @@ source or founder content.
    so the existing `agent_editor` authorization and audit path remains in
    force. Never expose this key through a `VITE_` variable or client bundle.
 
-5. Run the app with `bun run dev`.
+5. Run the complete development stack with `bun run dev`. It first synchronizes
+   the WorkOS identity variables, then the Convex watcher synchronizes backend
+   functions before starting Vite and keeps both sides current as files change.
+   Code generation is disabled because this repository checks in
+   deployment-independent generated stubs. Use `bun run dev:web` only when a
+   separate `convex dev --codegen disable` watcher is already running.
 
 The checked-in generated Convex types let type checking and isolated contract
 tests run before a developer connects a deployment. `convex codegen` becomes the
@@ -96,6 +106,15 @@ WorkOS token. The WorkOS callback provisions the principal and verified email
 using a server-only shared provisioning secret; ordinary application loads are
 query-only, and profile display data comes from the verified WorkOS session
 rather than caller-controlled mutation arguments.
+
+Administrators have an authenticated header switch between the operator/admin
+workspace and Elie's founder workspace. The selection is persisted in an
+HTTP-only, same-site cookie and is accepted only for the `administrator` role.
+It changes the rendered queue and request experience but never impersonates a
+WorkOS identity: Convex still authorizes and audits every operation as the real
+administrator. Elie's queue is resolved from the verified
+`FAIRLEND_ELIE_EMAIL` principal, and founder-owned drafts and voice captures
+remain owned by that principal when an administrator exercises them for QA.
 
 ### Ticket 03 assignment migration
 
@@ -135,9 +154,11 @@ and the height transition is disabled for reduced-motion preferences.
 Typed founder input continuously autosaves to the request's single durable
 founder document and reports `Saved`, `Saving`, or `Offline` without mounting a
 second editor. Meaningful text advances Pending work to In progress; opening or
-saving whitespace does not. Only the assigned founder can read or mutate raw
-draft text. Operators and agents receive the minimal `hasFounderDraft` and
-updated-at metadata needed to understand progress, never the private content.
+saving whitespace does not. Only the assigned founder and an administrator
+QA'ing that founder workspace can read or mutate raw draft text. Operators and
+agents receive the minimal `hasFounderDraft` and updated-at metadata needed to
+understand progress, never the private content. Administrator actions retain
+administrator attribution in the audit and timeline records.
 
 The same input surface can capture voice with explicit record, pause, resume,
 and stop controls. Audio is written to an owner-scoped IndexedDB queue before
@@ -166,8 +187,8 @@ guard and wait without discarding local work.
 
 Each durable materialization is also pushed to the dedicated `convex-timeline`
 component with actor, correlation, and timestamp attribution. Undo and redo
-remain founder-only, idempotent, audited, and visible in the founder's version
-history panel. The timeline retains 50 bounded instant-undo snapshots and
+remain founder-workspace-only, idempotent, audited, and visible in the founder's
+version history panel. The timeline retains 50 bounded instant-undo snapshots and
 projects only attribution metadata to the browser. Every durable materialization
 also enters a paginated immutable archive, so Elie can enumerate and restore
 versions older than the timeline window without loading unbounded full-text

@@ -79,37 +79,52 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       getContentRequest({ data: { humanId: params.requestId } }),
       listAssignablePrincipals(),
       getContentRequestContext({ data: { humanId: params.requestId } }),
-      getContextDeckPreferences({ data: { humanId: params.requestId } }),
-      session.status === "authenticated" && session.session.role === "founder"
+      getContextDeckPreferences({
+        data: {
+          humanId: params.requestId,
+          founderWorkspace:
+            session.status === "authenticated" &&
+            session.session.workspaceView === "elie",
+        },
+      }),
+      session.status === "authenticated" &&
+      session.session.workspaceView === "elie"
         ? getFounderInput({ data: { humanId: params.requestId } })
         : Promise.resolve(null),
-      session.status === "authenticated" && session.session.role !== "founder"
+      session.status === "authenticated" &&
+      session.session.workspaceView !== "elie"
         ? listOpenSemanticConflicts({ data: { humanId: params.requestId } })
         : Promise.resolve([]),
-      session.status === "authenticated" && session.session.role !== "founder"
+      session.status === "authenticated" &&
+      session.session.workspaceView !== "elie"
         ? listDeliverables({ data: { humanId: params.requestId } })
         : Promise.resolve([]),
-      session.status === "authenticated" && session.session.role !== "founder"
+      session.status === "authenticated" &&
+      session.session.workspaceView !== "elie"
         ? listDeliveryTargets({ data: { humanId: params.requestId } })
         : Promise.resolve([]),
-      session.status === "authenticated" && session.session.role !== "founder"
+      session.status === "authenticated" &&
+      session.session.workspaceView !== "elie"
         ? listArchivedDeliveryTargets({
             data: { humanId: params.requestId, cursor: null },
           })
         : Promise.resolve({ page: [], nextCursor: null }),
-      session.status === "authenticated" && session.session.role !== "founder"
+      session.status === "authenticated" &&
+      session.session.workspaceView !== "elie"
         ? listOperatorWorkspace({
             data: { search: params.requestId, limit: 1 },
           })
         : Promise.resolve(null),
-      session.status === "authenticated" && session.session.role !== "founder"
+      session.status === "authenticated" &&
+      session.session.workspaceView !== "elie"
         ? getContentRequestRelations({ data: { humanId: params.requestId } })
         : Promise.resolve({
             parent: null,
             children: [],
             childrenTruncated: false,
           }),
-      session.status === "authenticated" && session.session.role !== "founder"
+      session.status === "authenticated" &&
+      session.session.workspaceView !== "elie"
         ? listPublicShares({ data: { humanId: params.requestId } })
         : Promise.resolve([]),
     ])
@@ -180,10 +195,20 @@ function ContentRequestPage() {
     async (preferences: ContextDeckPreferences, correlationId: string) => {
       if (!requestIsActive) return
       await persistContextDeckPreferences({
-        data: { humanId: request.humanId, preferences, correlationId },
+        data: {
+          humanId: request.humanId,
+          preferences,
+          correlationId,
+          founderWorkspace: session.workspaceView === "elie",
+        },
       })
     },
-    [persistContextDeckPreferences, request.humanId, requestIsActive]
+    [
+      persistContextDeckPreferences,
+      request.humanId,
+      requestIsActive,
+      session.workspaceView,
+    ]
   )
   const openRecordingState = useRef<{
     requestId: string
@@ -252,7 +277,7 @@ function ContentRequestPage() {
       }
     }
   }, [recordOpen, request.humanId])
-  if (session.role === "founder") {
+  if (session.workspaceView === "elie") {
     return (
       <FounderRequestCanvas
         key={request.humanId}

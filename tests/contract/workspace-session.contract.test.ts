@@ -4,7 +4,10 @@ import {
   AuthenticationRequiredError,
   OrganizationAccessDeniedError,
   UnsupportedWorkspaceRoleError,
+  WorkspaceViewAccessDeniedError,
+  authorizeWorkspaceViewSwitch,
   createWorkspaceSessionService,
+  resolveWorkspaceView,
   type IdentityProvider,
   type PrincipalRepository,
 } from "@/application/workspace-session"
@@ -33,6 +36,24 @@ function principalRepository(): PrincipalRepository & { reads: number } {
 }
 
 describe("workspace session application contract", () => {
+  it("projects Elie's workspace only for founders and administrators who selected it", () => {
+    expect(resolveWorkspaceView("founder", null)).toBe("elie")
+    expect(resolveWorkspaceView("administrator", "elie")).toBe("elie")
+    expect(resolveWorkspaceView("administrator", "operator")).toBe("operator")
+    expect(resolveWorkspaceView("operator_editor", "elie")).toBe("operator")
+    expect(resolveWorkspaceView("agent_editor", "elie")).toBe("operator")
+  })
+
+  it("allows only administrators to persist a workspace view switch", () => {
+    expect(authorizeWorkspaceViewSwitch("administrator", "elie")).toBe("elie")
+    expect(() => authorizeWorkspaceViewSwitch("founder", "operator")).toThrow(
+      WorkspaceViewAccessDeniedError
+    )
+    expect(() =>
+      authorizeWorkspaceViewSwitch("operator_editor", "elie")
+    ).toThrow(WorkspaceViewAccessDeniedError)
+  })
+
   it.each([
     ["founder", "founder"],
     ["operator-editor", "operator_editor"],

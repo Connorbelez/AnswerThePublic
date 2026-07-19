@@ -126,6 +126,63 @@ test("an authenticated founder sees their identity and role", async ({
   await context.close()
 })
 
+test("an administrator switches into and out of Elie's QA workspace", async ({
+  browser,
+}) => {
+  const founderContext = await browser.newContext({
+    extraHTTPHeaders: {
+      "x-fairlend-e2e-key": "local-playwright-only",
+      "x-fairlend-e2e-user": JSON.stringify({
+        subject: "user_elie",
+        organizationId: "org_fairlend",
+        email: "elie@fairlend.ca",
+        displayName: "Elie",
+        workosRole: "founder",
+      }),
+    },
+  })
+  await (await founderContext.newPage()).goto("/app")
+  await founderContext.close()
+
+  const context = await browser.newContext({
+    extraHTTPHeaders: {
+      "x-fairlend-e2e-key": "local-playwright-only",
+      "x-fairlend-e2e-user": JSON.stringify({
+        subject: "user_administrator",
+        organizationId: "org_fairlend",
+        email: "administrator@fairlend.ca",
+        displayName: "Administrator",
+        workosRole: "administrator",
+      }),
+    },
+  })
+  const page = await context.newPage()
+
+  await page.goto("/app")
+
+  const viewElie = page.getByRole("button", {
+    name: "View Elie’s workspace",
+  })
+  await expect(viewElie).toBeVisible()
+  await expect(
+    page.getByText("Operator workspace", { exact: true })
+  ).toBeVisible()
+
+  await viewElie.click()
+  await expect(
+    page.getByText("QA view: you are seeing Elie’s workspace.", {
+      exact: false,
+    })
+  ).toBeVisible()
+  await expect(page.getByText("Founder library", { exact: true })).toBeVisible()
+
+  await page.getByRole("button", { name: "Return to admin workspace" }).click()
+  await expect(
+    page.getByText("Operator workspace", { exact: true })
+  ).toBeVisible()
+  await context.close()
+})
+
 test("a signed-in identity without an application role is denied", async ({
   browser,
 }) => {

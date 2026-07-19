@@ -20,6 +20,7 @@ function serviceStub(overrides: Partial<ContentRequestService> = {}) {
     createManual: vi.fn(),
     getByHumanId: vi.fn(),
     list: vi.fn(),
+    listFounderWorkspace: vi.fn(),
     listPage: vi.fn(),
     getProductMetrics: vi.fn(),
     listOperatorWorkspace: vi.fn(),

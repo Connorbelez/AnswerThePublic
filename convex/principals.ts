@@ -66,6 +66,12 @@ export async function requireIdentity(auth: Auth) {
   if (!identity) {
     throw new ConvexError({ code: "UNAUTHENTICATED" })
   }
+  const tokenClientId =
+    typeof identity.client_id === "string" ? identity.client_id : null
+  const expectedClientId = process.env.WORKOS_CLIENT_ID
+  if (tokenClientId && tokenClientId !== expectedClientId) {
+    throw new ConvexError({ code: "APPLICATION_ACCESS_DENIED" })
+  }
   const expectedOrganizationId = process.env.FAIRLEND_WORKOS_ORGANIZATION_ID
   if (!expectedOrganizationId) {
     throw new ConvexError({ code: "AUTHORIZATION_NOT_CONFIGURED" })

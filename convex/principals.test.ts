@@ -9,6 +9,7 @@ import { modules } from "./test.setup"
 describe("principals Convex contract", () => {
   beforeEach(() => {
     process.env.FAIRLEND_WORKOS_ORGANIZATION_ID = "org_fairlend"
+    process.env.WORKOS_CLIENT_ID = "client_fairlend"
   })
 
   it("rejects anonymous writes", async () => {
@@ -47,6 +48,20 @@ describe("principals Convex contract", () => {
 
     await expect(t.mutation(api.principals.syncCurrent)).rejects.toMatchObject({
       data: { code: "ORGANIZATION_ACCESS_DENIED" },
+    })
+  })
+
+  it("rejects a token issued for another app in the shared WorkOS environment", async () => {
+    const t = convexTest(schema, modules).withIdentity({
+      subject: "user_external_app",
+      issuer: "https://api.workos.com/",
+      client_id: "client_other_app",
+      org_id: "org_fairlend",
+      role: "founder",
+    })
+
+    await expect(t.mutation(api.principals.syncCurrent)).rejects.toMatchObject({
+      data: { code: "APPLICATION_ACCESS_DENIED" },
     })
   })
 

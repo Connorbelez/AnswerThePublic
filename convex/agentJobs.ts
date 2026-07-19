@@ -9,7 +9,11 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server"
-import { requireActiveRequest, requirePrincipal } from "./lib/authorization"
+import {
+  requireActiveRequest,
+  requireFounderWorkspacePrincipal,
+  requirePrincipal,
+} from "./lib/authorization"
 import { enqueueNotification } from "./lib/notificationOutbox"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 import {
@@ -211,27 +215,24 @@ export const submitFounderInput = mutation({
   returns: jobValidator,
   handler: async (ctx, args) => {
     const principal = await requirePrincipal(ctx)
-    if (principal.role !== "founder")
-      throw new ConvexError({ code: "ROLE_ACCESS_DENIED" })
     const request = await requestByHumanId(
       ctx,
       principal.organizationId,
       args.humanId
     )
     requireActiveRequest(request)
-    if (
-      (request.assigneePrincipalId ?? request.createdByPrincipalId) !==
-      principal._id
-    ) {
-      throw new ConvexError({ code: "RESOURCE_ACCESS_DENIED" })
-    }
+    const founderPrincipal = await requireFounderWorkspacePrincipal(
+      ctx,
+      principal,
+      request
+    )
     const document = await ctx.db
       .query("founderInputDocuments")
       .withIndex("by_request", (q) => q.eq("requestId", request._id))
       .unique()
     if (!document?.hasMeaningfulDraft)
       throw new ConvexError({ code: "FOUNDER_INPUT_REQUIRED" })
-    if (document.founderPrincipalId !== principal._id)
+    if (document.founderPrincipalId !== founderPrincipal._id)
       throw new ConvexError({ code: "FOUNDER_INPUT_HANDOFF_REQUIRED" })
     const durableHeads = [...(document.durableHeads ?? [])].sort()
     const submittedHeads = [...new Set(args.heads)].sort()
@@ -320,7 +321,7 @@ export const submitFounderInput = mutation({
       requestId: request._id,
       documentId: document._id,
       founderVersionId: version._id,
-      founderPrincipalId: principal._id,
+      founderPrincipalId: founderPrincipal._id,
       correlationId,
       submittedAt: now,
     })

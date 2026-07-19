@@ -729,6 +729,59 @@ export const list = query({
   },
 })
 
+export const listFounderWorkspace = query({
+  args: { founderEmail: v.string(), limit: v.optional(v.number()) },
+  returns: v.array(contentRequestValidator),
+  handler: async (ctx, args) => {
+    const principal = await requirePrincipal(ctx)
+    if (principal.role !== "administrator") {
+      throw new ConvexError({ code: "ROLE_ACCESS_DENIED" })
+    }
+    const founderEmail = args.founderEmail.trim().toLowerCase()
+    if (!founderEmail) {
+      throw new ConvexError({
+        code: "VALIDATION_FAILED",
+        field: "founderEmail",
+      })
+    }
+    const principals = await ctx.db
+      .query("principals")
+      .withIndex("by_organization_subject", (index) =>
+        index.eq("organizationId", principal.organizationId)
+      )
+      .collect()
+    const founder = principals.find(
+      (candidate) =>
+        candidate.role === "founder" &&
+        candidate.kind !== "system" &&
+        candidate.email?.trim().toLowerCase() === founderEmail
+    )
+    if (!founder) {
+      throw new ConvexError({ code: "FOUNDER_WORKSPACE_NOT_FOUND" })
+    }
+    const limit = Math.min(Math.max(Math.trunc(args.limit ?? 50), 1), 100)
+    const requests = (
+      await ctx.db
+        .query("contentRequests")
+        .withIndex("by_organization_assignee_queue_sort", (index) =>
+          index
+            .eq("organizationId", principal.organizationId)
+            .eq("assigneePrincipalId", founder._id)
+        )
+        .order("asc")
+        .collect()
+    )
+      .filter(
+        (request) =>
+          request.retention === "active" &&
+          request.disposition === "active" &&
+          ["pending", "in_progress"].includes(request.lifecycle)
+      )
+      .slice(0, limit)
+    return Promise.all(requests.map((request) => toPublicRequest(ctx, request)))
+  },
+})
+
 export const listPage = query({
   args: { paginationOpts: paginationOptsValidator },
   returns: v.object({

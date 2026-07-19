@@ -294,6 +294,106 @@ describe("Scout ingestion workflow contract", () => {
     ).resolves.toEqual({ ...preferences, pinnedContextIds: [] })
   })
 
+  it("projects Elie's context deck preferences into the administrator QA view", async () => {
+    const workspace = convexTest(schema, modules)
+    const operator = workspace.withIdentity({
+      subject: "operator",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "operator-editor",
+      jti: "operator-session",
+    })
+    const founder = workspace.withIdentity({
+      subject: "user_elie",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "founder",
+      jti: "founder-session",
+      email: "elie@fairlend.ca",
+    })
+    const administrator = workspace.withIdentity({
+      subject: "administrator",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "administrator",
+      jti: "administrator-session",
+    })
+    await operator.mutation(api.principals.syncCurrent)
+    const founderPrincipal = await founder.mutation(api.principals.syncCurrent)
+    const administratorPrincipal = await administrator.mutation(
+      api.principals.syncCurrent
+    )
+    const request = await operator.mutation(api.contentRequests.createManual, {
+      title: "Founder preference QA",
+      origin: "manual",
+      source: { question: "Which context should be visible?" },
+      correlationId: "create-founder-preference-qa",
+    })
+    await operator.mutation(internal.contentRequests.assign, {
+      humanId: request.humanId,
+      assigneePrincipalId: founderPrincipal.principalId,
+      correlationId: "assign-founder-preference-qa",
+    })
+    const preferences = {
+      visibleContextIds: ["original-question"],
+      pinnedContextIds: ["original-question"],
+      knownContextIds: ["original-question"],
+    }
+    await founder.mutation(api.scoutIngestions.saveContextDeckPreferences, {
+      humanId: request.humanId,
+      ...preferences,
+      founderWorkspace: true,
+      correlationId: "founder-preference",
+    })
+
+    await expect(
+      administrator.query(api.scoutIngestions.getContextDeckPreferences, {
+        humanId: request.humanId,
+        founderWorkspace: true,
+      })
+    ).resolves.toEqual(preferences)
+    await expect(
+      administrator.query(api.scoutIngestions.getContextDeckPreferences, {
+        humanId: request.humanId,
+      })
+    ).resolves.toBeNull()
+    await administrator.mutation(
+      api.scoutIngestions.saveContextDeckPreferences,
+      {
+        humanId: request.humanId,
+        visibleContextIds: ["original-question"],
+        pinnedContextIds: [],
+        knownContextIds: ["original-question"],
+        founderWorkspace: true,
+        correlationId: "administrator-preference-qa",
+      }
+    )
+    await expect(
+      founder.query(api.scoutIngestions.getContextDeckPreferences, {
+        humanId: request.humanId,
+        founderWorkspace: true,
+      })
+    ).resolves.toMatchObject({ pinnedContextIds: [] })
+    const audit = await administrator.run((ctx) =>
+      ctx.db
+        .query("auditEvents")
+        .withIndex("by_request_operation_correlation", (index) =>
+          index
+            .eq("requestId", request.requestId)
+            .eq("operation", "context_deck.preferences_saved")
+            .eq("correlationId", "administrator-preference-qa")
+        )
+        .unique()
+    )
+    expect(audit?.actorPrincipalId).toBe(administratorPrincipal.principalId)
+    await expect(
+      operator.query(api.scoutIngestions.getContextDeckPreferences, {
+        humanId: request.humanId,
+        founderWorkspace: true,
+      })
+    ).rejects.toMatchObject({ data: { code: "ROLE_ACCESS_DENIED" } })
+  })
+
   it("replays identical Markdown and rejects key reuse for changed content", async () => {
     const app = await backend()
     const first = await app.mutation(api.scoutIngestions.apply, {

@@ -68,6 +68,10 @@ export function createRequestIdentityProvider(): IdentityProvider & {
         return fixture
       }
 
+      if (import.meta.env.MODE === "e2e") {
+        return null
+      }
+
       if (!getOptionalWorkosServerConfig()) {
         return null
       }

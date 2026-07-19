@@ -558,6 +558,10 @@ export interface ContentRequestRepository {
   createManual(input: PersistManualRequestInput): Promise<ContentRequest>
   getByHumanId(humanId: string): Promise<ContentRequest | null>
   list(limit?: number): Promise<Array<ContentRequest>>
+  listFounderWorkspace(
+    founderEmail: string,
+    limit?: number
+  ): Promise<Array<ContentRequest>>
   listPage(
     cursor: string | null,
     limit: number
@@ -620,12 +624,14 @@ export interface ContentRequestRepository {
     limit: number
   ): Promise<CursorPage<ContentContextVersion>>
   getContextDeckPreferences(
-    humanId: string
+    humanId: string,
+    founderWorkspace?: boolean
   ): Promise<ContextDeckPreferences | null>
   saveContextDeckPreferences(
     humanId: string,
     preferences: ContextDeckPreferences,
-    correlationId: string
+    correlationId: string,
+    founderWorkspace?: boolean
   ): Promise<ContextDeckPreferences>
   getFounderInput(humanId: string): Promise<FounderInputDocument | null>
   saveFounderText(
@@ -815,6 +821,10 @@ export interface ContentRequestService {
   createManual(input: CreateManualRequestInput): Promise<ContentRequest>
   getByHumanId(humanId: string): Promise<ContentRequest | null>
   list(limit?: number): Promise<Array<ContentRequest>>
+  listFounderWorkspace(
+    founderEmail: string,
+    limit?: number
+  ): Promise<Array<ContentRequest>>
   listPage(
     cursor: string | null,
     limit: number
@@ -877,12 +887,14 @@ export interface ContentRequestService {
     limit: number
   ): Promise<CursorPage<ContentContextVersion>>
   getContextDeckPreferences(
-    humanId: string
+    humanId: string,
+    founderWorkspace?: boolean
   ): Promise<ContextDeckPreferences | null>
   saveContextDeckPreferences(
     humanId: string,
     preferences: ContextDeckPreferences,
-    correlationId: string
+    correlationId: string,
+    founderWorkspace?: boolean
   ): Promise<ContextDeckPreferences>
   getFounderInput(humanId: string): Promise<FounderInputDocument | null>
   saveFounderText(
@@ -1077,6 +1089,8 @@ export function createContentRequestService(
       repository.createManual({ ...input, origin: creationOrigin }),
     getByHumanId: (humanId) => repository.getByHumanId(humanId),
     list: (limit) => repository.list(limit),
+    listFounderWorkspace: (founderEmail, limit) =>
+      repository.listFounderWorkspace(founderEmail, limit),
     listPage: (cursor, limit) => repository.listPage(cursor, limit),
     listOperatorWorkspace: (input) => repository.listOperatorWorkspace(input),
     resolve: (query) => repository.resolve(query),
@@ -1113,13 +1127,19 @@ export function createContentRequestService(
     upsertContext: (input) => repository.upsertContext(input),
     listContextVersions: (contextId, cursor, limit) =>
       repository.listContextVersions(contextId, cursor, limit),
-    getContextDeckPreferences: (humanId) =>
-      repository.getContextDeckPreferences(humanId),
-    saveContextDeckPreferences: (humanId, preferences, correlationId) =>
+    getContextDeckPreferences: (humanId, founderWorkspace) =>
+      repository.getContextDeckPreferences(humanId, founderWorkspace),
+    saveContextDeckPreferences: (
+      humanId,
+      preferences,
+      correlationId,
+      founderWorkspace
+    ) =>
       repository.saveContextDeckPreferences(
         humanId,
         preferences,
-        correlationId
+        correlationId,
+        founderWorkspace
       ),
     getFounderInput: (humanId) => repository.getFounderInput(humanId),
     saveFounderText: (humanId, text, correlationId) =>
