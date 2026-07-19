@@ -459,6 +459,10 @@ describe("founder voice capture aggregate", () => {
         )
         .unique()
       if (!storedRequest) throw new Error("Expected request")
+      await ctx.db.patch(storedRequest._id, {
+        activeVoiceCaptureCount: undefined,
+        voiceCaptureCountGeneration: undefined,
+      })
       const document = await ctx.db
         .query("founderInputDocuments")
         .withIndex("by_request", (index) =>

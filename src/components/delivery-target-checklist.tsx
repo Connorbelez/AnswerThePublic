@@ -66,12 +66,17 @@ export function DeliveryTargetChecklist({
     })
   }, [humanId, initialArchivedCursor, targets])
 
-  const run = async (key: string, operation: () => Promise<unknown>) => {
+  const run = async <Result,>(
+    key: string,
+    operation: () => Promise<Result>,
+    applyResult?: (result: Result) => void
+  ) => {
     setPending(key)
     setError(null)
     try {
-      await operation()
+      const result = await operation()
       await router.invalidate()
+      applyResult?.(result)
     } catch {
       setError(
         "The delivery checklist could not be updated. Refresh and try again."
@@ -118,6 +123,14 @@ export function DeliveryTargetChecklist({
         target.targetId === updated.targetId
           ? { ...target, ...updated }
           : target
+      )
+    )
+  }
+
+  const mergeVisibleTarget = (updated: DeliveryTarget) => {
+    setVisibleTargets((current) =>
+      current.map((target) =>
+        target.targetId === updated.targetId ? updated : target
       )
     )
   }
@@ -337,10 +350,10 @@ export function DeliveryTargetChecklist({
                     Confirmation note for {target.destinationLabel} (optional)
                     <Input
                       value={notes[target.targetId] ?? ""}
-                      onChange={(event) =>
+                      onValueChange={(value) =>
                         setNotes((current) => ({
                           ...current,
-                          [target.targetId]: event.target.value,
+                          [target.targetId]: value,
                         }))
                       }
                       placeholder="Where and how it was posted"
@@ -437,16 +450,27 @@ export function DeliveryTargetChecklist({
                       }
                       onClick={() =>
                         promotedVersionId
-                          ? void run(target.targetId, () =>
-                              confirm({
-                                data: {
-                                  targetId: target.targetId,
-                                  versionId: promotedVersionId,
-                                  note:
-                                    notes[target.targetId]?.trim() || undefined,
-                                  correlationId: crypto.randomUUID(),
-                                },
-                              })
+                          ? void run(
+                              target.targetId,
+                              () =>
+                                confirm({
+                                  data: {
+                                    targetId: target.targetId,
+                                    versionId: promotedVersionId,
+                                    note:
+                                      notes[target.targetId]?.trim() ||
+                                      undefined,
+                                    correlationId: crypto.randomUUID(),
+                                  },
+                                }),
+                              (updated) => {
+                                mergeVisibleTarget(updated)
+                                setNotes((current) => {
+                                  const next = { ...current }
+                                  delete next[target.targetId]
+                                  return next
+                                })
+                              }
                             )
                           : undefined
                       }

@@ -334,6 +334,9 @@ describe("expiration, archival, and linked follow-ups", () => {
         createdAt: now,
         updatedAt: now,
       })
+      await ctx.db.patch(voiceOnly.requestId as Id<"contentRequests">, {
+        activeVoiceCaptureCount: 1,
+      })
     })
 
     for (const protectedRequest of [meaningful, started, voiceOnly])
@@ -435,6 +438,9 @@ describe("expiration, archival, and linked follow-ups", () => {
           createdAt: index,
           updatedAt: index,
         })
+      await ctx.db.patch(overflowVoice.requestId as Id<"contentRequests">, {
+        activeVoiceCaptureCount: undefined,
+      })
     })
     await expect(
       runDueExpiration(

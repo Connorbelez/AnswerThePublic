@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { DeliveryTargetChecklist } from "@/components/delivery-target-checklist"
 
@@ -93,6 +93,8 @@ const deliverables = [
 ]
 
 describe("Delivery target checklist contract", () => {
+  afterEach(cleanup)
+
   beforeEach(() => {
     for (const mock of [
       mocks.create,
@@ -308,5 +310,89 @@ describe("Delivery target checklist contract", () => {
         data: { humanId: "CR-ARCHIVED", cursor: "archived-page-2" },
       })
     )
+  })
+
+  it("renders a confirmed receipt from the mutation response", async () => {
+    const target = {
+      targetId: "target-pending",
+      requestHumanId: "CR-ONE",
+      deliverableId: "primary-1",
+      channel: "reddit",
+      destinationLabel: "Original Reddit thread",
+      destinationUrl: "https://reddit.com/r/test/comments/one",
+      isOriginal: true,
+      isRequired: true,
+      retention: "active" as const,
+      currentReceiptId: null,
+      currentReceipt: null,
+      receiptHistory: [],
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    const receipt = {
+      receiptId: "receipt-confirmed",
+      versionId: "version-2",
+      channel: target.channel,
+      destinationLabel: target.destinationLabel,
+      destinationUrl: target.destinationUrl,
+      note: "Posted from the operator workspace",
+      confirmedByPrincipalId: "operator-1",
+      confirmationMethod: "manual" as const,
+      integrationIdentity: null,
+      externalReceiptId: null,
+      respondedAt: 1_700_000_000_000,
+    }
+    mocks.confirm.mockResolvedValueOnce({
+      ...target,
+      currentReceiptId: receipt.receiptId,
+      currentReceipt: receipt,
+      receiptHistory: [receipt],
+      updatedAt: 2,
+    })
+
+    render(
+      <DeliveryTargetChecklist
+        humanId="CR-ONE"
+        targets={[target]}
+        deliverables={deliverables}
+        principals={[
+          {
+            principalId: "operator-1",
+            subject: "Connor",
+            role: "operator_editor",
+          },
+        ]}
+      />
+    )
+
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "Confirmation note for Original Reddit thread (optional)",
+      }),
+      { target: { value: receipt.note } }
+    )
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Mark Original Reddit thread responded",
+      })
+    )
+
+    await waitFor(() =>
+      expect(mocks.confirm).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          targetId: target.targetId,
+          versionId: "version-2",
+          note: receipt.note,
+        }),
+      })
+    )
+    expect(
+      await screen.findByText(`Note: ${receipt.note}`)
+    ).toBeTruthy()
+    expect(
+      screen.getByRole("button", {
+        name: "Reopen delivery to Original Reddit thread",
+      })
+    ).toBeTruthy()
   })
 })

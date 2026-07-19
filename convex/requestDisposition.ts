@@ -1175,6 +1175,8 @@ export const createFollowUp = mutation({
       lifecycle: "pending",
       disposition: "active",
       retention: "active",
+      activeVoiceCaptureCount: 0,
+      voiceCaptureCountGeneration: 0,
       aggregateVersion: 1,
       parentRequestId: parent._id,
       followUpReason: reason,

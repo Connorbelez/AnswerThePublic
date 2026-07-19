@@ -237,6 +237,8 @@ export const apply = mutation({
           lifecycle: "pending",
           disposition: "active",
           retention: "active",
+          activeVoiceCaptureCount: 0,
+          voiceCaptureCountGeneration: 0,
           aggregateVersion: 1,
           normalizedSourceUrl: opportunity.normalizedSourceUrl,
           latestIngestionRunId: ingestionRunId,

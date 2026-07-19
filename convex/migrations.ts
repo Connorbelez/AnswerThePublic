@@ -1,6 +1,7 @@
 import { v } from "convex/values"
 
 import { internal } from "./_generated/api"
+import type { Doc } from "./_generated/dataModel"
 import { internalMutation, internalQuery } from "./_generated/server"
 import { requestQueueSortKey } from "./lib/requestOrdering"
 import { lifecycleForPrimary } from "./lib/deliverableLifecycle"
@@ -12,6 +13,33 @@ import {
   MAX_VOICE_CAPTURES_PER_REQUEST,
   VOICE_CAPTURE_OVERFLOW_SENTINEL,
 } from "./lib/requestLimits"
+
+function agentJobClaimability(
+  job: Pick<
+    Doc<"agentJobs">,
+    | "status"
+    | "nextAttemptAt"
+    | "createdAt"
+    | "updatedAt"
+    | "leaseExpiresAt"
+    | "attempts"
+    | "maxAttempts"
+  >
+) {
+  const claimableAt =
+    job.status === "queued"
+      ? (job.nextAttemptAt ?? job.createdAt)
+      : job.status === "retry_wait"
+        ? (job.nextAttemptAt ?? job.updatedAt)
+        : job.status === "running"
+          ? (job.leaseExpiresAt ?? job.updatedAt)
+          : undefined
+  const reapableAt =
+    job.status === "running" && job.attempts >= job.maxAttempts
+      ? (job.leaseExpiresAt ?? job.updatedAt)
+      : undefined
+  return { claimableAt, reapableAt }
+}
 
 export const backfillAssignmentFields = internalMutation({
   args: { cursor: v.optional(v.string()) },
@@ -345,18 +373,7 @@ export const backfillAgentJobClaimability = internalMutation({
     })
     let migrated = 0
     for (const job of page.page) {
-      const claimableAt =
-        job.status === "queued"
-          ? (job.nextAttemptAt ?? job.createdAt)
-          : job.status === "retry_wait"
-            ? (job.nextAttemptAt ?? job.updatedAt)
-            : job.status === "running"
-              ? (job.leaseExpiresAt ?? job.updatedAt)
-              : undefined
-      const reapableAt =
-        job.status === "running" && job.attempts >= job.maxAttempts
-          ? (job.leaseExpiresAt ?? job.updatedAt)
-          : undefined
+      const { claimableAt, reapableAt } = agentJobClaimability(job)
       if (job.claimableAt === claimableAt && job.reapableAt === reapableAt)
         continue
       await ctx.db.patch(job._id, { claimableAt, reapableAt })
@@ -513,42 +530,70 @@ export const validateV1Invariants = internalQuery({
       if (request.activeVoiceCaptureCount === undefined)
         issues.push({ humanId: request.humanId, code: "voice_capture_count" })
 
-      const [deliverables, targets, projection, jobs] = await Promise.all([
-        ctx.db
-          .query("deliverables")
-          .withIndex("by_request", (index) =>
-            index.eq("requestId", request._id)
+      const [deliverables, targets, projection, jobs, source] =
+        await Promise.all([
+          ctx.db
+            .query("deliverables")
+            .withIndex("by_request", (index) =>
+              index.eq("requestId", request._id)
+            )
+            .collect(),
+          ctx.db
+            .query("deliveryTargets")
+            .withIndex("by_request", (index) =>
+              index.eq("requestId", request._id)
+            )
+            .collect(),
+          ctx.db
+            .query("operatorWorkspaceItems")
+            .withIndex("by_request", (index) =>
+              index.eq("requestId", request._id)
+            )
+            .unique(),
+          ctx.db
+            .query("agentJobs")
+            .withIndex("by_request", (index) =>
+              index.eq("requestId", request._id)
+            )
+            .collect(),
+          request.sourceSnapshotId
+            ? ctx.db.get(request.sourceSnapshotId)
+            : Promise.resolve(null),
+        ])
+      const expectedNormalizedSourceUrl = source?.url
+        ? normalizeSourceUrl(source.url)
+        : null
+      if (
+        expectedNormalizedSourceUrl &&
+        request.normalizedSourceUrl !== expectedNormalizedSourceUrl
+      ) {
+        const collision = await ctx.db
+          .query("migrationConflicts")
+          .withIndex("by_request_type", (index) =>
+            index
+              .eq("requestId", request._id)
+              .eq("type", "normalized_source_url_collision")
           )
-          .collect(),
-        ctx.db
-          .query("deliveryTargets")
-          .withIndex("by_request", (index) =>
-            index.eq("requestId", request._id)
-          )
-          .collect(),
-        ctx.db
-          .query("operatorWorkspaceItems")
-          .withIndex("by_request", (index) =>
-            index.eq("requestId", request._id)
-          )
-          .unique(),
-        ctx.db
-          .query("agentJobs")
-          .withIndex("by_request", (index) =>
-            index.eq("requestId", request._id)
-          )
-          .collect(),
-      ])
+          .unique()
+        issues.push({
+          humanId: request.humanId,
+          code:
+            collision && !collision.resolved
+              ? "normalized_source_url_collision"
+              : "normalized_source_url",
+        })
+      }
+      const expectedRetention = request.retention
       const primaryDeliverables = deliverables.filter(
         (deliverable) =>
-          (deliverable.retention ?? "active") === "active" &&
+          (deliverable.retention ?? "active") === expectedRetention &&
           deliverable.isPrimary
       )
       if (primaryDeliverables.length !== 1)
         issues.push({ humanId: request.humanId, code: "primary_deliverable" })
       const originalTargets = targets.filter(
         (target) =>
-          target.retention === "active" &&
+          target.retention === expectedRetention &&
           target.isOriginal &&
           target.isRequired
       )
@@ -558,18 +603,7 @@ export const validateV1Invariants = internalQuery({
         issues.push({ humanId: request.humanId, code: "operator_projection" })
 
       for (const job of jobs) {
-        const claimableAt =
-          job.status === "queued"
-            ? (job.nextAttemptAt ?? job.createdAt)
-            : job.status === "retry_wait"
-              ? (job.nextAttemptAt ?? job.updatedAt)
-              : job.status === "running"
-                ? (job.leaseExpiresAt ?? job.updatedAt)
-                : undefined
-        const reapableAt =
-          job.status === "running" && job.attempts >= job.maxAttempts
-            ? (job.leaseExpiresAt ?? job.updatedAt)
-            : undefined
+        const { claimableAt, reapableAt } = agentJobClaimability(job)
         if (job.claimableAt !== claimableAt || job.reapableAt !== reapableAt) {
           issues.push({
             humanId: request.humanId,

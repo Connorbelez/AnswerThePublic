@@ -537,7 +537,9 @@ export const createVersion = mutation({
       ctx,
       request,
       principal,
-      "deliverable.version_created",
+      firstPrimary
+        ? "content_request.ready_response"
+        : "deliverable.version_created",
       correlationId,
       now
     )
@@ -639,6 +641,10 @@ export const promote = mutation({
       }
     }
     const now = Date.now()
+    const makesReady =
+      deliverable.isPrimary &&
+      request.lifecycle !== "ready_to_respond" &&
+      request.lifecycle !== "responded"
     await ctx.db.patch(deliverable._id, {
       promotedVersionId: version._id,
       updatedAt: now,
@@ -662,7 +668,7 @@ export const promote = mutation({
       ctx,
       request,
       principal,
-      "deliverable.promoted",
+      makesReady ? "content_request.ready_response" : "deliverable.promoted",
       correlationId,
       now
     )
@@ -818,9 +824,11 @@ export const setPrimary = mutation({
         deliverableId: selected._id,
         updatedAt: now,
       })
-    await ctx.db.patch(request._id, {
-      lifecycle: await lifecycleForPrimary(ctx, request, selected),
-    })
+    const nextLifecycle = await lifecycleForPrimary(ctx, request, selected)
+    const makesReady =
+      nextLifecycle === "ready_to_respond" &&
+      request.lifecycle !== "ready_to_respond"
+    await ctx.db.patch(request._id, { lifecycle: nextLifecycle })
     await ctx.db.insert("primaryDeliverableEvents", {
       organizationId: principal.organizationId,
       requestId: request._id,
@@ -845,7 +853,9 @@ export const setPrimary = mutation({
       ctx,
       request,
       principal,
-      "deliverable.primary_reassigned",
+      makesReady
+        ? "content_request.ready_response"
+        : "deliverable.primary_reassigned",
       correlationId,
       now
     )

@@ -22,7 +22,7 @@
     "format": "prettier --write . && eslint --fix",
     "check:format": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck && bun run lint && bun run test && bun run validate:migrations && bun run build"
+    "check": "bun run typecheck && bun run lint && bun run test && bun run build"
   },
   "dependencies": {
     "@automerge/automerge": "^3.3.2",

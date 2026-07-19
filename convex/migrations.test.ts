@@ -25,6 +25,9 @@ describe("V1 migration deployment gate", () => {
     const created = await backend.mutation(api.contentRequests.createManual, {
       title: "Legacy migration fixture",
       origin: "manual",
+      source: {
+        url: "https://Example.com/community/thread?utm_source=legacy",
+      },
       correlationId: "create-migration-fixture",
     })
 
@@ -58,6 +61,7 @@ describe("V1 migration deployment gate", () => {
         watcherPrincipalIds: undefined,
         queueSortKey: undefined,
         activeVoiceCaptureCount: undefined,
+        normalizedSourceUrl: undefined,
       })
       const documentId = await ctx.db.insert("founderInputDocuments", {
         organizationId: "org_fairlend",
@@ -104,6 +108,7 @@ describe("V1 migration deployment gate", () => {
     expect(before.issues.map((issue) => issue.code).sort()).toEqual([
       "agent_job_claimability",
       "assignment_fields",
+      "normalized_source_url",
       "operator_projection",
       "original_target",
       "primary_deliverable",
@@ -111,6 +116,7 @@ describe("V1 migration deployment gate", () => {
     ])
 
     await backend.mutation(internal.migrations.backfillAssignmentFields, {})
+    await backend.mutation(internal.migrations.backfillNormalizedSourceUrls, {})
     await backend.mutation(internal.migrations.backfillPrimaryDeliverables, {})
     await backend.mutation(
       internal.migrations.backfillOriginalDeliveryTargets,
@@ -126,5 +132,82 @@ describe("V1 migration deployment gate", () => {
     await expect(
       backend.query(internal.migrations.validateV1Invariants, {})
     ).resolves.toMatchObject({ checked: 1, done: true, issues: [] })
+
+    await backend.run(async (ctx) => {
+      const request = await ctx.db
+        .query("contentRequests")
+        .withIndex("by_organization_human_id", (index) =>
+          index
+            .eq("organizationId", "org_fairlend")
+            .eq("humanId", created.humanId)
+        )
+        .unique()
+      if (!request) throw new Error("Migration fixture missing")
+      await ctx.db.patch(request._id, { retention: "archived" })
+      for (const deliverable of await ctx.db
+        .query("deliverables")
+        .withIndex("by_request", (index) => index.eq("requestId", request._id))
+        .collect())
+        await ctx.db.patch(deliverable._id, { retention: "archived" })
+      for (const target of await ctx.db
+        .query("deliveryTargets")
+        .withIndex("by_request", (index) => index.eq("requestId", request._id))
+        .collect())
+        await ctx.db.patch(target._id, { retention: "archived" })
+      for (const job of await ctx.db
+        .query("agentJobs")
+        .withIndex("by_request", (index) => index.eq("requestId", request._id))
+        .collect())
+        await ctx.db.patch(job._id, {
+          status: "cancelled",
+          claimableAt: undefined,
+          reapableAt: undefined,
+        })
+    })
+    await expect(
+      backend.query(internal.migrations.validateV1Invariants, {})
+    ).resolves.toMatchObject({ checked: 1, done: true, issues: [] })
+  })
+
+  it("blocks the gate on an unresolved normalized URL collision", async () => {
+    const backend = convexTest(schema, modules).withIdentity(operatorIdentity)
+    const principal = await backend.mutation(api.principals.syncCurrent)
+    await backend.mutation(api.contentRequests.createManual, {
+      title: "Existing canonical opportunity",
+      origin: "manual",
+      source: { url: "https://example.com/community/thread?utm_source=first" },
+      correlationId: "create-existing-canonical",
+    })
+    const legacy = await backend.mutation(api.contentRequests.createManual, {
+      title: "Legacy colliding opportunity",
+      origin: "manual",
+      correlationId: "create-legacy-collision",
+    })
+    await backend.run(async (ctx) => {
+      const sourceSnapshotId = await ctx.db.insert("sourceSnapshots", {
+        organizationId: "org_fairlend",
+        requestId: legacy.requestId,
+        url: "https://example.com/community/thread?utm_campaign=legacy",
+        captureKind: "manual_supplemental",
+        capturedByPrincipalId: principal.principalId,
+        capturedAt: 100,
+      })
+      await ctx.db.patch(legacy.requestId, {
+        sourceSnapshotId,
+        normalizedSourceUrl: undefined,
+      })
+    })
+
+    await backend.mutation(internal.migrations.backfillNormalizedSourceUrls, {})
+    const validation = await backend.query(
+      internal.migrations.validateV1Invariants,
+      {}
+    )
+    expect(validation.issues).toEqual([
+      {
+        humanId: legacy.humanId,
+        code: "normalized_source_url_collision",
+      },
+    ])
   })
 })

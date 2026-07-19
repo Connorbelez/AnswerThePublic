@@ -55,14 +55,18 @@ bunx convex run --prod migrations:validateV1Invariants '{}'
 The deployment gate is satisfied only when `done` is `true` and `issues` is
 empty. If `done` is `false`, pass the returned `continueCursor` as `cursor` and
 repeat until the terminal page. Issue codes identify the exact repair surface:
-assignment fields, active voice count, one active primary deliverable, one
-active required original target, operator projection, or agent-job claimability.
-Do not tighten optional legacy schema fields until this scan is clean.
+assignment fields, canonical source URL (including unresolved collisions),
+active voice count, one retained primary deliverable, one retained required
+original target, operator projection, or agent-job claimability. “Retained”
+means active children for an active request and archived children for a fully
+archived request; an in-progress archive correctly remains blocked until its
+children settle. Do not tighten optional legacy schema fields until this scan is
+clean.
 
 ## Product metrics
 
-Operators and administrators can query a bounded window through the same agent
-control plane used by the CLI and ChatGPT App:
+Operators, administrators, and registered agent editors can query a bounded
+window through the same agent control plane used by the CLI and ChatGPT App:
 
 ```bash
 bun run content-requests -- control metrics.get --json '{"from":1782864000000,"to":1785542400000}'

@@ -244,6 +244,158 @@ test("the operator workspace is a mobile-first list with actionable filters and 
   await context.close()
 })
 
+test("the canonical founder, agent, and operator journey reaches responded", async ({
+  browser,
+  browserName,
+}) => {
+  test.setTimeout(90_000)
+  const founderSubject = `journey_founder_${browserName}`
+  const founderContext = await browser.newContext({
+    extraHTTPHeaders: {
+      "x-fairlend-e2e-key": "local-playwright-only",
+      "x-fairlend-e2e-user": JSON.stringify({
+        subject: founderSubject,
+        organizationId: "org_fairlend",
+        email: "elie@fairlend.ca",
+        displayName: "Elie",
+        workosRole: "founder",
+      }),
+    },
+  })
+  const operatorContext = await browser.newContext({
+    extraHTTPHeaders: {
+      "x-fairlend-e2e-key": "local-playwright-only",
+      "x-fairlend-e2e-user": JSON.stringify({
+        subject: `journey_operator_${browserName}`,
+        organizationId: "org_fairlend",
+        email: "operator@fairlend.ca",
+        displayName: "FairLend operator",
+        workosRole: "operator-editor",
+      }),
+    },
+  })
+  const agentContext = await browser.newContext({
+    extraHTTPHeaders: {
+      "x-fairlend-e2e-key": "local-playwright-only",
+      "x-fairlend-e2e-user": JSON.stringify({
+        subject: `journey_agent_${browserName}`,
+        organizationId: "org_fairlend",
+        email: "agent@fairlend.ca",
+        displayName: "FairLend drafting agent",
+        workosRole: "agent-editor",
+      }),
+    },
+  })
+  const founderPage = await founderContext.newPage()
+  const operatorPage = await operatorContext.newPage()
+  await founderPage.goto("/app")
+  const title = `Canonical response journey ${browserName}`
+  await operatorPage.goto("/app/new")
+  await operatorPage.getByLabel("Title").fill(title)
+  await operatorPage
+    .getByLabel("Original question")
+    .fill("How should a borrower evaluate a mortgage renewal offer?")
+  await operatorPage
+    .getByRole("button", { name: "Create Critical request" })
+    .click()
+  await expect(operatorPage).toHaveURL(/\/app\/requests\/CR-[A-Z0-9]+$/)
+  const requestPath = new URL(operatorPage.url()).pathname
+  await operatorPage
+    .getByRole("combobox", { name: "Accountable assignee" })
+    .selectOption({ label: `${founderSubject} · founder` })
+  await operatorPage.getByRole("button", { name: "Update assignment" }).click()
+
+  await founderPage.reload()
+  await founderPage.getByText(title, { exact: true }).click()
+  await founderPage.getByRole("button", { name: "Type input" }).click()
+  await founderPage
+    .getByRole("textbox", { name: "Founder input" })
+    .fill(
+      "Compare the full borrowing cost, prepayment flexibility, and how the renewal fits the borrower's next five years."
+    )
+  await expect(founderPage.getByText("Saved", { exact: true })).toBeVisible()
+  const submitFounder = founderPage.getByRole("button", {
+    name: "Submit to drafting",
+  })
+  await expect(submitFounder).toBeEnabled()
+  await submitFounder.click()
+  await expect(founderPage).toHaveURL(/\/app$/)
+
+  const claimKey = `canonical-claim-${browserName}`
+  const claimResponse = await agentContext.request.post("/api/v1/control", {
+    data: {
+      command: {
+        operation: "job.claim",
+        arguments: { leaseMs: 30_000 },
+        idempotencyKey: claimKey,
+      },
+    },
+  })
+  expect(claimResponse.status()).toBe(200)
+  const claim = (await claimResponse.json()) as {
+    data: { jobId: string; leaseGeneration: number }
+  }
+  const responseBody =
+    "Compare the total borrowing cost, not just the headline rate. Review prepayment privileges, portability, penalties, and whether the term supports the borrower's expected plans."
+  const completionResponse = await agentContext.request.post(
+    "/api/v1/control",
+    {
+      data: {
+        command: {
+          operation: "job.complete",
+          arguments: {
+            jobId: claim.data.jobId,
+            leaseToken: claimKey,
+            leaseGeneration: claim.data.leaseGeneration,
+            body: responseBody,
+          },
+          idempotencyKey: `canonical-complete-${browserName}`,
+        },
+      },
+    }
+  )
+  expect(completionResponse.status()).toBe(200)
+
+  await operatorPage.goto(requestPath)
+  await expect(operatorPage.getByText("Ready to respond")).toBeVisible()
+  await expect(operatorPage.getByText(responseBody)).toBeVisible()
+  await expect(
+    operatorPage.getByText("Promoted", { exact: true })
+  ).toBeVisible()
+  const confirmationNote = "Copied and posted to the original opportunity."
+  const confirmationNoteInput = operatorPage.getByLabel(
+    /Confirmation note for .* \(optional\)/
+  )
+  await confirmationNoteInput.pressSequentially(confirmationNote)
+  await expect(confirmationNoteInput).toHaveValue(confirmationNote)
+  await operatorPage
+    .getByRole("button", { name: /^Mark .* responded$/ })
+    .click()
+  await expect(
+    operatorPage.getByRole("button", { name: /^Reopen delivery to / })
+  ).toBeVisible({ timeout: 15_000 })
+  await expect(
+    operatorPage.getByText(
+      `Note: ${confirmationNote}`,
+      { exact: true }
+    )
+  ).toBeVisible()
+  await operatorPage.goto("/app")
+  await operatorPage
+    .getByRole("searchbox", { name: "Search content requests" })
+    .fill(title)
+  await operatorPage.getByRole("button", { name: "Apply filters" }).click()
+  const card = operatorPage
+    .getByRole("region", { name: "Content requests" })
+    .getByRole("link", { name: new RegExp(title) })
+  await expect(card).toContainText("Responded")
+  await expect(card).toContainText("Delivery 1/1")
+
+  await agentContext.close()
+  await operatorContext.close()
+  await founderContext.close()
+})
+
 test("an operator assigns Elie and his mobile library switches from stack to grid", async ({
   browser,
   browserName,
@@ -544,7 +696,7 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
     founderPage.getByRole("button", { name: "Show Original source" })
   ).toBeDisabled()
   await expect(
-    founderPage.getByRole("button", { name: "Submit founder input" })
+    founderPage.getByRole("button", { name: "Submit to drafting" })
   ).toHaveCount(0)
 
   await founderContext.setOffline(true)

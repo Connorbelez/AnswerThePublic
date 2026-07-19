@@ -487,6 +487,8 @@ export const createManual = mutation({
       lifecycle: "pending",
       disposition: "active",
       retention: "active",
+      activeVoiceCaptureCount: 0,
+      voiceCaptureCountGeneration: 0,
       aggregateVersion: 1,
       normalizedSourceUrl,
       assigneePrincipalId: principal._id,

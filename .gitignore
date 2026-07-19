@@ -1,5 +1,5 @@
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,27 +7,47 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-.e2e-dist
-.wrangler
+# Dependencies
+node_modules/
+
+# Build, test, and local tool output
+dist/
+dist-ssr/
+build/
+.e2e-dist/
+coverage/
+test-results/
+playwright-report/
+.convex/
+.tanstack/
+.wrangler/
+.vite/
+*.tsbuildinfo
+
+# Local environment and secrets
 *.local
 .env
 .env.*
 !.env.example
-.convex
-test-results
-playwright-report
-coverage
+.dev.vars
+.dev.vars.*
 
-# Editor directories and files
+# OS and editor metadata
+.DS_Store
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Local duplicate checkout and alternate package-manager artifacts
+prototype-repo/
+pnpm-lock.yaml
+pnpm-workspace.yaml
+
+# iCloud conflict copies; canonical files omit the " 2" suffix
+* 2.ts
+* 2.tsx

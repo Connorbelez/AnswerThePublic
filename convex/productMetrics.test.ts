@@ -3,6 +3,7 @@ import { convexTest } from "convex-test"
 import { beforeEach, describe, expect, it } from "vitest"
 
 import { api } from "./_generated/api"
+import { aggregateProductMetricEvents } from "./productMetrics"
 import schema from "./schema"
 import { modules } from "./test.setup"
 
@@ -45,6 +46,11 @@ describe("product metrics", () => {
       origin: "manual",
       correlationId: "metrics-create-second",
     })
+    const third = await operator.mutation(api.contentRequests.createManual, {
+      title: "Non-job ready response",
+      origin: "manual",
+      correlationId: "metrics-create-third",
+    })
 
     await workspace.run(async (ctx) => {
       const requests = await ctx.db.query("contentRequests").collect()
@@ -61,6 +67,8 @@ describe("product metrics", () => {
         [second.humanId, "agent_job.retry_scheduled", 8_500],
         [second.humanId, "agent_job.failed", 9_000],
         [second.humanId, "content_request.expired", 9_500],
+        [third.humanId, "content_request.ready_response", 5_000],
+        [third.humanId, "deliverable.version_created", 7_000],
       ] as const
       for (const [humanId, operation, occurredAt] of events) {
         const request = byHumanId.get(humanId)
@@ -88,25 +96,123 @@ describe("product metrics", () => {
       to: 10_000,
       truncated: false,
       founderSubmissions: 2,
-      readyResponses: 2,
+      readyResponses: 3,
       deliveries: 1,
       expirations: 1,
       failures: 1,
       retriesScheduled: 1,
-      rewrittenResponses: 1,
-      rewriteRate: 0.5,
+      rewrittenResponses: 2,
+      rewriteRate: 2 / 3,
       medianFounderToReadyMs: 3_000,
       medianReadyToDeliveryMs: 5_000,
     })
     const serialized = JSON.stringify(metrics)
     expect(serialized).not.toContain(first.humanId)
     expect(serialized).not.toContain(second.humanId)
+    expect(serialized).not.toContain(third.humanId)
     expect(serialized).not.toContain("must-not-leak")
     await expect(
       founder.query(api.productMetrics.get, { from: 500, to: 10_000 })
     ).rejects.toMatchObject({ data: { code: "ROLE_ACCESS_DENIED" } })
     await expect(
       agent.query(api.productMetrics.get, { from: 500, to: 10_000 })
-    ).rejects.toMatchObject({ data: { code: "ROLE_ACCESS_DENIED" } })
+    ).resolves.toMatchObject({
+      founderSubmissions: metrics.founderSubmissions,
+      readyResponses: metrics.readyResponses,
+      deliveries: metrics.deliveries,
+      rewriteRate: metrics.rewriteRate,
+    })
+  }, 10_000)
+
+  it("defaults to 30 days and rejects unsafe or oversized windows", async () => {
+    const workspace = convexTest(schema, modules)
+    const operator = workspace.withIdentity(
+      identity("metrics-boundary-operator", "operator-editor")
+    )
+    await operator.mutation(api.principals.syncCurrent)
+    const before = Date.now()
+    const metrics = await operator.query(api.productMetrics.get, {})
+    const after = Date.now()
+    expect(metrics.to).toBeGreaterThanOrEqual(before)
+    expect(metrics.to).toBeLessThanOrEqual(after)
+    expect(metrics.from).toBe(metrics.to - 30 * 24 * 60 * 60 * 1_000)
+    expect(metrics).toMatchObject({
+      truncated: false,
+      founderSubmissions: 0,
+      readyResponses: 0,
+      deliveries: 0,
+      rewriteRate: 0,
+    })
+    await expect(
+      operator.query(api.productMetrics.get, {
+        from: Number.MAX_SAFE_INTEGER + 1,
+        to: Number.MAX_SAFE_INTEGER + 2,
+      })
+    ).rejects.toMatchObject({ data: { code: "VALIDATION_FAILED" } })
+    await expect(
+      operator.query(api.productMetrics.get, {
+        from: 1,
+        to: 1 + 367 * 24 * 60 * 60 * 1_000,
+      })
+    ).rejects.toMatchObject({ data: { code: "VALIDATION_FAILED" } })
+    await expect(
+      operator.query(api.productMetrics.get, { from: 2, to: 1 })
+    ).rejects.toMatchObject({ data: { code: "VALIDATION_FAILED" } })
+  })
+
+  it("counts direct primary drafting and its later rewrite without an agent job", async () => {
+    const workspace = convexTest(schema, modules)
+    const operator = workspace.withIdentity(
+      identity("metrics-direct-operator", "operator-editor")
+    )
+    await operator.mutation(api.principals.syncCurrent)
+    const request = await operator.mutation(api.contentRequests.createManual, {
+      title: "Directly drafted response",
+      origin: "manual",
+      correlationId: "metrics-direct-create",
+    })
+    const [primary] = await operator.query(api.deliverables.list, {
+      humanId: request.humanId,
+    })
+    const from = Date.now() - 1
+    await operator.mutation(api.deliverables.createVersion, {
+      deliverableId: primary!.deliverableId,
+      body: "Initial directly drafted response.",
+      correlationId: "metrics-direct-ready",
+    })
+    await operator.mutation(api.deliverables.createVersion, {
+      deliverableId: primary!.deliverableId,
+      body: "Rewritten directly drafted response.",
+      correlationId: "metrics-direct-rewrite",
+    })
+    await expect(
+      operator.query(api.productMetrics.get, {
+        from,
+        to: Date.now() + 1,
+      })
+    ).resolves.toMatchObject({
+      readyResponses: 1,
+      rewrittenResponses: 1,
+      rewriteRate: 1,
+    })
+  })
+
+  it("bounds aggregation at 10,000 events and marks the result truncated", () => {
+    const page = Array.from({ length: 10_001 }, (_, index) => ({
+      requestId: `request-${index}` as never,
+      operation: "founder_input.submitted",
+      occurredAt: index,
+    }))
+    expect(
+      aggregateProductMetricEvents(page, {
+        from: 0,
+        to: 10_001,
+        generatedAt: 10_002,
+      })
+    ).toMatchObject({
+      truncated: true,
+      founderSubmissions: 10_000,
+      readyResponses: 0,
+    })
   })
 })
