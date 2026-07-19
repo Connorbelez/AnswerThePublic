@@ -208,6 +208,16 @@ export const markFounderVoiceTranscriptMerged = createServerFn({
     ).markFounderVoiceTranscriptMerged(data.humanId, data.captureId)
   })
 
+export const discardFounderVoiceCapture = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string; captureId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (
+      await createContentRequestServiceFromRequest()
+    ).discardFounderVoiceCapture(data.humanId, data.captureId)
+  })
+
 export const undoFounderInput = createServerFn({ method: "POST" })
   .validator((data: { humanId: string; correlationId: string }) => data)
   .handler(async ({ data }) => {
@@ -238,6 +248,21 @@ export const assertFounderInputSynced = createServerFn({ method: "POST" })
     return (
       await createContentRequestServiceFromRequest()
     ).assertFounderInputSynced(data.humanId, data.heads)
+  })
+
+export const submitFounderInput = createServerFn({ method: "POST" })
+  .validator(
+    (data: { humanId: string; heads: Array<string>; correlationId: string }) =>
+      data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).submitFounderInput(
+      data.humanId,
+      data.heads,
+      data.correlationId
+    )
   })
 
 export const proposeAssigneeChange = createServerFn({ method: "POST" })

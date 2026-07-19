@@ -11,4 +11,11 @@ crons.interval(
   {}
 )
 
+crons.interval(
+  "reap exhausted agent job leases",
+  { minutes: 1 },
+  internal.agentJobs.reapExpired,
+  {}
+)
+
 export default crons

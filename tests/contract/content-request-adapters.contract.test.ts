@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { createContentRequestCollectionHandler } from "@/application/content-request-http"
+import {
+  createAgentJobCollectionHandler,
+  createAgentJobItemHandler,
+  createContentRequestCollectionHandler,
+} from "@/application/content-request-http"
 import type { ContentRequestService } from "@/application/content-requests"
 import { runContentRequestsCli } from "@/cli/content-requests"
 import { AuthenticationRequiredError } from "@/application/workspace-session"
@@ -31,9 +35,17 @@ function serviceStub(overrides: Partial<ContentRequestService> = {}) {
     listFounderVoiceCaptures: vi.fn(),
     retryFounderVoiceCapture: vi.fn(),
     markFounderVoiceTranscriptMerged: vi.fn(),
+    discardFounderVoiceCapture: vi.fn(),
     undoFounderInput: vi.fn(),
     redoFounderInput: vi.fn(),
     assertFounderInputSynced: vi.fn(),
+    submitFounderInput: vi.fn(),
+    listAgentJobs: vi.fn(),
+    claimAgentJob: vi.fn(),
+    heartbeatAgentJob: vi.fn(),
+    getAgentJobInput: vi.fn(),
+    completeAgentJob: vi.fn(),
+    failAgentJob: vi.fn(),
     proposeAssigneeChange: vi.fn(),
     listOpenSemanticConflicts: vi.fn(),
     resolveSemanticConflict: vi.fn(),
@@ -160,5 +172,76 @@ describe("Content Request adapter contracts", () => {
         conflictingRequestIds: ["CR-ONE", "CR-TWO"],
       },
     })
+  })
+
+  it("maps agent job claim, immutable input, and completion through HTTP", async () => {
+    const claimAgentJob = vi.fn().mockResolvedValue({ jobId: "job-1" })
+    const getAgentJobInput = vi.fn().mockResolvedValue({
+      job: { jobId: "job-1" },
+      founderInput: { versionId: "version-1", text: "Founder input" },
+    })
+    const completeAgentJob = vi.fn().mockResolvedValue({ status: "completed" })
+    const collection = createAgentJobCollectionHandler(async () =>
+      serviceStub({ claimAgentJob })
+    )
+    const item = createAgentJobItemHandler(async () =>
+      serviceStub({ getAgentJobInput, completeAgentJob })
+    )
+
+    await collection.POST({
+      request: new Request("https://fairlend.test/api/v1/agent-jobs", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "claim",
+          leaseToken: "lease-1",
+          leaseMs: 60_000,
+        }),
+      }),
+    })
+    await item.GET({
+      request: new Request("https://fairlend.test/api/v1/agent-jobs/job-1"),
+      params: { jobId: "job-1" },
+    })
+    await item.POST({
+      request: new Request("https://fairlend.test/api/v1/agent-jobs/job-1", {
+        method: "POST",
+        headers: { "x-correlation-id": "complete-1" },
+        body: JSON.stringify({
+          action: "complete",
+          leaseToken: "lease-1",
+          leaseGeneration: 1,
+          body: "Ready response",
+        }),
+      }),
+      params: { jobId: "job-1" },
+    })
+
+    expect(claimAgentJob).toHaveBeenCalledWith("lease-1", 60_000)
+    expect(getAgentJobInput).toHaveBeenCalledWith("job-1")
+    expect(completeAgentJob).toHaveBeenCalledWith(
+      "job-1",
+      "lease-1",
+      "Ready response",
+      "complete-1",
+      1
+    )
+  })
+
+  it.each([
+    ["NOT_FOUND", 404],
+    ["LEASE_LOST", 409],
+    ["RESOURCE_ACCESS_DENIED", 403],
+  ])("maps job domain error %s to HTTP %s", async (code, status) => {
+    const item = createAgentJobItemHandler(async () =>
+      serviceStub({
+        getAgentJobInput: vi.fn().mockRejectedValue({ data: { code } }),
+      })
+    )
+    const response = await item.GET({
+      request: new Request("https://fairlend.test/api/v1/agent-jobs/job-1"),
+      params: { jobId: "job-1" },
+    })
+    expect(response.status).toBe(status)
+    await expect(response.json()).resolves.toMatchObject({ error: { code } })
   })
 })

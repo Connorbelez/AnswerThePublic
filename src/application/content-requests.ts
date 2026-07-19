@@ -1,9 +1,5 @@
 export type RequestOrigin =
-  | "manual"
-  | "automated_scout"
-  | "chatgpt_app"
-  | "cli"
-  | "http_api"
+  "manual" | "automated_scout" | "chatgpt_app" | "cli" | "http_api"
 
 export type RequestPriority = "critical" | "high" | "normal" | "low"
 
@@ -190,6 +186,7 @@ export type FounderVoiceCapture = {
   transcript: string | null
   failureCode: string | null
   transcriptMergedAt: number | null
+  discardedAt: number | null
   createdAt: number
   updatedAt: number
 }
@@ -203,6 +200,48 @@ export type FinalizeFounderVoiceCaptureInput = {
   durationMs: number
   recordedAt: number
   correlationId: string
+}
+
+export type AgentJob = {
+  jobId: string
+  requestHumanId: string
+  status:
+    "queued" | "running" | "retry_wait" | "failed" | "completed" | "cancelled"
+  attempts: number
+  maxAttempts: number
+  leaseGeneration: number
+  leaseToken: string | null
+  leaseExpiresAt: number | null
+  sourceSnapshotId: string | null
+  founderVersionId: string
+  resultVersionId: string | null
+  lastErrorCode: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+export type AgentJobInput = {
+  job: AgentJob
+  source: {
+    question: string | null
+    body: string | null
+    url: string | null
+    name: string | null
+    channel: string | null
+  } | null
+  founderInput: {
+    versionId: string
+    text: string
+    heads: Array<string>
+    revision: number
+    occurredAt: number
+  }
+  context: Array<{
+    kind: string
+    title: string
+    bulletPoints: Array<string>
+    citations: Array<{ label: string; url: string; supports: string }>
+  }>
 }
 
 export type SemanticConflict = {
@@ -292,6 +331,10 @@ export interface ContentRequestRepository {
     humanId: string,
     captureId: string
   ): Promise<FounderVoiceCapture>
+  discardFounderVoiceCapture(
+    humanId: string,
+    captureId: string
+  ): Promise<FounderVoiceCapture>
   undoFounderInput(
     humanId: string,
     correlationId: string
@@ -304,6 +347,35 @@ export interface ContentRequestRepository {
     humanId: string,
     heads: Array<string>
   ): Promise<{ synced: boolean; durableHeads: Array<string> }>
+  submitFounderInput(
+    humanId: string,
+    heads: Array<string>,
+    correlationId: string
+  ): Promise<AgentJob>
+  listAgentJobs(): Promise<Array<AgentJob>>
+  claimAgentJob(leaseToken: string, leaseMs: number): Promise<AgentJob | null>
+  heartbeatAgentJob(
+    jobId: string,
+    leaseToken: string,
+    leaseMs: number,
+    leaseGeneration: number
+  ): Promise<AgentJob>
+  getAgentJobInput(jobId: string): Promise<AgentJobInput>
+  completeAgentJob(
+    jobId: string,
+    leaseToken: string,
+    body: string,
+    correlationId: string,
+    leaseGeneration: number
+  ): Promise<AgentJob>
+  failAgentJob(
+    jobId: string,
+    leaseToken: string,
+    errorCode: string,
+    transient: boolean,
+    correlationId: string,
+    leaseGeneration: number
+  ): Promise<AgentJob>
   proposeAssigneeChange(
     input: AssigneeChangeProposal
   ): Promise<AssigneeChangeResult>
@@ -375,6 +447,10 @@ export interface ContentRequestService {
     humanId: string,
     captureId: string
   ): Promise<FounderVoiceCapture>
+  discardFounderVoiceCapture(
+    humanId: string,
+    captureId: string
+  ): Promise<FounderVoiceCapture>
   undoFounderInput(
     humanId: string,
     correlationId: string
@@ -387,6 +463,35 @@ export interface ContentRequestService {
     humanId: string,
     heads: Array<string>
   ): Promise<{ synced: boolean; durableHeads: Array<string> }>
+  submitFounderInput(
+    humanId: string,
+    heads: Array<string>,
+    correlationId: string
+  ): Promise<AgentJob>
+  listAgentJobs(): Promise<Array<AgentJob>>
+  claimAgentJob(leaseToken: string, leaseMs: number): Promise<AgentJob | null>
+  heartbeatAgentJob(
+    jobId: string,
+    leaseToken: string,
+    leaseMs: number,
+    leaseGeneration: number
+  ): Promise<AgentJob>
+  getAgentJobInput(jobId: string): Promise<AgentJobInput>
+  completeAgentJob(
+    jobId: string,
+    leaseToken: string,
+    body: string,
+    correlationId: string,
+    leaseGeneration: number
+  ): Promise<AgentJob>
+  failAgentJob(
+    jobId: string,
+    leaseToken: string,
+    errorCode: string,
+    transient: boolean,
+    correlationId: string,
+    leaseGeneration: number
+  ): Promise<AgentJob>
   proposeAssigneeChange(
     input: AssigneeChangeProposal
   ): Promise<AssigneeChangeResult>
@@ -450,12 +555,52 @@ export function createContentRequestService(
       repository.retryFounderVoiceCapture(humanId, captureId),
     markFounderVoiceTranscriptMerged: (humanId, captureId) =>
       repository.markFounderVoiceTranscriptMerged(humanId, captureId),
+    discardFounderVoiceCapture: (humanId, captureId) =>
+      repository.discardFounderVoiceCapture(humanId, captureId),
     undoFounderInput: (humanId, correlationId) =>
       repository.undoFounderInput(humanId, correlationId),
     redoFounderInput: (humanId, correlationId) =>
       repository.redoFounderInput(humanId, correlationId),
     assertFounderInputSynced: (humanId, heads) =>
       repository.assertFounderInputSynced(humanId, heads),
+    submitFounderInput: (humanId, heads, correlationId) =>
+      repository.submitFounderInput(humanId, heads, correlationId),
+    listAgentJobs: () => repository.listAgentJobs(),
+    claimAgentJob: (leaseToken, leaseMs) =>
+      repository.claimAgentJob(leaseToken, leaseMs),
+    heartbeatAgentJob: (jobId, leaseToken, leaseMs, leaseGeneration) =>
+      repository.heartbeatAgentJob(jobId, leaseToken, leaseMs, leaseGeneration),
+    getAgentJobInput: (jobId) => repository.getAgentJobInput(jobId),
+    completeAgentJob: (
+      jobId,
+      leaseToken,
+      body,
+      correlationId,
+      leaseGeneration
+    ) =>
+      repository.completeAgentJob(
+        jobId,
+        leaseToken,
+        body,
+        correlationId,
+        leaseGeneration
+      ),
+    failAgentJob: (
+      jobId,
+      leaseToken,
+      errorCode,
+      transient,
+      correlationId,
+      leaseGeneration
+    ) =>
+      repository.failAgentJob(
+        jobId,
+        leaseToken,
+        errorCode,
+        transient,
+        correlationId,
+        leaseGeneration
+      ),
     proposeAssigneeChange: (input) => repository.proposeAssigneeChange(input),
     listOpenSemanticConflicts: (humanId) =>
       repository.listOpenSemanticConflicts(humanId),

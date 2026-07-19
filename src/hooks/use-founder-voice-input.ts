@@ -30,6 +30,7 @@ type VoiceTransport = {
   list(): Promise<Array<FounderVoiceCapture>>
   retry(captureId: string): Promise<FounderVoiceCapture>
   markMerged(captureId: string): Promise<FounderVoiceCapture>
+  discard?(captureId: string): Promise<FounderVoiceCapture>
 }
 
 export function useFounderVoiceInput({
@@ -78,8 +79,10 @@ export function useFounderVoiceInput({
 
   const mergeReadyTranscripts = useCallback(
     async (nextCaptures: Array<FounderVoiceCapture>) => {
+      const mergedCaptures = [...nextCaptures]
       for (const capture of nextCaptures) {
         if (
+          capture.discardedAt ||
           capture.status !== "transcribed" ||
           !capture.transcript ||
           capture.transcriptMergedAt
@@ -91,10 +94,20 @@ export function useFounderVoiceInput({
           capture.transcript,
           capture.recordedAt
         )
-        if (await ensureDurablySyncedRef.current()) {
-          await transportRef.current.markMerged(capture.captureId)
+        try {
+          if (!(await ensureDurablySyncedRef.current())) continue
+          const merged = await transportRef.current.markMerged(
+            capture.captureId
+          )
+          const index = mergedCaptures.findIndex(
+            (candidate) => candidate.captureId === capture.captureId
+          )
+          if (index >= 0) mergedCaptures[index] = merged
+        } catch {
+          // Keep the unmerged capture visible; polling retries the durable merge.
         }
       }
+      return mergedCaptures
     },
     []
   )
@@ -106,15 +119,20 @@ export function useFounderVoiceInput({
     } catch {
       return []
     }
+    const merged = await mergeReadyTranscripts(next)
     if (mountedRef.current) {
-      setCaptures(next)
-      if (next.some((capture) => capture.status === "transcribing")) {
+      setCaptures(merged)
+      if (merged.some((capture) => capture.status === "transcribing")) {
         setState((current) =>
           ["recording", "paused", "requesting", "saving"].includes(current)
             ? current
             : "transcribing"
         )
-      } else if (next.some((capture) => capture.status === "failed")) {
+      } else if (
+        merged.some(
+          (capture) => capture.status === "failed" && !capture.discardedAt
+        )
+      ) {
         setState((current) =>
           ["recording", "paused", "requesting", "saving"].includes(current)
             ? current
@@ -128,8 +146,7 @@ export function useFounderVoiceInput({
         )
       }
     }
-    await mergeReadyTranscripts(next)
-    return next
+    return merged
   }, [mergeReadyTranscripts])
 
   const syncQueue = useCallback(async () => {
@@ -222,7 +239,11 @@ export function useFounderVoiceInput({
     if (
       !captures.some(
         (capture) =>
-          capture.status === "uploaded" || capture.status === "transcribing"
+          capture.status === "uploaded" ||
+          capture.status === "transcribing" ||
+          (capture.status === "transcribed" &&
+            !capture.transcriptMergedAt &&
+            !capture.discardedAt)
       )
     )
       return
@@ -380,6 +401,27 @@ export function useFounderVoiceInput({
     [refreshCaptures, syncQueue]
   )
 
+  const discard = useCallback(
+    async (captureId: string) => {
+      if (!transportRef.current.discard) return
+      await transportRef.current.discard(captureId)
+      await refreshCaptures()
+    },
+    [refreshCaptures]
+  )
+
+  const discardPending = useCallback(async () => {
+    const queue = queueRef.current
+    if (queue) {
+      const pending = await queue.list(requestHumanId)
+      for (const capture of pending) await queue.remove(capture.clientCaptureId)
+    }
+    pendingLocalCapturesRef.current = []
+    setQueuedCount(0)
+    setErrorCode(null)
+    setState("idle")
+  }, [requestHumanId])
+
   return {
     supported,
     state,
@@ -392,5 +434,7 @@ export function useFounderVoiceInput({
     resume,
     stop,
     retry,
+    discard,
+    discardPending,
   }
 }

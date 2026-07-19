@@ -461,4 +461,104 @@ describe("Variant G Unified Context Canvas", () => {
     expect(onDraftSave).toHaveBeenCalledOnce()
     view.unmount()
   })
+
+  it("keeps submitted founder input and archived restore controls read-only", () => {
+    const restore = vi.fn()
+    const view = render(
+      <UnifiedContextCanvas
+        request={{ ...request, lifecycle: "founder_complete" }}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+        draftController={{
+          text: "Submitted founder input",
+          status: "Saved",
+          canUndo: true,
+          canRedo: true,
+          history: null,
+          archiveEntries: [
+            {
+              versionId: "archived-1",
+              revision: 1,
+              actorPrincipalId: "founder-1",
+              actorSubject: "Elie",
+              correlationId: "archive-1",
+              occurredAt: Date.now(),
+            },
+          ],
+          archiveDone: true,
+          readOnly: true,
+          onTextChange: vi.fn(),
+          onUndo: vi.fn(),
+          onRedo: vi.fn(),
+          onLoadOlderHistory: vi.fn(),
+          onRestoreArchivedVersion: restore,
+        }}
+      />
+    )
+    expect(
+      within(view.container)
+        .getByRole("textbox", { name: "Founder input" })
+        .hasAttribute("readonly")
+    ).toBe(true)
+    fireEvent.click(
+      within(view.container).getByRole("button", { name: "History (0)" })
+    )
+    expect(
+      within(view.container)
+        .getByRole("button", { name: "Restore" })
+        .hasAttribute("disabled")
+    ).toBe(true)
+    expect(restore).not.toHaveBeenCalled()
+  })
+
+  it("blocks founder submission while local voice work is pending", () => {
+    const submit = vi.fn()
+    render(
+      <UnifiedContextCanvas
+        request={request}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+        onSubmitFounderInput={submit}
+        draftController={{
+          text: "Ready typed input",
+          status: "Saved",
+          canUndo: false,
+          canRedo: false,
+          history: null,
+          archiveEntries: [],
+          archiveDone: true,
+          onTextChange: vi.fn(),
+          onUndo: vi.fn(),
+          onRedo: vi.fn(),
+          onLoadOlderHistory: vi.fn(),
+          onRestoreArchivedVersion: vi.fn(),
+          voice: {
+            supported: true,
+            state: "saving",
+            elapsedMs: 0,
+            errorCode: null,
+            queuedCount: 1,
+            captures: [],
+            start: vi.fn(),
+            pause: vi.fn(),
+            resume: vi.fn(),
+            stop: vi.fn(),
+            retry: vi.fn(),
+            discard: vi.fn(),
+            discardPending: vi.fn(),
+          },
+        }}
+      />
+    )
+    expect(
+      screen.getByText(
+        "Finish, retry, or discard pending voice input before submitting."
+      )
+    ).toBeTruthy()
+    expect(
+      screen
+        .getByRole("button", { name: "Submit to drafting" })
+        .hasAttribute("disabled")
+    ).toBe(true)
+  })
 })

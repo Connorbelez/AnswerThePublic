@@ -19,9 +19,11 @@ import { Route as AppNewRouteImport } from './routes/app.new'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
 import { Route as ApiAuthSignInRouteImport } from './routes/api/auth/sign-in'
 import { Route as ApiE2eAutomatedRequestRouteImport } from './routes/api/e2e/automated-request'
+import { Route as ApiV1AgentJobsRouteImport } from './routes/api/v1/agent-jobs'
 import { Route as ApiV1ContentRequestsRouteImport } from './routes/api/v1/content-requests'
 import { Route as ApiV1ScoutIngestionsRouteImport } from './routes/api/v1/scout-ingestions'
 import { Route as AppRequestsRequestIdRouteImport } from './routes/app.requests.$requestId'
+import { Route as ApiV1AgentJobsJobIdRouteImport } from './routes/api/v1/agent-jobs.$jobId'
 import { Route as ApiV1CliContentRequestsRouteImport } from './routes/api/v1/cli/content-requests'
 import { Route as ApiV1CliScoutIngestionsRouteImport } from './routes/api/v1/cli/scout-ingestions'
 import { Route as ApiV1ContentRequestsRequestIdRouteImport } from './routes/api/v1/content-requests.$requestId'
@@ -77,6 +79,11 @@ const ApiE2eAutomatedRequestRoute = ApiE2eAutomatedRequestRouteImport.update({
   path: '/api/e2e/automated-request',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1AgentJobsRoute = ApiV1AgentJobsRouteImport.update({
+  id: '/api/v1/agent-jobs',
+  path: '/api/v1/agent-jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1ContentRequestsRoute = ApiV1ContentRequestsRouteImport.update({
   id: '/api/v1/content-requests',
   path: '/api/v1/content-requests',
@@ -91,6 +98,11 @@ const AppRequestsRequestIdRoute = AppRequestsRequestIdRouteImport.update({
   id: '/requests/$requestId',
   path: '/requests/$requestId',
   getParentRoute: () => AppRoute,
+} as any)
+const ApiV1AgentJobsJobIdRoute = ApiV1AgentJobsJobIdRouteImport.update({
+  id: '/$jobId',
+  path: '/$jobId',
+  getParentRoute: () => ApiV1AgentJobsRoute,
 } as any)
 const ApiV1CliContentRequestsRoute = ApiV1CliContentRequestsRouteImport.update({
   id: '/api/v1/cli/content-requests',
@@ -126,9 +138,11 @@ export interface FileRoutesByFullPath {
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
+  '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
   '/api/v1/scout-ingestions': typeof ApiV1ScoutIngestionsRoute
   '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
+  '/api/v1/agent-jobs/$jobId': typeof ApiV1AgentJobsJobIdRoute
   '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
   '/api/v1/cli/scout-ingestions': typeof ApiV1CliScoutIngestionsRoute
   '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRoute
@@ -144,9 +158,11 @@ export interface FileRoutesByTo {
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
+  '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
   '/api/v1/scout-ingestions': typeof ApiV1ScoutIngestionsRoute
   '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
+  '/api/v1/agent-jobs/$jobId': typeof ApiV1AgentJobsJobIdRoute
   '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
   '/api/v1/cli/scout-ingestions': typeof ApiV1CliScoutIngestionsRoute
   '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRoute
@@ -164,9 +180,11 @@ export interface FileRoutesById {
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
+  '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
   '/api/v1/scout-ingestions': typeof ApiV1ScoutIngestionsRoute
   '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
+  '/api/v1/agent-jobs/$jobId': typeof ApiV1AgentJobsJobIdRoute
   '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
   '/api/v1/cli/scout-ingestions': typeof ApiV1CliScoutIngestionsRoute
   '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRoute
@@ -185,9 +203,11 @@ export interface FileRouteTypes {
     | '/api/auth/callback'
     | '/api/auth/sign-in'
     | '/api/e2e/automated-request'
+    | '/api/v1/agent-jobs'
     | '/api/v1/content-requests'
     | '/api/v1/scout-ingestions'
     | '/app/requests/$requestId'
+    | '/api/v1/agent-jobs/$jobId'
     | '/api/v1/cli/content-requests'
     | '/api/v1/cli/scout-ingestions'
     | '/api/v1/content-requests/$requestId'
@@ -203,9 +223,11 @@ export interface FileRouteTypes {
     | '/api/auth/callback'
     | '/api/auth/sign-in'
     | '/api/e2e/automated-request'
+    | '/api/v1/agent-jobs'
     | '/api/v1/content-requests'
     | '/api/v1/scout-ingestions'
     | '/app/requests/$requestId'
+    | '/api/v1/agent-jobs/$jobId'
     | '/api/v1/cli/content-requests'
     | '/api/v1/cli/scout-ingestions'
     | '/api/v1/content-requests/$requestId'
@@ -222,9 +244,11 @@ export interface FileRouteTypes {
     | '/api/auth/callback'
     | '/api/auth/sign-in'
     | '/api/e2e/automated-request'
+    | '/api/v1/agent-jobs'
     | '/api/v1/content-requests'
     | '/api/v1/scout-ingestions'
     | '/app/requests/$requestId'
+    | '/api/v1/agent-jobs/$jobId'
     | '/api/v1/cli/content-requests'
     | '/api/v1/cli/scout-ingestions'
     | '/api/v1/content-requests/$requestId'
@@ -240,6 +264,7 @@ export interface RootRouteChildren {
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiAuthSignInRoute: typeof ApiAuthSignInRoute
   ApiE2eAutomatedRequestRoute: typeof ApiE2eAutomatedRequestRoute
+  ApiV1AgentJobsRoute: typeof ApiV1AgentJobsRouteWithChildren
   ApiV1ContentRequestsRoute: typeof ApiV1ContentRequestsRouteWithChildren
   ApiV1ScoutIngestionsRoute: typeof ApiV1ScoutIngestionsRoute
   ApiV1CliContentRequestsRoute: typeof ApiV1CliContentRequestsRouteWithChildren
@@ -318,6 +343,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiE2eAutomatedRequestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/agent-jobs': {
+      id: '/api/v1/agent-jobs'
+      path: '/api/v1/agent-jobs'
+      fullPath: '/api/v1/agent-jobs'
+      preLoaderRoute: typeof ApiV1AgentJobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/content-requests': {
       id: '/api/v1/content-requests'
       path: '/api/v1/content-requests'
@@ -338,6 +370,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/requests/$requestId'
       preLoaderRoute: typeof AppRequestsRequestIdRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/api/v1/agent-jobs/$jobId': {
+      id: '/api/v1/agent-jobs/$jobId'
+      path: '/$jobId'
+      fullPath: '/api/v1/agent-jobs/$jobId'
+      preLoaderRoute: typeof ApiV1AgentJobsJobIdRouteImport
+      parentRoute: typeof ApiV1AgentJobsRoute
     }
     '/api/v1/cli/content-requests': {
       id: '/api/v1/cli/content-requests'
@@ -384,6 +423,18 @@ const AppRouteChildren: AppRouteChildren = {
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface ApiV1AgentJobsRouteChildren {
+  ApiV1AgentJobsJobIdRoute: typeof ApiV1AgentJobsJobIdRoute
+}
+
+const ApiV1AgentJobsRouteChildren: ApiV1AgentJobsRouteChildren = {
+  ApiV1AgentJobsJobIdRoute: ApiV1AgentJobsJobIdRoute,
+}
+
+const ApiV1AgentJobsRouteWithChildren = ApiV1AgentJobsRoute._addFileChildren(
+  ApiV1AgentJobsRouteChildren,
+)
+
 interface ApiV1ContentRequestsRouteChildren {
   ApiV1ContentRequestsRequestIdRoute: typeof ApiV1ContentRequestsRequestIdRoute
 }
@@ -419,6 +470,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiAuthSignInRoute: ApiAuthSignInRoute,
   ApiE2eAutomatedRequestRoute: ApiE2eAutomatedRequestRoute,
+  ApiV1AgentJobsRoute: ApiV1AgentJobsRouteWithChildren,
   ApiV1ContentRequestsRoute: ApiV1ContentRequestsRouteWithChildren,
   ApiV1ScoutIngestionsRoute: ApiV1ScoutIngestionsRoute,
   ApiV1CliContentRequestsRoute: ApiV1CliContentRequestsRouteWithChildren,

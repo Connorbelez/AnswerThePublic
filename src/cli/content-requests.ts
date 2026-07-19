@@ -29,6 +29,12 @@ function usage() {
     "  find <ID, title, or fuzzy query>",
     "  create --title <title> [--question <text>] [--body <text>] [--url <url>]",
     "  ingest --file <report.md> --idempotency-key <stable-key>",
+    "  jobs",
+    "  job-claim --lease-token <token> [--lease-ms 300000]",
+    "  job-input <job-id>",
+    "  job-heartbeat <job-id> --lease-token <token> --lease-generation <n> [--lease-ms 300000]",
+    "  job-complete <job-id> --lease-token <token> --lease-generation <n> --file <response.md>",
+    "  job-fail <job-id> --lease-token <token> --lease-generation <n> --error-code <code> [--permanent]",
     "Environment: CONTENT_REQUESTS_API_URL, CONTENT_REQUESTS_ACCESS_TOKEN",
   ].join("\n")
 }
@@ -95,6 +101,59 @@ export async function runContentRequestsCli(
       method: "POST",
       headers,
       body: JSON.stringify({ markdown: await readFile(file), idempotencyKey }),
+    }
+  } else if (command === "jobs") {
+    url = `${baseUrl}/api/v1/agent-jobs`
+  } else if (command === "job-claim") {
+    url = `${baseUrl}/api/v1/agent-jobs`
+    init = {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        action: "claim",
+        leaseToken: requireFlag(args, "--lease-token"),
+        leaseMs: Number(readFlag(args, "--lease-ms") ?? 300_000),
+      }),
+    }
+  } else if (
+    ["job-input", "job-heartbeat", "job-complete", "job-fail"].includes(command)
+  ) {
+    const jobId = args[0]
+    if (!jobId) throw new Error(`${command} requires a job ID.`)
+    url = `${baseUrl}/api/v1/agent-jobs/${encodeURIComponent(jobId)}`
+    if (command !== "job-input") {
+      const leaseToken = requireFlag(args, "--lease-token")
+      const leaseGeneration = Number(requireFlag(args, "--lease-generation"))
+      let body: Record<string, unknown>
+      if (command === "job-heartbeat")
+        body = {
+          action: "heartbeat",
+          leaseToken,
+          leaseMs: Number(readFlag(args, "--lease-ms") ?? 300_000),
+          leaseGeneration,
+        }
+      else if (command === "job-complete") {
+        const readFile =
+          options.readFile ??
+          (async (path: string) =>
+            (await import("node:fs/promises")).readFile(path, "utf8"))
+        body = {
+          action: "complete",
+          leaseToken,
+          body: await readFile(requireFlag(args, "--file")),
+          correlationId: crypto.randomUUID(),
+          leaseGeneration,
+        }
+      } else
+        body = {
+          action: "fail",
+          leaseToken,
+          errorCode: requireFlag(args, "--error-code"),
+          transient: !args.includes("--permanent"),
+          correlationId: crypto.randomUUID(),
+          leaseGeneration,
+        }
+      init = { method: "POST", headers, body: JSON.stringify(body) }
     }
   } else {
     throw new Error(`Unknown command: ${command}\n${usage()}`)

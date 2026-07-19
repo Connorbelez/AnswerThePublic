@@ -520,15 +520,24 @@ export const list = query({
     const limit = Math.min(Math.max(Math.trunc(args.limit ?? 50), 1), 100)
     const requests =
       principal.role === "founder"
-        ? await ctx.db
-            .query("contentRequests")
-            .withIndex("by_organization_assignee_queue_sort", (index) =>
-              index
-                .eq("organizationId", principal.organizationId)
-                .eq("assigneePrincipalId", principal._id)
+        ? (
+            await ctx.db
+              .query("contentRequests")
+              .withIndex("by_organization_assignee_queue_sort", (index) =>
+                index
+                  .eq("organizationId", principal.organizationId)
+                  .eq("assigneePrincipalId", principal._id)
+              )
+              .order("asc")
+              .collect()
+          )
+            .filter(
+              (request) =>
+                request.retention === "active" &&
+                request.disposition === "active" &&
+                ["pending", "in_progress"].includes(request.lifecycle)
             )
-            .order("asc")
-            .take(limit)
+            .slice(0, limit)
         : await ctx.db
             .query("contentRequests")
             .withIndex("by_organization_queue_sort", (index) =>

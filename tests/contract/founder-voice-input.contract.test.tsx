@@ -410,4 +410,145 @@ describe("founder voice input browser contract", () => {
     expect(await queue.list("CR-000001")).toHaveLength(0)
     view.unmount()
   })
+
+  it("updates capture state immediately after a durable transcript merge", async () => {
+    const { queue } = memoryQueue()
+    const capture = {
+      captureId: "capture-ready",
+      clientCaptureId: "client-ready",
+      mimeType: "audio/webm",
+      sizeBytes: 10,
+      durationMs: 1_000,
+      recordedAt: 1,
+      status: "transcribed" as const,
+      transcript: "Merged founder perspective",
+      failureCode: null,
+      transcriptMergedAt: null,
+      discardedAt: null,
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    const view = renderHook(() =>
+      useFounderVoiceInput({
+        requestHumanId: "CR-000001",
+        ownerKey: "org:founder",
+        transport: {
+          createUploadUrl: vi.fn(),
+          finalize: vi.fn(),
+          list: vi.fn().mockResolvedValue([capture]),
+          retry: vi.fn(),
+          markMerged: vi.fn().mockResolvedValue({
+            ...capture,
+            transcriptMergedAt: 2,
+          }),
+        },
+        appendTranscript: vi.fn(),
+        ensureDurablySynced: vi.fn().mockResolvedValue(true),
+        queueFactory: () => queue,
+      })
+    )
+    await waitFor(() =>
+      expect(view.result.current.captures[0]?.transcriptMergedAt).toBe(2)
+    )
+    view.unmount()
+  })
+
+  it.each(["sync-not-durable", "mark-rejected"])(
+    "retries an unmerged transcript after %s",
+    async (failure) => {
+      const { queue } = memoryQueue()
+      const capture = {
+        captureId: "capture-retry",
+        clientCaptureId: "client-retry",
+        mimeType: "audio/webm",
+        sizeBytes: 10,
+        durationMs: 1_000,
+        recordedAt: 1,
+        status: "transcribed" as const,
+        transcript: "Retry this transcript merge",
+        failureCode: null,
+        transcriptMergedAt: null,
+        discardedAt: null,
+        createdAt: 1,
+        updatedAt: 1,
+      }
+      const ensureDurablySynced =
+        failure === "sync-not-durable"
+          ? vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+          : vi.fn().mockResolvedValue(true)
+      const markMerged =
+        failure === "mark-rejected"
+          ? vi
+              .fn()
+              .mockRejectedValueOnce(new TypeError("temporary outage"))
+              .mockResolvedValue({ ...capture, transcriptMergedAt: 2 })
+          : vi.fn().mockResolvedValue({ ...capture, transcriptMergedAt: 2 })
+      const queueFactory = () => queue
+      const view = renderHook(() =>
+        useFounderVoiceInput({
+          requestHumanId: "CR-000001",
+          ownerKey: "org:founder",
+          transport: {
+            createUploadUrl: vi.fn(),
+            finalize: vi.fn(),
+            list: vi.fn().mockResolvedValue([capture]),
+            retry: vi.fn(),
+            markMerged,
+          },
+          appendTranscript: vi.fn(),
+          ensureDurablySynced,
+          queueFactory,
+        })
+      )
+      await waitFor(() =>
+        expect(view.result.current.captures[0]?.transcriptMergedAt).toBeNull()
+      )
+      Object.defineProperty(navigator, "onLine", {
+        configurable: true,
+        value: true,
+      })
+      act(() => window.dispatchEvent(new Event("online")))
+      await waitFor(() =>
+        expect(view.result.current.captures[0]?.transcriptMergedAt).toBe(2)
+      )
+      expect(markMerged).toHaveBeenCalledTimes(
+        failure === "mark-rejected" ? 2 : 1
+      )
+      view.unmount()
+    }
+  )
+
+  it("discards local queued recordings so submission can proceed", async () => {
+    const { queue } = memoryQueue()
+    await queue.put({
+      requestHumanId: "CR-000001",
+      clientCaptureId: "local-pending",
+      blob: new Blob(["audio"], { type: "audio/webm" }),
+      mimeType: "audio/webm",
+      durationMs: 1_000,
+      createdAt: 1,
+    })
+    const queueFactory = () => queue
+    const view = renderHook(() =>
+      useFounderVoiceInput({
+        requestHumanId: "CR-000001",
+        ownerKey: "org:founder",
+        transport: {
+          createUploadUrl: vi.fn(),
+          finalize: vi.fn(),
+          list: vi.fn().mockResolvedValue([]),
+          retry: vi.fn(),
+          markMerged: vi.fn(),
+        },
+        appendTranscript: vi.fn(),
+        ensureDurablySynced: vi.fn(),
+        queueFactory,
+      })
+    )
+    await waitFor(() => expect(view.result.current.queuedCount).toBe(1))
+    await act(() => view.result.current.discardPending())
+    expect(view.result.current.queuedCount).toBe(0)
+    expect(await queue.list("CR-000001")).toHaveLength(0)
+    view.unmount()
+  })
 })

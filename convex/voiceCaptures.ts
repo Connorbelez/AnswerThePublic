@@ -27,6 +27,7 @@ const captureValidator = v.object({
   transcript: v.union(v.string(), v.null()),
   failureCode: v.union(v.string(), v.null()),
   transcriptMergedAt: v.union(v.number(), v.null()),
+  discardedAt: v.union(v.number(), v.null()),
   createdAt: v.number(),
   updatedAt: v.number(),
 })
@@ -43,6 +44,7 @@ function publicCapture(capture: Doc<"founderVoiceCaptures">) {
     transcript: capture.transcript ?? null,
     failureCode: capture.failureCode ?? null,
     transcriptMergedAt: capture.transcriptMergedAt ?? null,
+    discardedAt: capture.discardedAt ?? null,
     createdAt: capture.createdAt,
     updatedAt: capture.updatedAt,
   }
@@ -50,7 +52,8 @@ function publicCapture(capture: Doc<"founderVoiceCaptures">) {
 
 async function assignedFounderRequest(
   ctx: Parameters<typeof requirePrincipal>[0],
-  humanId: string
+  humanId: string,
+  requireMutable = false
 ) {
   const principal = await requirePrincipal(ctx)
   if (principal.role !== "founder") {
@@ -71,6 +74,8 @@ async function assignedFounderRequest(
   ) {
     throw new ConvexError({ code: "RESOURCE_ACCESS_DENIED" })
   }
+  if (requireMutable && !["pending", "in_progress"].includes(request.lifecycle))
+    throw new ConvexError({ code: "FOUNDER_INPUT_SUBMITTED" })
   const document = await ctx.db
     .query("founderInputDocuments")
     .withIndex("by_request", (index) => index.eq("requestId", request._id))
@@ -86,7 +91,7 @@ export const createUploadUrl = mutation({
   args: { humanId: v.string() },
   returns: v.string(),
   handler: async (ctx, args) => {
-    await assignedFounderRequest(ctx, args.humanId)
+    await assignedFounderRequest(ctx, args.humanId, true)
     return ctx.storage.generateUploadUrl()
   },
 })
@@ -106,7 +111,8 @@ export const finalizeUpload = mutation({
   handler: async (ctx, args) => {
     const { principal, request, document } = await assignedFounderRequest(
       ctx,
-      args.humanId
+      args.humanId,
+      true
     )
     const clientCaptureId = args.clientCaptureId.trim()
     const correlationId = args.correlationId.trim()
@@ -205,7 +211,7 @@ export const retry = mutation({
   args: { humanId: v.string(), captureId: v.id("founderVoiceCaptures") },
   returns: captureValidator,
   handler: async (ctx, args) => {
-    const { document } = await assignedFounderRequest(ctx, args.humanId)
+    const { document } = await assignedFounderRequest(ctx, args.humanId, true)
     const capture = await ctx.db.get(args.captureId)
     if (!capture || capture.documentId !== document._id) {
       throw new ConvexError({ code: "NOT_FOUND" })
@@ -228,11 +234,32 @@ export const retry = mutation({
   },
 })
 
+export const discard = mutation({
+  args: { humanId: v.string(), captureId: v.id("founderVoiceCaptures") },
+  returns: captureValidator,
+  handler: async (ctx, args) => {
+    const { document } = await assignedFounderRequest(ctx, args.humanId, true)
+    const capture = await ctx.db.get(args.captureId)
+    if (!capture || capture.documentId !== document._id)
+      throw new ConvexError({ code: "NOT_FOUND" })
+    if (["uploaded", "transcribing"].includes(capture.status))
+      throw new ConvexError({ code: "VOICE_CAPTURE_IN_FLIGHT" })
+    if (!capture.discardedAt)
+      await ctx.db.patch(capture._id, {
+        discardedAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+    const saved = await ctx.db.get(capture._id)
+    if (!saved) throw new ConvexError({ code: "WRITE_FAILED" })
+    return publicCapture(saved)
+  },
+})
+
 export const markTranscriptMerged = mutation({
   args: { humanId: v.string(), captureId: v.id("founderVoiceCaptures") },
   returns: captureValidator,
   handler: async (ctx, args) => {
-    const { document } = await assignedFounderRequest(ctx, args.humanId)
+    const { document } = await assignedFounderRequest(ctx, args.humanId, true)
     const capture = await ctx.db.get(args.captureId)
     if (!capture || capture.documentId !== document._id) {
       throw new ConvexError({ code: "NOT_FOUND" })

@@ -6,7 +6,12 @@ export async function enqueueNotification(
   ctx: MutationCtx,
   request: Doc<"contentRequests">,
   recipient: Doc<"principals">,
-  type: "request_assigned" | "critical_escalation",
+  type:
+    | "request_assigned"
+    | "critical_escalation"
+    | "response_ready"
+    | "drafting_failed"
+    | "delivery_reopened",
   now: number
 ) {
   const hasEmail = Boolean(recipient.email)

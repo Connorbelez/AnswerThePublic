@@ -48,7 +48,9 @@ export default defineSchema({
     role: workspaceRoleValidator,
     email: v.optional(v.string()),
     updatedAt: v.number(),
-  }).index("by_organization_subject", ["organizationId", "subject"]),
+  })
+    .index("by_organization_subject", ["organizationId", "subject"])
+    .index("by_organization_role", ["organizationId", "role"]),
   contentRequests: defineTable({
     humanId: v.string(),
     organizationId: v.string(),
@@ -267,6 +269,113 @@ export default defineSchema({
   })
     .index("by_request_occurred_at", ["requestId", "occurredAt"])
     .index("by_request_correlation", ["requestId", "correlationId"]),
+  founderSubmissions: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    documentId: v.id("founderInputDocuments"),
+    founderVersionId: v.id("founderInputVersions"),
+    founderPrincipalId: v.id("principals"),
+    correlationId: v.string(),
+    submittedAt: v.number(),
+  }).index("by_request", ["requestId"]),
+  agentJobs: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    requestTitle: v.string(),
+    type: v.literal("primary_response"),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("running"),
+      v.literal("retry_wait"),
+      v.literal("failed"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    ),
+    sourceSnapshotId: v.optional(v.id("sourceSnapshots")),
+    founderVersionId: v.id("founderInputVersions"),
+    contextSnapshot: v.array(
+      v.object({
+        kind: v.string(),
+        title: v.string(),
+        bulletPoints: v.array(v.string()),
+        citations: v.array(
+          v.object({ label: v.string(), url: v.string(), supports: v.string() })
+        ),
+      })
+    ),
+    attempts: v.number(),
+    maxAttempts: v.number(),
+    leaseGeneration: v.number(),
+    nextAttemptAt: v.optional(v.number()),
+    leaseToken: v.optional(v.string()),
+    leaseExpiresAt: v.optional(v.number()),
+    heartbeatAt: v.optional(v.number()),
+    claimedByPrincipalId: v.optional(v.id("principals")),
+    resultVersionId: v.optional(v.id("deliverableVersions")),
+    lastErrorCode: v.optional(v.string()),
+    createdAt: v.number(),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_organization_status_created_at", [
+      "organizationId",
+      "status",
+      "createdAt",
+    ])
+    .index("by_status_created_at", ["status", "createdAt"])
+    .index("by_request", ["requestId"]),
+  agentJobLeaseEvents: defineTable({
+    organizationId: v.string(),
+    jobId: v.id("agentJobs"),
+    requestId: v.id("contentRequests"),
+    actorPrincipalId: v.id("principals"),
+    event: v.union(
+      v.literal("claimed"),
+      v.literal("reclaimed"),
+      v.literal("heartbeat"),
+      v.literal("expired_failure")
+    ),
+    leaseGeneration: v.number(),
+    leaseExpiresAt: v.optional(v.number()),
+    occurredAt: v.number(),
+  }).index("by_job_occurred_at", ["jobId", "occurredAt"]),
+  agentJobFailureOperations: defineTable({
+    organizationId: v.string(),
+    jobId: v.id("agentJobs"),
+    actorPrincipalId: v.id("principals"),
+    correlationId: v.string(),
+    inputFingerprint: v.string(),
+    resultStatus: v.union(v.literal("retry_wait"), v.literal("failed")),
+    createdAt: v.number(),
+  }).index("by_organization_actor_correlation", [
+    "organizationId",
+    "actorPrincipalId",
+    "correlationId",
+  ]),
+  deliverables: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    kind: v.string(),
+    name: v.string(),
+    isPrimary: v.boolean(),
+    currentCandidateVersionId: v.optional(v.id("deliverableVersions")),
+    promotedVersionId: v.optional(v.id("deliverableVersions")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_request", ["requestId"]),
+  deliverableVersions: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    deliverableId: v.id("deliverables"),
+    body: v.string(),
+    ordinal: v.number(),
+    createdByPrincipalId: v.id("principals"),
+    sourceJobId: v.optional(v.id("agentJobs")),
+    createdAt: v.number(),
+  })
+    .index("by_deliverable_ordinal", ["deliverableId", "ordinal"])
+    .index("by_source_job", ["sourceJobId"]),
   founderInputVersionRestoreOperations: defineTable({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),
@@ -312,6 +421,7 @@ export default defineSchema({
     attempts: v.number(),
     retryAttemptCount: v.optional(v.number()),
     transcriptMergedAt: v.optional(v.number()),
+    discardedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

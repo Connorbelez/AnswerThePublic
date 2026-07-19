@@ -250,6 +250,7 @@ export function UnifiedContextCanvas({
   initialPreferences,
   onPreferencesChange,
   onDraftSave,
+  onSubmitFounderInput,
   draftController,
 }: {
   request: ContentRequest
@@ -262,6 +263,7 @@ export function UnifiedContextCanvas({
     correlationId: string
   ) => void | Promise<void>
   onDraftSave?: (text: string, correlationId: string) => Promise<unknown>
+  onSubmitFounderInput?: () => Promise<void>
   draftController?: {
     text: string
     status: "Saved" | "Saving" | "Offline" | "Save pending" | "Save blocked"
@@ -270,6 +272,7 @@ export function UnifiedContextCanvas({
     history: FounderVersionHistory | null
     archiveEntries: Array<FounderArchivedVersion>
     archiveDone: boolean
+    readOnly?: boolean
     onTextChange(text: string): void
     onUndo(): void | Promise<void>
     onRedo(): void | Promise<void>
@@ -292,12 +295,16 @@ export function UnifiedContextCanvas({
         captureId: string
         status: "uploaded" | "transcribing" | "transcribed" | "failed"
         failureCode: string | null
+        transcriptMergedAt: number | null
+        discardedAt: number | null
       }>
       start(): void | Promise<void>
       pause(): void
       resume(): void
       stop(): void | Promise<void>
       retry(captureId?: string): void | Promise<void>
+      discard(captureId: string): void | Promise<void>
+      discardPending(): void | Promise<void>
     }
   }
 }) {
@@ -331,6 +338,18 @@ export function UnifiedContextCanvas({
   >("Saved")
   const displayedSaveStatus = draftController?.status ?? saveStatus
   const displayedDraft = draftController?.text ?? draft
+  const voicePending = Boolean(
+    draftController?.voice &&
+    (draftController.voice.queuedCount > 0 ||
+      ["recording", "paused", "requesting", "saving", "transcribing"].includes(
+        draftController.voice.state
+      ) ||
+      draftController.voice.captures.some(
+        (capture) =>
+          !capture.discardedAt &&
+          (capture.status !== "transcribed" || !capture.transcriptMergedAt)
+      ))
+  )
   const editorRef = useRef<HTMLTextAreaElement>(null)
   const filterPinRefs = useRef(new Map<string, HTMLButtonElement>())
   const preferencesMounted = useRef(false)
@@ -348,6 +367,8 @@ export function UnifiedContextCanvas({
   const draftWriteChain = useRef<Promise<void>>(Promise.resolve())
   const draftPersist = useRef<(write: DraftWrite) => void>(() => undefined)
   const [preferenceSyncFailed, setPreferenceSyncFailed] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState(false)
   const preferenceStorageKey = `fairlend:context-preferences:${encodeURIComponent(preferenceOwnerKey)}:${request.humanId}`
 
   useEffect(() => {
@@ -746,8 +767,10 @@ export function UnifiedContextCanvas({
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Undo founder input"
-                disabled={!draftController.canUndo}
-                onClick={() => void draftController.onUndo()}
+                disabled={!draftController.canUndo || draftController.readOnly}
+                onClick={() => {
+                  if (!draftController.readOnly) void draftController.onUndo()
+                }}
               >
                 <Undo2 />
               </Button>
@@ -756,8 +779,10 @@ export function UnifiedContextCanvas({
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Redo founder input"
-                disabled={!draftController.canRedo}
-                onClick={() => void draftController.onRedo()}
+                disabled={!draftController.canRedo || draftController.readOnly}
+                onClick={() => {
+                  if (!draftController.readOnly) void draftController.onRedo()
+                }}
               >
                 <Redo2 />
               </Button>
@@ -833,7 +858,9 @@ export function UnifiedContextCanvas({
                   type="button"
                   variant="outline"
                   size="sm"
+                  disabled={draftController.readOnly}
                   onClick={() =>
+                    !draftController.readOnly &&
                     void draftController.onRestoreArchivedVersion(
                       entry.versionId
                     )
@@ -863,6 +890,7 @@ export function UnifiedContextCanvas({
               ref={editorRef}
               aria-label="Founder input"
               value={displayedDraft}
+              readOnly={draftController?.readOnly}
               onChange={(event) => {
                 if (draftRetryTimer.current !== null) {
                   window.clearTimeout(draftRetryTimer.current)
@@ -875,6 +903,10 @@ export function UnifiedContextCanvas({
               }}
               placeholder="Add your perspective…"
             />
+          ) : draftController?.readOnly ? (
+            <div className="unified-editor__record-preview" role="status">
+              Founder input was submitted and is now read-only.
+            </div>
           ) : (
             <div className="unified-editor__record-preview">
               {!draftController?.voice?.supported ? (
@@ -974,27 +1006,91 @@ export function UnifiedContextCanvas({
                       </Button>
                     ) : null}
                   </div>
+                  {draftController.voice.queuedCount > 0 ||
+                  draftController.voice.errorCode ===
+                    "LOCAL_AUDIO_SAVE_FAILED" ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        void draftController.voice?.discardPending()
+                      }
+                    >
+                      Discard pending recordings
+                    </Button>
+                  ) : null}
                   {draftController.voice.captures
-                    .filter((capture) => capture.status === "failed")
+                    .filter(
+                      (capture) =>
+                        capture.status === "failed" && !capture.discardedAt
+                    )
                     .map((capture) => (
-                      <Button
-                        key={capture.captureId}
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          void draftController.voice?.retry(capture.captureId)
-                        }
-                      >
-                        Retry transcription
-                        {capture.failureCode ? ` (${capture.failureCode})` : ""}
-                      </Button>
+                      <div key={capture.captureId}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            void draftController.voice?.retry(capture.captureId)
+                          }
+                        >
+                          Retry transcription
+                          {capture.failureCode
+                            ? ` (${capture.failureCode})`
+                            : ""}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            void draftController.voice?.discard(
+                              capture.captureId
+                            )
+                          }
+                        >
+                          Discard recording
+                        </Button>
+                      </div>
                     ))}
                 </>
               )}
             </div>
           )}
         </div>
+        {onSubmitFounderInput ? (
+          <div className="unified-editor__submit-row">
+            <span role="status" aria-live="polite">
+              {submitError
+                ? "Submission failed. Your input remains saved."
+                : voicePending
+                  ? "Finish, retry, or discard pending voice input before submitting."
+                  : "Submit when your perspective is complete."}
+            </span>
+            <Button
+              type="button"
+              disabled={
+                submitting ||
+                displayedSaveStatus !== "Saved" ||
+                !displayedDraft.trim() ||
+                voicePending
+              }
+              onClick={async () => {
+                setSubmitting(true)
+                setSubmitError(false)
+                try {
+                  await onSubmitFounderInput()
+                } catch {
+                  setSubmitError(true)
+                } finally {
+                  setSubmitting(false)
+                }
+              }}
+            >
+              {submitting ? "Submitting…" : "Submit to drafting"}
+            </Button>
+          </div>
+        ) : null}
       </section>
     </main>
   )

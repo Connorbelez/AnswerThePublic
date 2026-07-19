@@ -50,9 +50,17 @@ function safeErrorResponse(error: unknown, validationStatus = 400) {
       "Authentication is required."
     )
   }
-  if (code === "ROLE_ACCESS_DENIED" || code === "ORGANIZATION_ACCESS_DENIED") {
+  if (
+    code === "ROLE_ACCESS_DENIED" ||
+    code === "ORGANIZATION_ACCESS_DENIED" ||
+    code === "RESOURCE_ACCESS_DENIED"
+  ) {
     return jsonError(403, code, "This credential cannot perform that action.")
   }
+  if (code === "NOT_FOUND")
+    return jsonError(404, code, "The requested resource was not found.")
+  if (code === "LEASE_LOST")
+    return jsonError(409, code, "The job lease is no longer active.")
   if (code === "VALIDATION_FAILED") {
     return jsonError(validationStatus, code, "The request payload is invalid.")
   }
@@ -201,6 +209,147 @@ export function createContentRequestItemHandler(
         return data
           ? Response.json({ data })
           : jsonError(404, "NOT_FOUND", "Content Request not found.")
+      } catch (error) {
+        return safeErrorResponse(error)
+      }
+    },
+  }
+}
+
+function objectBody(input: unknown) {
+  return typeof input === "object" && input !== null
+    ? (input as Record<string, unknown>)
+    : null
+}
+
+async function requestBody(request: Request) {
+  try {
+    return objectBody(await request.json())
+  } catch {
+    return null
+  }
+}
+
+export function createAgentJobCollectionHandler(
+  serviceForRequest: ContentRequestServiceFactory
+) {
+  return {
+    GET: async ({ request }: { request: Request }) => {
+      try {
+        return Response.json({
+          data: await (await serviceForRequest(request)).listAgentJobs(),
+        })
+      } catch (error) {
+        return safeErrorResponse(error)
+      }
+    },
+    POST: async ({ request }: { request: Request }) => {
+      const body = await requestBody(request)
+      if (
+        body?.action !== "claim" ||
+        typeof body.leaseToken !== "string" ||
+        typeof body.leaseMs !== "number"
+      )
+        return jsonError(
+          400,
+          "VALIDATION_FAILED",
+          "The request payload is invalid."
+        )
+      try {
+        return Response.json({
+          data: await (
+            await serviceForRequest(request)
+          ).claimAgentJob(body.leaseToken, body.leaseMs),
+        })
+      } catch (error) {
+        return safeErrorResponse(error)
+      }
+    },
+  }
+}
+
+export function createAgentJobItemHandler(
+  serviceForRequest: ContentRequestServiceFactory
+) {
+  return {
+    GET: async ({
+      request,
+      params,
+    }: {
+      request: Request
+      params: { jobId: string }
+    }) => {
+      try {
+        return Response.json({
+          data: await (
+            await serviceForRequest(request)
+          ).getAgentJobInput(params.jobId),
+        })
+      } catch (error) {
+        return safeErrorResponse(error)
+      }
+    },
+    POST: async ({
+      request,
+      params,
+    }: {
+      request: Request
+      params: { jobId: string }
+    }) => {
+      const body = await requestBody(request)
+      if (
+        !body ||
+        typeof body.action !== "string" ||
+        typeof body.leaseToken !== "string" ||
+        typeof body.leaseGeneration !== "number"
+      )
+        return jsonError(
+          400,
+          "VALIDATION_FAILED",
+          "The request payload is invalid."
+        )
+      try {
+        const service = await serviceForRequest(request)
+        let data
+        if (body.action === "heartbeat" && typeof body.leaseMs === "number")
+          data = await service.heartbeatAgentJob(
+            params.jobId,
+            body.leaseToken,
+            body.leaseMs,
+            body.leaseGeneration
+          )
+        else if (body.action === "complete" && typeof body.body === "string")
+          data = await service.completeAgentJob(
+            params.jobId,
+            body.leaseToken,
+            body.body,
+            typeof body.correlationId === "string"
+              ? body.correlationId
+              : correlationId(request),
+            body.leaseGeneration
+          )
+        else if (
+          body.action === "fail" &&
+          typeof body.errorCode === "string" &&
+          typeof body.transient === "boolean"
+        )
+          data = await service.failAgentJob(
+            params.jobId,
+            body.leaseToken,
+            body.errorCode,
+            body.transient,
+            typeof body.correlationId === "string"
+              ? body.correlationId
+              : correlationId(request),
+            body.leaseGeneration
+          )
+        else
+          return jsonError(
+            400,
+            "VALIDATION_FAILED",
+            "The request payload is invalid."
+          )
+        return Response.json({ data })
       } catch (error) {
         return safeErrorResponse(error)
       }

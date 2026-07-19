@@ -204,6 +204,11 @@ function assertAssignedFounder(
   }
 }
 
+function assertFounderInputMutable(request: Doc<"contentRequests">) {
+  if (!["pending", "in_progress"].includes(request.lifecycle))
+    throw new ConvexError({ code: "FOUNDER_INPUT_SUBMITTED" })
+}
+
 async function inputForRequest(
   ctx: QueryCtx | MutationCtx,
   requestId: Doc<"contentRequests">["_id"]
@@ -271,6 +276,7 @@ export const saveText = mutation({
   handler: async (ctx, args) => {
     const { principal, request } = await requestForPrincipal(ctx, args.humanId)
     assertAssignedFounder(principal, request)
+    assertFounderInputMutable(request)
     if (args.text.length > 100_000) {
       throw new ConvexError({
         code: "VALIDATION_FAILED",
@@ -444,6 +450,7 @@ export const submitAutomergeChanges = mutation({
   handler: async (ctx, args) => {
     const { principal, request } = await requestForPrincipal(ctx, args.humanId)
     assertAssignedFounder(principal, request)
+    assertFounderInputMutable(request)
     if (args.text.length > 100_000) {
       throw new ConvexError({
         code: "VALIDATION_FAILED",
@@ -770,6 +777,7 @@ export const restoreArchivedVersion = mutation({
   handler: async (ctx, args) => {
     const { principal, request } = await requestForPrincipal(ctx, args.humanId)
     assertAssignedFounder(principal, request)
+    assertFounderInputMutable(request)
     const document = await inputForRequest(ctx, request._id)
     if (!document) throw new ConvexError({ code: "NOT_FOUND" })
     if (document.founderPrincipalId !== principal._id) {
@@ -885,6 +893,7 @@ async function moveTimeline(
 ) {
   const { principal, request } = await requestForPrincipal(ctx, humanId)
   assertAssignedFounder(principal, request)
+  assertFounderInputMutable(request)
   const document = await inputForRequest(ctx, request._id)
   if (!document) throw new ConvexError({ code: "NOT_FOUND" })
   if (document.founderPrincipalId !== principal._id) {

@@ -176,6 +176,10 @@ The initial HTTP contract is available at:
 - `GET /api/v1/content-requests/:humanId` — retrieve a stable request.
 - `POST /api/v1/scout-ingestions` — validate and atomically ingest one complete
   maintained scout report using `{ "markdown": "...", "idempotencyKey": "..." }`.
+- `GET /api/v1/agent-jobs` and `POST /api/v1/agent-jobs` — inspect or claim the
+  next drafting job with a bounded lease.
+- `GET /api/v1/agent-jobs/:jobId` — read the immutable source/founder versions
+  for a claimed job. `POST` heartbeats, completes, or fails the lease.
 
 The API accepts the signed-in WorkOS session or a WorkOS bearer access token.
 Every create requires or generates a correlation ID and produces an audit event.
@@ -190,7 +194,18 @@ bun run content-requests -- create --title "Explain mortgage portability"
 bun run content-requests -- find "mortgage portability"
 bun run content-requests -- get CR-EXAMPLE
 bun run content-requests -- ingest --file ./scout-report.md --idempotency-key scout-20260718-am
+bun run content-requests -- job-claim --lease-token "$LEASE_TOKEN"
+bun run content-requests -- job-input "$JOB_ID"
+bun run content-requests -- job-heartbeat "$JOB_ID" --lease-token "$LEASE_TOKEN" --lease-generation "$LEASE_GENERATION"
+bun run content-requests -- job-complete "$JOB_ID" --lease-token "$LEASE_TOKEN" --lease-generation "$LEASE_GENERATION" --file ./response.md
 ```
+
+Founder submission first verifies that every local Automerge head is durable,
+then atomically records Founder complete and queues exactly one primary-response
+job. Agents should heartbeat long-running jobs; an expired lease is reclaimable.
+Transient failures retry up to three claims. Exhaustion notifies operators and a
+successful first draft is promoted once and advances the request to Ready to
+respond.
 
 Scout ingestion returns `201` with `applied` or `200` with
 `idempotent_replay`. Reusing an idempotency key for different Markdown returns

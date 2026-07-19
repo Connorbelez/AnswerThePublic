@@ -10,6 +10,7 @@ import { ArrowLeft, ExternalLink } from "lucide-react"
 
 import {
   createFounderVoiceUploadUrl,
+  discardFounderVoiceCapture,
   finalizeFounderVoiceCapture,
   getContentRequest,
   getContentRequestContext,
@@ -28,6 +29,7 @@ import {
   retryFounderVoiceCapture,
   saveContextDeckPreferences,
   submitFounderAutomergeChanges,
+  submitFounderInput,
   undoFounderInput,
   assertFounderInputSynced,
 } from "@/application/content-request-server-functions"
@@ -306,6 +308,8 @@ function FounderRequestCanvas({
   const loadVoiceCaptures = useServerFn(listFounderVoiceCaptures)
   const retryVoiceCapture = useServerFn(retryFounderVoiceCapture)
   const markVoiceMerged = useServerFn(markFounderVoiceTranscriptMerged)
+  const discardVoiceCapture = useServerFn(discardFounderVoiceCapture)
+  const submitFounder = useServerFn(submitFounderInput)
   const transport = useMemo(
     () => ({
       pull: (documentId: string) =>
@@ -376,9 +380,14 @@ function FounderRequestCanvas({
         markVoiceMerged({
           data: { humanId: request.humanId, captureId },
         }),
+      discard: (captureId: string) =>
+        discardVoiceCapture({
+          data: { humanId: request.humanId, captureId },
+        }),
     }),
     [
       createVoiceUpload,
+      discardVoiceCapture,
       finalizeVoice,
       loadVoiceCaptures,
       markVoiceMerged,
@@ -402,6 +411,23 @@ function FounderRequestCanvas({
       initialDraft={initialDraft}
       initialPreferences={initialPreferences}
       onPreferencesChange={onPreferencesChange}
+      onSubmitFounderInput={
+        ["pending", "in_progress"].includes(request.lifecycle)
+          ? async () => {
+              const heads = await founderDocument.prepareSubmission()
+              if (!heads)
+                throw new Error("Founder input is not durably synced.")
+              await submitFounder({
+                data: {
+                  humanId: request.humanId,
+                  heads,
+                  correlationId: crypto.randomUUID(),
+                },
+              })
+              window.location.assign("/app")
+            }
+          : undefined
+      }
       draftController={{
         text: founderDocument.text,
         status: founderDocument.status,
@@ -410,6 +436,7 @@ function FounderRequestCanvas({
         history: founderDocument.history,
         archiveEntries: founderDocument.archiveEntries,
         archiveDone: founderDocument.archiveDone,
+        readOnly: !["pending", "in_progress"].includes(request.lifecycle),
         onTextChange: founderDocument.setText,
         onUndo: founderDocument.undo,
         onRedo: founderDocument.redo,

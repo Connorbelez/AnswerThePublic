@@ -920,6 +920,20 @@
   line-height: 1.65;
 }
 
+.unified-editor__submit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+}
+
+.unified-editor__submit-row > span {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
 .unified-editor__record-preview {
   display: flex;
   flex: 1;
@@ -977,7 +991,8 @@
 
   .unified-editor__toolbar,
   .unified-editor__input,
-  .unified-editor__version-history {
+  .unified-editor__version-history,
+  .unified-editor__submit-row {
     width: min(100% - 2rem, 52rem);
     margin-inline: auto;
   }

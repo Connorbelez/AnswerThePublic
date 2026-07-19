@@ -31,11 +31,7 @@ import {
 } from "@/lib/founder-automerge"
 
 export type FounderSyncStatus =
-  | "Saved"
-  | "Saving"
-  | "Offline"
-  | "Save pending"
-  | "Save blocked"
+  "Saved" | "Saving" | "Offline" | "Save pending" | "Save blocked"
 
 type FounderAutomergeTransport = {
   pull(documentId: string): Promise<FounderAutomergePull>
@@ -646,6 +642,12 @@ export function useFounderAutomerge({
     return result.synced
   }, [syncNow])
 
+  const prepareSubmission = useCallback(async () => {
+    const session = sessionRef.current
+    if (!session || !(await ensureDurablySynced())) return null
+    return [...session.heads]
+  }, [ensureDurablySynced])
+
   const loadOlderHistory = useCallback(async () => {
     if (archiveDone || !archiveCursor) return
     const recentCorrelationIds = new Set(
@@ -704,5 +706,6 @@ export function useFounderAutomerge({
     loadOlderHistory,
     restoreArchivedVersion,
     ensureDurablySynced,
+    prepareSubmission,
   }
 }

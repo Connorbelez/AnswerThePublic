@@ -186,6 +186,12 @@ export function createConvexContentRequestRepository({
         captureId: captureId as Id<"founderVoiceCaptures">,
       })
     },
+    async discardFounderVoiceCapture(humanId, captureId) {
+      return (await client()).mutation(api.voiceCaptures.discard, {
+        humanId,
+        captureId: captureId as Id<"founderVoiceCaptures">,
+      })
+    },
     async undoFounderInput(humanId, correlationId) {
       return (await client()).mutation(api.founderInputs.undo, {
         humanId,
@@ -202,6 +208,67 @@ export function createConvexContentRequestRepository({
       return (await client()).query(api.founderInputs.assertDurablySynced, {
         humanId,
         heads,
+      })
+    },
+    async submitFounderInput(humanId, heads, correlationId) {
+      return (await client()).mutation(api.agentJobs.submitFounderInput, {
+        humanId,
+        heads,
+        correlationId,
+      })
+    },
+    async listAgentJobs() {
+      return (await client()).query(api.agentJobs.list, {})
+    },
+    async claimAgentJob(leaseToken, leaseMs) {
+      return (await client()).mutation(api.agentJobs.claim, {
+        leaseToken,
+        leaseMs,
+      })
+    },
+    async heartbeatAgentJob(jobId, leaseToken, leaseMs, leaseGeneration) {
+      return (await client()).mutation(api.agentJobs.heartbeat, {
+        jobId: jobId as Id<"agentJobs">,
+        leaseToken,
+        leaseMs,
+        leaseGeneration,
+      })
+    },
+    async getAgentJobInput(jobId) {
+      return (await client()).query(api.agentJobs.getInput, {
+        jobId: jobId as Id<"agentJobs">,
+      })
+    },
+    async completeAgentJob(
+      jobId,
+      leaseToken,
+      body,
+      correlationId,
+      leaseGeneration
+    ) {
+      return (await client()).mutation(api.agentJobs.complete, {
+        jobId: jobId as Id<"agentJobs">,
+        leaseToken,
+        body,
+        correlationId,
+        leaseGeneration,
+      })
+    },
+    async failAgentJob(
+      jobId,
+      leaseToken,
+      errorCode,
+      transient,
+      correlationId,
+      leaseGeneration
+    ) {
+      return (await client()).mutation(api.agentJobs.fail, {
+        jobId: jobId as Id<"agentJobs">,
+        leaseToken,
+        errorCode,
+        transient,
+        correlationId,
+        leaseGeneration,
       })
     },
     async proposeAssigneeChange(input) {
