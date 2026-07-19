@@ -114,4 +114,30 @@ describe("Content Request adapter contracts", () => {
       },
     })
   })
+
+  it("returns machine-readable source-collision remediation details", async () => {
+    const handlers = createContentRequestCollectionHandler(async () =>
+      serviceStub({
+        createManual: vi.fn().mockRejectedValue({
+          data: {
+            code: "SOURCE_COLLISION_REQUIRES_REMEDIATION",
+            requestHumanIds: ["CR-ONE", "CR-TWO"],
+          },
+        }),
+      })
+    )
+    const response = await handlers.POST({
+      request: new Request("https://fairlend.test/api/v1/content-requests", {
+        method: "POST",
+        body: JSON.stringify({ title: "Collision" }),
+      }),
+    })
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        code: "SOURCE_COLLISION_REQUIRES_REMEDIATION",
+        conflictingRequestIds: ["CR-ONE", "CR-TWO"],
+      },
+    })
+  })
 })

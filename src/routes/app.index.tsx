@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { useHydrated } from "@/hooks/use-hydrated"
 
 export const Route = createFileRoute("/app/")({
   loader: () => listContentRequests(),
@@ -22,6 +23,7 @@ function RequestLibrary() {
   const canCreate = session.role !== "founder"
   const isFounder = session.role === "founder"
   const [view, setView] = useState<"stack" | "grid">("stack")
+  const hydrated = useHydrated()
 
   function updateView(nextView: "stack" | "grid") {
     setView(nextView)
@@ -56,6 +58,7 @@ function RequestLibrary() {
           </span>
           <ToggleGroup
             aria-label="Library view"
+            disabled={!hydrated}
             value={[view]}
             onValueChange={(values) => {
               const nextView = values[0]

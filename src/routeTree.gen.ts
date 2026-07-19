@@ -19,8 +19,10 @@ import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
 import { Route as ApiAuthSignInRouteImport } from './routes/api/auth/sign-in'
 import { Route as ApiE2eAutomatedRequestRouteImport } from './routes/api/e2e/automated-request'
 import { Route as ApiV1ContentRequestsRouteImport } from './routes/api/v1/content-requests'
+import { Route as ApiV1ScoutIngestionsRouteImport } from './routes/api/v1/scout-ingestions'
 import { Route as AppRequestsRequestIdRouteImport } from './routes/app.requests.$requestId'
 import { Route as ApiV1CliContentRequestsRouteImport } from './routes/api/v1/cli/content-requests'
+import { Route as ApiV1CliScoutIngestionsRouteImport } from './routes/api/v1/cli/scout-ingestions'
 import { Route as ApiV1ContentRequestsRequestIdRouteImport } from './routes/api/v1/content-requests.$requestId'
 import { Route as ApiV1CliContentRequestsRequestIdRouteImport } from './routes/api/v1/cli/content-requests.$requestId'
 
@@ -74,6 +76,11 @@ const ApiV1ContentRequestsRoute = ApiV1ContentRequestsRouteImport.update({
   path: '/api/v1/content-requests',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1ScoutIngestionsRoute = ApiV1ScoutIngestionsRouteImport.update({
+  id: '/api/v1/scout-ingestions',
+  path: '/api/v1/scout-ingestions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppRequestsRequestIdRoute = AppRequestsRequestIdRouteImport.update({
   id: '/requests/$requestId',
   path: '/requests/$requestId',
@@ -82,6 +89,11 @@ const AppRequestsRequestIdRoute = AppRequestsRequestIdRouteImport.update({
 const ApiV1CliContentRequestsRoute = ApiV1CliContentRequestsRouteImport.update({
   id: '/api/v1/cli/content-requests',
   path: '/api/v1/cli/content-requests',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1CliScoutIngestionsRoute = ApiV1CliScoutIngestionsRouteImport.update({
+  id: '/api/v1/cli/scout-ingestions',
+  path: '/api/v1/cli/scout-ingestions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1ContentRequestsRequestIdRoute =
@@ -108,8 +120,10 @@ export interface FileRoutesByFullPath {
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
+  '/api/v1/scout-ingestions': typeof ApiV1ScoutIngestionsRoute
   '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
   '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
+  '/api/v1/cli/scout-ingestions': typeof ApiV1CliScoutIngestionsRoute
   '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRoute
   '/api/v1/cli/content-requests/$requestId': typeof ApiV1CliContentRequestsRequestIdRoute
 }
@@ -123,8 +137,10 @@ export interface FileRoutesByTo {
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
+  '/api/v1/scout-ingestions': typeof ApiV1ScoutIngestionsRoute
   '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
   '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
+  '/api/v1/cli/scout-ingestions': typeof ApiV1CliScoutIngestionsRoute
   '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRoute
   '/api/v1/cli/content-requests/$requestId': typeof ApiV1CliContentRequestsRequestIdRoute
 }
@@ -140,8 +156,10 @@ export interface FileRoutesById {
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
+  '/api/v1/scout-ingestions': typeof ApiV1ScoutIngestionsRoute
   '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
   '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
+  '/api/v1/cli/scout-ingestions': typeof ApiV1CliScoutIngestionsRoute
   '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRoute
   '/api/v1/cli/content-requests/$requestId': typeof ApiV1CliContentRequestsRequestIdRoute
 }
@@ -158,8 +176,10 @@ export interface FileRouteTypes {
     | '/api/auth/sign-in'
     | '/api/e2e/automated-request'
     | '/api/v1/content-requests'
+    | '/api/v1/scout-ingestions'
     | '/app/requests/$requestId'
     | '/api/v1/cli/content-requests'
+    | '/api/v1/cli/scout-ingestions'
     | '/api/v1/content-requests/$requestId'
     | '/api/v1/cli/content-requests/$requestId'
   fileRoutesByTo: FileRoutesByTo
@@ -173,8 +193,10 @@ export interface FileRouteTypes {
     | '/api/auth/sign-in'
     | '/api/e2e/automated-request'
     | '/api/v1/content-requests'
+    | '/api/v1/scout-ingestions'
     | '/app/requests/$requestId'
     | '/api/v1/cli/content-requests'
+    | '/api/v1/cli/scout-ingestions'
     | '/api/v1/content-requests/$requestId'
     | '/api/v1/cli/content-requests/$requestId'
   id:
@@ -189,8 +211,10 @@ export interface FileRouteTypes {
     | '/api/auth/sign-in'
     | '/api/e2e/automated-request'
     | '/api/v1/content-requests'
+    | '/api/v1/scout-ingestions'
     | '/app/requests/$requestId'
     | '/api/v1/cli/content-requests'
+    | '/api/v1/cli/scout-ingestions'
     | '/api/v1/content-requests/$requestId'
     | '/api/v1/cli/content-requests/$requestId'
   fileRoutesById: FileRoutesById
@@ -204,7 +228,9 @@ export interface RootRouteChildren {
   ApiAuthSignInRoute: typeof ApiAuthSignInRoute
   ApiE2eAutomatedRequestRoute: typeof ApiE2eAutomatedRequestRoute
   ApiV1ContentRequestsRoute: typeof ApiV1ContentRequestsRouteWithChildren
+  ApiV1ScoutIngestionsRoute: typeof ApiV1ScoutIngestionsRoute
   ApiV1CliContentRequestsRoute: typeof ApiV1CliContentRequestsRouteWithChildren
+  ApiV1CliScoutIngestionsRoute: typeof ApiV1CliScoutIngestionsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -279,6 +305,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1ContentRequestsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/scout-ingestions': {
+      id: '/api/v1/scout-ingestions'
+      path: '/api/v1/scout-ingestions'
+      fullPath: '/api/v1/scout-ingestions'
+      preLoaderRoute: typeof ApiV1ScoutIngestionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/app/requests/$requestId': {
       id: '/app/requests/$requestId'
       path: '/requests/$requestId'
@@ -291,6 +324,13 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/cli/content-requests'
       fullPath: '/api/v1/cli/content-requests'
       preLoaderRoute: typeof ApiV1CliContentRequestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/cli/scout-ingestions': {
+      id: '/api/v1/cli/scout-ingestions'
+      path: '/api/v1/cli/scout-ingestions'
+      fullPath: '/api/v1/cli/scout-ingestions'
+      preLoaderRoute: typeof ApiV1CliScoutIngestionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/content-requests/$requestId': {
@@ -359,7 +399,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSignInRoute: ApiAuthSignInRoute,
   ApiE2eAutomatedRequestRoute: ApiE2eAutomatedRequestRoute,
   ApiV1ContentRequestsRoute: ApiV1ContentRequestsRouteWithChildren,
+  ApiV1ScoutIngestionsRoute: ApiV1ScoutIngestionsRoute,
   ApiV1CliContentRequestsRoute: ApiV1CliContentRequestsRouteWithChildren,
+  ApiV1CliScoutIngestionsRoute: ApiV1CliScoutIngestionsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

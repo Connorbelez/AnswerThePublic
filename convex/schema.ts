@@ -64,6 +64,9 @@ export default defineSchema({
     retention: requestRetentionValidator,
     aggregateVersion: v.number(),
     sourceSnapshotId: v.optional(v.id("sourceSnapshots")),
+    normalizedSourceUrl: v.optional(v.string()),
+    latestIngestionRunId: v.optional(v.id("ingestionRuns")),
+    timingLabel: v.optional(v.string()),
     assigneePrincipalId: v.optional(v.id("principals")),
     watcherPrincipalIds: v.optional(v.array(v.id("principals"))),
     firstOpenedAt: v.optional(v.number()),
@@ -78,6 +81,10 @@ export default defineSchema({
       "normalizedTitle",
     ])
     .index("by_organization_created_at", ["organizationId", "createdAt"])
+    .index("by_organization_normalized_source_url", [
+      "organizationId",
+      "normalizedSourceUrl",
+    ])
     .index("by_organization_queue_sort", ["organizationId", "queueSortKey"])
     .index("by_organization_assignee_created_at", [
       "organizationId",
@@ -101,9 +108,83 @@ export default defineSchema({
     url: v.optional(v.string()),
     name: v.optional(v.string()),
     channel: v.optional(v.string()),
+    rawOpportunityMarkdown: v.optional(v.string()),
+    captureKind: v.optional(
+      v.union(v.literal("automated_primary"), v.literal("manual_supplemental"))
+    ),
     capturedByPrincipalId: v.id("principals"),
     capturedAt: v.number(),
   }).index("by_request", ["requestId"]),
+  ingestionRuns: defineTable({
+    organizationId: v.string(),
+    reportIdentity: v.string(),
+    idempotencyKey: v.string(),
+    reportHash: v.string(),
+    rawMarkdown: v.string(),
+    demandLedgerMarkdown: v.string(),
+    parserVersion: v.string(),
+    status: v.literal("applied"),
+    createdByPrincipalId: v.id("principals"),
+    createdAt: v.number(),
+    result: v.object({
+      created: v.number(),
+      updated: v.number(),
+      manualPreserved: v.number(),
+      requestHumanIds: v.array(v.string()),
+    }),
+  })
+    .index("by_organization_idempotency", ["organizationId", "idempotencyKey"])
+    .index("by_organization_report_identity", [
+      "organizationId",
+      "reportIdentity",
+    ]),
+  ingestionItems: defineTable({
+    organizationId: v.string(),
+    ingestionRunId: v.id("ingestionRuns"),
+    requestId: v.id("contentRequests"),
+    sourceKey: v.string(),
+    itemId: v.string(),
+    action: v.union(
+      v.literal("created"),
+      v.literal("updated"),
+      v.literal("manual_preserved")
+    ),
+    createdAt: v.number(),
+  })
+    .index("by_ingestion_run", ["ingestionRunId"])
+    .index("by_request", ["requestId"]),
+  contextItems: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    kind: v.union(
+      v.literal("source_metadata"),
+      v.literal("talking_points"),
+      v.literal("research_requirements"),
+      v.literal("citations"),
+      v.literal("guardrails"),
+      v.literal("operator_cue"),
+      v.literal("delivery_hint")
+    ),
+    title: v.string(),
+    bulletPoints: v.array(v.string()),
+    citations: v.array(
+      v.object({ label: v.string(), url: v.string(), supports: v.string() })
+    ),
+    ingestionRunId: v.id("ingestionRuns"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_request_kind", ["requestId", "kind"]),
+  migrationConflicts: defineTable({
+    organizationId: v.string(),
+    type: v.literal("normalized_source_url_collision"),
+    requestId: v.id("contentRequests"),
+    conflictingRequestId: v.id("contentRequests"),
+    normalizedSourceUrl: v.string(),
+    resolved: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_request_type", ["requestId", "type"])
+    .index("by_organization_resolved", ["organizationId", "resolved"]),
   auditEvents: defineTable({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),
@@ -115,6 +196,7 @@ export default defineSchema({
     occurredAt: v.number(),
     beforeVersion: v.optional(v.number()),
     afterVersion: v.number(),
+    inputFingerprint: v.optional(v.string()),
   })
     .index("by_request_occurred_at", ["requestId", "occurredAt"])
     .index("by_request_operation_correlation", [
@@ -122,7 +204,13 @@ export default defineSchema({
       "operation",
       "correlationId",
     ])
-    .index("by_organization_occurred_at", ["organizationId", "occurredAt"]),
+    .index("by_organization_occurred_at", ["organizationId", "occurredAt"])
+    .index("by_organization_actor_operation_correlation", [
+      "organizationId",
+      "actorPrincipalId",
+      "operation",
+      "correlationId",
+    ]),
   assignmentEvents: defineTable({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),

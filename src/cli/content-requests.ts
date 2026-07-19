@@ -5,6 +5,7 @@ type CliIo = {
 
 type CliOptions = {
   fetchImpl?: typeof fetch
+  readFile?: (path: string) => Promise<string>
   env?: Record<string, string | undefined>
   io?: CliIo
 }
@@ -27,6 +28,7 @@ function usage() {
     "  get <CR-ID>",
     "  find <ID, title, or fuzzy query>",
     "  create --title <title> [--question <text>] [--body <text>] [--url <url>]",
+    "  ingest --file <report.md> --idempotency-key <stable-key>",
     "Environment: CONTENT_REQUESTS_API_URL, CONTENT_REQUESTS_ACCESS_TOKEN",
   ].join("\n")
 }
@@ -80,6 +82,19 @@ export async function runContentRequestsCli(
         source: Object.values(source).some(Boolean) ? source : undefined,
         correlationId: crypto.randomUUID(),
       }),
+    }
+  } else if (command === "ingest") {
+    const file = requireFlag(args, "--file")
+    const idempotencyKey = requireFlag(args, "--idempotency-key")
+    const readFile =
+      options.readFile ??
+      (async (path: string) =>
+        (await import("node:fs/promises")).readFile(path, "utf8"))
+    url = `${baseUrl}/api/v1/cli/scout-ingestions`
+    init = {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ markdown: await readFile(file), idempotencyKey }),
     }
   } else {
     throw new Error(`Unknown command: ${command}\n${usage()}`)

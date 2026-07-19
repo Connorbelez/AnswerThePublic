@@ -18,6 +18,7 @@ import {
   requestRetentionValidator,
   workspaceRoleValidator,
 } from "./schema"
+import { normalizeSourceUrl } from "../shared/url-normalization"
 
 const sourceInputValidator = v.object({
   question: v.optional(v.string()),
@@ -279,7 +280,149 @@ export const createManual = mutation({
     const aliases = (args.aliases ?? [])
       .map((alias) => cleanOptionalText(alias))
       .filter((alias): alias is string => Boolean(alias))
+    const inputFingerprint = JSON.stringify({
+      title,
+      origin: args.origin,
+      aliases,
+      source: args.source
+        ? {
+            question: args.source.question,
+            body: args.source.body,
+            url: args.source.url,
+            name: args.source.name,
+            channel: args.source.channel,
+          }
+        : null,
+    })
+    const priorEvents = await Promise.all(
+      [
+        "content_request.created",
+        "content_request.upgraded_to_manual",
+        "content_request.deduplicated",
+      ].map((operation) =>
+        ctx.db
+          .query("auditEvents")
+          .withIndex("by_organization_actor_operation_correlation", (index) =>
+            index
+              .eq("organizationId", principal.organizationId)
+              .eq("actorPrincipalId", principal._id)
+              .eq("operation", operation)
+              .eq("correlationId", correlationId)
+          )
+          .unique()
+      )
+    )
+    const priorEvent = priorEvents.find(Boolean)
+    if (priorEvent) {
+      if (priorEvent.inputFingerprint !== inputFingerprint) {
+        throw new ConvexError({ code: "IDEMPOTENCY_KEY_REUSED" })
+      }
+      const priorRequest = await ctx.db.get(priorEvent.requestId)
+      if (!priorRequest) throw new ConvexError({ code: "WRITE_FAILED" })
+      return toPublicRequest(ctx, priorRequest)
+    }
     const now = Date.now()
+    const normalizedSourceUrl = args.source?.url
+      ? (normalizeSourceUrl(args.source.url) ?? undefined)
+      : undefined
+    const sourceMatches = normalizedSourceUrl
+      ? await ctx.db
+          .query("contentRequests")
+          .withIndex("by_organization_normalized_source_url", (index) =>
+            index
+              .eq("organizationId", principal.organizationId)
+              .eq("normalizedSourceUrl", normalizedSourceUrl)
+          )
+          .collect()
+      : []
+    if (sourceMatches.length > 1) {
+      throw new ConvexError({
+        code: "SOURCE_COLLISION_REQUIRES_REMEDIATION",
+        normalizedSourceUrl,
+        requestHumanIds: sourceMatches.map((request) => request.humanId),
+      })
+    }
+    const existingExplicitRequest = sourceMatches.find(
+      (request) => request.origin !== "automated_scout"
+    )
+    if (existingExplicitRequest) {
+      await ctx.db.insert("auditEvents", {
+        organizationId: principal.organizationId,
+        requestId: existingExplicitRequest._id,
+        requestHumanId: existingExplicitRequest.humanId,
+        actorPrincipalId: principal._id,
+        credentialId: principal.credentialId,
+        operation: "content_request.deduplicated",
+        correlationId,
+        occurredAt: now,
+        beforeVersion: existingExplicitRequest.aggregateVersion,
+        afterVersion: existingExplicitRequest.aggregateVersion,
+        inputFingerprint,
+      })
+      return toPublicRequest(ctx, existingExplicitRequest)
+    }
+    const matchedAutomatedRequest = sourceMatches.find(
+      (request) => request.origin === "automated_scout"
+    )
+    if (matchedAutomatedRequest) {
+      if (args.source) {
+        await ctx.db.insert("sourceSnapshots", {
+          organizationId: principal.organizationId,
+          requestId: matchedAutomatedRequest._id,
+          question: args.source.question,
+          body: args.source.body,
+          url: args.source.url,
+          name: args.source.name,
+          channel: args.source.channel,
+          captureKind: "manual_supplemental",
+          capturedByPrincipalId: principal._id,
+          capturedAt: now,
+        })
+      }
+      const nextVersion = matchedAutomatedRequest.aggregateVersion + 1
+      await ctx.db.patch(matchedAutomatedRequest._id, {
+        title,
+        normalizedTitle: normalizeText(title),
+        searchText: searchTextFor(title, aliases, args.source),
+        aliases,
+        origin: args.origin,
+        priority: "critical",
+        queueSortKey: requestQueueSortKey(
+          args.origin,
+          "critical",
+          matchedAutomatedRequest.createdAt
+        ),
+        aggregateVersion: nextVersion,
+        updatedAt: now,
+      })
+      await ctx.db.insert("auditEvents", {
+        organizationId: principal.organizationId,
+        requestId: matchedAutomatedRequest._id,
+        requestHumanId: matchedAutomatedRequest.humanId,
+        actorPrincipalId: principal._id,
+        credentialId: principal.credentialId,
+        operation: "content_request.upgraded_to_manual",
+        correlationId,
+        occurredAt: now,
+        beforeVersion: matchedAutomatedRequest.aggregateVersion,
+        afterVersion: nextVersion,
+        inputFingerprint,
+      })
+      const upgraded = await ctx.db.get(matchedAutomatedRequest._id)
+      if (!upgraded) throw new ConvexError({ code: "WRITE_FAILED" })
+      const assignee = await ctx.db.get(
+        upgraded.assigneePrincipalId ?? upgraded.createdByPrincipalId
+      )
+      if (!assignee) throw new ConvexError({ code: "ASSIGNEE_NOT_FOUND" })
+      await enqueueNotification(
+        ctx,
+        upgraded,
+        assignee,
+        "critical_escalation",
+        now
+      )
+      return toPublicRequest(ctx, upgraded)
+    }
     const requestId = await ctx.db.insert("contentRequests", {
       humanId: "pending",
       organizationId: principal.organizationId,
@@ -294,6 +437,7 @@ export const createManual = mutation({
       disposition: "active",
       retention: "active",
       aggregateVersion: 1,
+      normalizedSourceUrl,
       assigneePrincipalId: principal._id,
       watcherPrincipalIds: [],
       createdByPrincipalId: principal._id,
@@ -326,6 +470,7 @@ export const createManual = mutation({
       correlationId,
       occurredAt: now,
       afterVersion: 1,
+      inputFingerprint,
     })
     const request = await ctx.db.get(requestId)
     if (!request) throw new ConvexError({ code: "WRITE_FAILED" })

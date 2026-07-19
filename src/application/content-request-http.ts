@@ -27,6 +27,16 @@ function domainErrorCode(error: unknown) {
   return null
 }
 
+function domainErrorData(error: unknown) {
+  return typeof error === "object" &&
+    error !== null &&
+    "data" in error &&
+    typeof error.data === "object" &&
+    error.data !== null
+    ? (error.data as Record<string, unknown>)
+    : null
+}
+
 function safeErrorResponse(error: unknown, validationStatus = 400) {
   const code = domainErrorCode(error)
   if (
@@ -45,6 +55,28 @@ function safeErrorResponse(error: unknown, validationStatus = 400) {
   }
   if (code === "VALIDATION_FAILED") {
     return jsonError(validationStatus, code, "The request payload is invalid.")
+  }
+  if (code === "SOURCE_COLLISION_REQUIRES_REMEDIATION") {
+    const requestHumanIds = domainErrorData(error)?.requestHumanIds
+    return Response.json(
+      {
+        error: {
+          code,
+          message: "Canonical source duplicates require operator remediation.",
+          conflictingRequestIds: Array.isArray(requestHumanIds)
+            ? requestHumanIds.filter((value) => typeof value === "string")
+            : [],
+        },
+      },
+      { status: 409 }
+    )
+  }
+  if (code === "IDEMPOTENCY_KEY_REUSED") {
+    return jsonError(
+      409,
+      code,
+      "The correlation ID was already used for different request content."
+    )
   }
   return jsonError(500, "INTERNAL_ERROR", "The request could not be completed.")
 }

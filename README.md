@@ -3,7 +3,7 @@
 The production application for turning community questions, journalist requests,
 and digital-PR opportunities into prioritized, research-backed content requests.
 
-Tickets 01 through 03 establish the authenticated production shell and the first
+Tickets 01 through 04 establish the authenticated production shell and the first
 end-to-end Content Request workflow. Authorized editors can create a Critical
 manual request from the mobile web interface, HTTP API, or CLI, preserve original
 source evidence, find it safely, and open its stable route. The remaining workflow
@@ -14,6 +14,13 @@ changes retain a dedicated history and audit event, while new founder assignment
 and Critical escalations create an in-app notification plus a transactional-email
 outbox item. Elie's assignment-scoped library supports a touch-scroll stack and a
 compact grid without changing the request's stable URL.
+
+Maintained scout reports now enter through one deterministic ingestion boundary.
+The complete Markdown document is parsed and validated before any database call;
+one Convex mutation then upserts the report, immutable opportunity evidence, and
+mutable context deck atomically. Generated draft copy is intentionally excluded
+from deliverables. Known tracking parameters are removed from canonical HTTP(S)
+URLs for conservative deduplication, while semantic query parameters remain.
 
 Set `FAIRLEND_APP_URL`, `FAIRLEND_PRINCIPAL_PROVISIONING_KEY`, plus the
 transactional-email endpoint and API key in the Convex deployment. Assignment
@@ -72,6 +79,14 @@ idempotent, processes bounded pages, schedules the next page, and initializes th
 creator as accountable assignee. Verify no records are missing the three fields
 before tightening their schema validators in a follow-up deployment.
 
+Before enabling Ticket 04 ingestion in an upgraded deployment, also run
+`bunx convex run --prod migrations:backfillNormalizedSourceUrls '{}'`. This
+idempotent migration derives conservative canonical URLs from legacy immutable
+source snapshots so pre-ingestion records participate in URL deduplication.
+Canonical collisions are not guessed: the migration records an unresolved
+`normalized_source_url_collision` remediation item and leaves the duplicate
+aggregate untouched for operator resolution.
+
 ## Deployment
 
 The production adapter targets Cloudflare Workers. Configure the WorkOS values
@@ -93,6 +108,8 @@ The initial HTTP contract is available at:
   `limit` for a bounded result.
 - `POST /api/v1/content-requests` — create a manual request.
 - `GET /api/v1/content-requests/:humanId` — retrieve a stable request.
+- `POST /api/v1/scout-ingestions` — validate and atomically ingest one complete
+  maintained scout report using `{ "markdown": "...", "idempotencyKey": "..." }`.
 
 The API accepts the signed-in WorkOS session or a WorkOS bearer access token.
 Every create requires or generates a correlation ID and produces an audit event.
@@ -106,7 +123,17 @@ export CONTENT_REQUESTS_ACCESS_TOKEN="<workos-access-token>"
 bun run content-requests -- create --title "Explain mortgage portability"
 bun run content-requests -- find "mortgage portability"
 bun run content-requests -- get CR-EXAMPLE
+bun run content-requests -- ingest --file ./scout-report.md --idempotency-key scout-20260718-am
 ```
+
+Scout ingestion returns `201` with `applied` or `200` with
+`idempotent_replay`. Reusing an idempotency key for different Markdown returns
+`409 IDEMPOTENCY_KEY_REUSED`; invalid or incomplete Markdown returns `422
+INVALID_SCOUT_REPORT` with line-addressed diagnostics and performs no writes.
+Re-ingestion replaces only agent-derived context. The first source snapshot and
+all founder input remain immutable. Creating a manual request with the same
+normalized canonical URL promotes the existing aggregate to Manual/Critical
+instead of creating a duplicate.
 
 CLI exit code `2` means fuzzy lookup requires explicit disambiguation; HTTP or
 authorization failures return exit code `1` with a machine-readable JSON body.
