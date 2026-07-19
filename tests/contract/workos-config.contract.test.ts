@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest"
 
-import { getOptionalWorkosServerConfig } from "@/config/workos-runtime-config"
+import {
+  buildWorkosSignInOptions,
+  getOptionalWorkosServerConfig,
+} from "@/config/workos-runtime-config"
 
 const keys = [
   "WORKOS_CLIENT_ID",
@@ -36,5 +39,23 @@ describe("WorkOS runtime configuration", () => {
     expect(() => getOptionalWorkosServerConfig()).toThrow(
       /Incomplete WorkOS configuration.*WORKOS_API_KEY/
     )
+  })
+
+  it("scopes every hosted sign-in to the configured FairLend organization", () => {
+    process.env.WORKOS_CLIENT_ID = "client_test"
+    process.env.WORKOS_API_KEY = "sk_test"
+    process.env.WORKOS_REDIRECT_URI = "https://fairlend.test/api/auth/callback"
+    process.env.WORKOS_COOKIE_PASSWORD = "a".repeat(32)
+    process.env.WORKOS_ORGANIZATION_ID = "org_fairlend"
+
+    expect(buildWorkosSignInOptions("/app/new")).toEqual({
+      data: {
+        organizationId: "org_fairlend",
+        returnPathname: "/app/new",
+      },
+    })
+    expect(buildWorkosSignInOptions(null)).toEqual({
+      data: { organizationId: "org_fairlend" },
+    })
   })
 })

@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { getSignInUrl } from "@workos/authkit-tanstack-react-start"
 
+import { buildWorkosSignInOptions } from "@/config/workos-runtime-config"
+
 export const Route = createFileRoute("/api/auth/sign-in")({
   server: {
     handlers: {
@@ -9,7 +11,7 @@ export const Route = createFileRoute("/api/auth/sign-in")({
           "returnPathname"
         )
         const url = await getSignInUrl(
-          returnPathname ? { data: { returnPathname } } : undefined
+          buildWorkosSignInOptions(returnPathname)
         )
         return new Response(null, {
           status: 307,

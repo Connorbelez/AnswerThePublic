@@ -43,3 +43,14 @@ export function getWorkosServerConfig(): WorkosServerConfig {
   }
   return config
 }
+
+export function buildWorkosSignInOptions(returnPathname: string | null) {
+  const { organizationId } = getWorkosServerConfig()
+
+  return {
+    data: {
+      organizationId,
+      ...(returnPathname ? { returnPathname } : {}),
+    },
+  }
+}
