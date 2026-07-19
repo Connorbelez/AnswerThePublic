@@ -3,7 +3,7 @@
 The production application for turning community questions, journalist requests,
 and digital-PR opportunities into prioritized, research-backed content requests.
 
-Tickets 01 through 05 establish the authenticated production shell and the first
+Tickets 01 through 06 establish the authenticated production shell and the first
 end-to-end Content Request workflow. Authorized editors can create a Critical
 manual request from the mobile web interface, HTTP API, or CLI, preserve original
 source evidence, find it safely, and open its stable route. The remaining workflow
@@ -103,9 +103,16 @@ The founder-input surface remains mounted beneath the deck at a compact fixed
 height and expands only through its explicit control to approximately half the
 mobile viewport. It is intentionally not draggable or user-resizable. Expansion
 focuses the text field, native controls preserve keyboard and touch semantics,
-and the height transition is disabled for reduced-motion preferences. Durable
-draft persistence and offline collaboration begin in Tickets 06 and 07; this
-ticket does not claim a false saved state.
+and the height transition is disabled for reduced-motion preferences.
+
+Typed founder input continuously autosaves to the request's single durable
+founder document and reports `Saved`, `Saving`, or `Offline` without mounting a
+second editor. Meaningful text advances Pending work to In progress; opening or
+saving whitespace does not. Only the assigned founder can read or mutate raw
+draft text. Operators and agents receive the minimal `hasFounderDraft` and
+updated-at metadata needed to understand progress, never the private content.
+Ticket 07 adds Automerge-backed reload-safe offline editing and version history
+on top of this authorization and lifecycle boundary.
 
 ## Deployment
 

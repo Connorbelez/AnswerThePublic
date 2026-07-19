@@ -33,6 +33,8 @@ const request = {
   watchers: [],
   firstOpenedAt: null,
   latestOpenedAt: null,
+  hasFounderDraft: false,
+  founderDraftUpdatedAt: null,
   source: {
     question:
       "Can we fund a laneway suite while preserving our first mortgage?",
@@ -258,5 +260,123 @@ describe("Variant G Unified Context Canvas", () => {
       />
     )
     expect(screen.getByRole("article", { name: "Talking points" })).toBeTruthy()
+  })
+
+  it("shares restored text across editor sizes and presents autosave connectivity", async () => {
+    let finishSave: (() => void) | undefined
+    const onDraftSave = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSave = resolve
+        })
+    )
+    const view = render(
+      <UnifiedContextCanvas
+        request={{ ...request, humanId: "CR-AUTOSAVE" }}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+        initialDraft="Restored durable founder text"
+        onDraftSave={onDraftSave}
+      />
+    )
+    const editor = within(view.container).getByRole("textbox", {
+      name: "Founder input",
+    })
+    expect((editor as HTMLTextAreaElement).value).toBe(
+      "Restored durable founder text"
+    )
+    fireEvent.change(editor, {
+      target: { value: "Restored durable founder text plus a new point" },
+    })
+    expect(
+      within(view.container).getByText("Saving", { exact: true })
+    ).toBeTruthy()
+    fireEvent.click(
+      within(view.container).getByRole("button", { name: "Expand editor" })
+    )
+    expect(
+      (
+        within(view.container).getByRole("textbox", {
+          name: "Founder input",
+        }) as HTMLTextAreaElement
+      ).value
+    ).toBe("Restored durable founder text plus a new point")
+    await waitFor(() => expect(onDraftSave).toHaveBeenCalledOnce())
+    finishSave?.()
+    await waitFor(() =>
+      expect(
+        within(view.container).getByText("Saved", { exact: true })
+      ).toBeTruthy()
+    )
+
+    Object.defineProperty(window.navigator, "onLine", {
+      configurable: true,
+      value: false,
+    })
+    fireEvent(window, new Event("offline"))
+    fireEvent.change(editor, { target: { value: "An offline edit" } })
+    expect(
+      within(view.container).getByText("Offline", { exact: true })
+    ).toBeTruthy()
+    expect(onDraftSave).toHaveBeenCalledOnce()
+    Object.defineProperty(window.navigator, "onLine", {
+      configurable: true,
+      value: true,
+    })
+    fireEvent(window, new Event("online"))
+  })
+
+  it("surfaces and schedules recovery for terminal online save failures", async () => {
+    const onDraftSave = vi.fn().mockRejectedValue(new TypeError("network"))
+    const view = render(
+      <UnifiedContextCanvas
+        request={{ ...request, humanId: "CR-SAVE-RETRY" }}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+        onDraftSave={onDraftSave}
+      />
+    )
+    fireEvent.change(
+      within(view.container).getByRole("textbox", { name: "Founder input" }),
+      { target: { value: "A save that encounters a transient outage" } }
+    )
+    await waitFor(
+      () =>
+        expect(
+          within(view.container).getByText("Save pending", { exact: true })
+        ).toBeTruthy(),
+      { timeout: 3_000 }
+    )
+    expect(onDraftSave).toHaveBeenCalledTimes(3)
+    view.unmount()
+  })
+
+  it.each([
+    "FOUNDER_INPUT_HANDOFF_REQUIRED",
+    "PRINCIPAL_NOT_PROVISIONED",
+    "AUTHORIZATION_NOT_CONFIGURED",
+  ])("does not retry permanent founder save failure %s", async (code) => {
+    const onDraftSave = vi.fn().mockRejectedValue({
+      data: { code },
+    })
+    const view = render(
+      <UnifiedContextCanvas
+        request={{ ...request, humanId: "CR-SAVE-BLOCKED" }}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+        onDraftSave={onDraftSave}
+      />
+    )
+    fireEvent.change(
+      within(view.container).getByRole("textbox", { name: "Founder input" }),
+      { target: { value: "A draft after an ownership conflict" } }
+    )
+    await waitFor(() =>
+      expect(
+        within(view.container).getByText("Save blocked", { exact: true })
+      ).toBeTruthy()
+    )
+    expect(onDraftSave).toHaveBeenCalledOnce()
+    view.unmount()
   })
 })

@@ -298,6 +298,25 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
     expect(expandedDeck.overflow).toBeGreaterThan(0)
   }
 
+  const founderText =
+    "Preserve the existing mortgage, confirm lender consent, and explain the staged-draw cash-flow gap."
+  const founderInput = founderPage.getByRole("textbox", {
+    name: "Founder input",
+  })
+  await founderInput.fill(founderText)
+  await expect(founderPage.getByText("Saving", { exact: true })).toBeVisible()
+  await expect(founderPage.getByText("Saved", { exact: true })).toBeVisible()
+  const requestPath = new URL(founderPage.url()).pathname
+  await founderPage.reload()
+  await expect(
+    founderPage.getByRole("textbox", { name: "Founder input" })
+  ).toHaveValue(founderText)
+
+  await operatorPage.goto(requestPath)
+  await expect(operatorPage.getByText("Founder draft saved")).toBeVisible()
+  await expect(operatorPage.getByText("In progress")).toBeVisible()
+  await expect(operatorPage.getByText(founderText)).toHaveCount(0)
+
   await operatorContext.close()
   await founderContext.close()
 })

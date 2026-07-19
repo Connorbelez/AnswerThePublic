@@ -62,6 +62,9 @@ export function ContentRequestCard({ request }: { request: ContentRequest }) {
               ? ` · Latest open ${formatTimestamp(request.latestOpenedAt)}`
               : ""}
           </span>
+          {request.hasFounderDraft ? (
+            <Badge variant="outline">Founder draft saved</Badge>
+          ) : null}
           <ArrowRight aria-hidden="true" />
         </CardContent>
       </Card>

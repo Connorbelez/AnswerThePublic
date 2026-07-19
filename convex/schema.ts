@@ -185,6 +185,28 @@ export default defineSchema({
     knownContextIds: v.array(v.string()),
     updatedAt: v.number(),
   }).index("by_request_principal", ["requestId", "principalId"]),
+  founderInputDocuments: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    founderPrincipalId: v.id("principals"),
+    text: v.string(),
+    revision: v.number(),
+    hasMeaningfulDraft: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_request", ["requestId"]),
+  founderInputSaveOperations: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    actorPrincipalId: v.id("principals"),
+    correlationId: v.string(),
+    inputFingerprint: v.string(),
+    createdAt: v.number(),
+  }).index("by_organization_actor_correlation", [
+    "organizationId",
+    "actorPrincipalId",
+    "correlationId",
+  ]),
   migrationConflicts: defineTable({
     organizationId: v.string(),
     type: v.literal("normalized_source_url_collision"),

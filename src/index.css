@@ -822,6 +822,25 @@
   height: 0.9rem;
 }
 
+.unified-editor__save-status {
+  flex: none;
+  color: rgb(23 33 27 / 72%);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.unified-editor__save-status[data-state="offline"] {
+  color: #8a4b12;
+}
+
+.unified-editor__save-status[data-state="save pending"] {
+  color: #9a3412;
+}
+
+.unified-editor__save-status[data-state="save blocked"] {
+  color: #b42318;
+}
+
 .unified-editor__input {
   display: flex;
   min-height: 0;

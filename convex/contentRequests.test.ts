@@ -496,6 +496,127 @@ describe("Content Request workflow contract", () => {
     ).rejects.toMatchObject({ data: { code: "ROLE_ACCESS_DENIED" } })
   })
 
+  it("autosaves only the assigned founder's text and exposes draft metadata without private content", async () => {
+    const workspace = convexTest(schema, modules)
+    const operator = workspace.withIdentity(operatorIdentity)
+    const founder = workspace.withIdentity({
+      subject: "user_elie",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "founder",
+      jti: "credential_elie_autosave",
+    })
+    const agent = workspace.withIdentity({
+      subject: "agent_writer",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "agent-editor",
+      jti: "credential_agent_writer",
+    })
+    const otherFounder = workspace.withIdentity({
+      subject: "user_other_founder",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "founder",
+      jti: "credential_other_founder",
+    })
+    await operator.mutation(api.principals.syncCurrent)
+    const founderPrincipal = await founder.mutation(api.principals.syncCurrent)
+    await agent.mutation(api.principals.syncCurrent)
+    const otherFounderPrincipal = await otherFounder.mutation(
+      api.principals.syncCurrent
+    )
+    const created = await operator.mutation(api.contentRequests.createManual, {
+      title: "Autosaved founder input contract",
+      origin: "manual",
+      correlationId: "corr-founder-draft-create",
+    })
+    await operator.mutation(api.contentRequests.assign, {
+      humanId: created.humanId,
+      assigneePrincipalId: founderPrincipal.principalId,
+      correlationId: "corr-founder-draft-assign",
+    })
+
+    const opened = await founder.mutation(api.contentRequests.open, {
+      humanId: created.humanId,
+      correlationId: "corr-founder-draft-open",
+    })
+    expect(opened.lifecycle).toBe("pending")
+    await expect(
+      founder.query(api.founderInputs.getMine, { humanId: created.humanId })
+    ).resolves.toBeNull()
+
+    const whitespace = await founder.mutation(api.founderInputs.saveText, {
+      humanId: created.humanId,
+      text: "   \n",
+      correlationId: "corr-founder-draft-whitespace",
+    })
+    expect(whitespace).toMatchObject({
+      text: "   \n",
+      revision: 1,
+      hasMeaningfulDraft: false,
+    })
+    const meaningful = await founder.mutation(api.founderInputs.saveText, {
+      humanId: created.humanId,
+      text: "My lender should confirm consent before any second-position financing.",
+      correlationId: "corr-founder-draft-meaningful",
+    })
+    expect(meaningful).toMatchObject({
+      revision: 2,
+      hasMeaningfulDraft: true,
+    })
+    await expect(
+      founder.query(api.contentRequests.getByHumanId, {
+        humanId: created.humanId,
+      })
+    ).resolves.toMatchObject({
+      lifecycle: "in_progress",
+      hasFounderDraft: true,
+    })
+    await expect(
+      operator.query(api.founderInputs.getMetadata, {
+        humanId: created.humanId,
+      })
+    ).resolves.toMatchObject({ hasFounderDraft: true, revision: 2 })
+    await expect(
+      operator.query(api.founderInputs.getMine, { humanId: created.humanId })
+    ).rejects.toMatchObject({ data: { code: "ROLE_ACCESS_DENIED" } })
+    await expect(
+      agent.mutation(api.founderInputs.saveText, {
+        humanId: created.humanId,
+        text: "An agent must not rewrite Elie's raw input.",
+        correlationId: "corr-agent-founder-draft-denied",
+      })
+    ).rejects.toMatchObject({ data: { code: "ROLE_ACCESS_DENIED" } })
+    await expect(
+      operator.mutation(api.contentRequests.assign, {
+        humanId: created.humanId,
+        assigneePrincipalId: otherFounderPrincipal.principalId,
+        correlationId: "corr-founder-draft-reassignment",
+      })
+    ).rejects.toMatchObject({
+      data: { code: "FOUNDER_INPUT_HANDOFF_REQUIRED" },
+    })
+    await expect(
+      founder.query(api.founderInputs.getMine, { humanId: created.humanId })
+    ).resolves.toMatchObject({
+      text: "My lender should confirm consent before any second-position financing.",
+      revision: 2,
+    })
+    const founderSaveAudit = await operator.run(async (ctx) =>
+      ctx.db
+        .query("auditEvents")
+        .withIndex("by_request_operation_correlation", (index) =>
+          index
+            .eq("requestId", created.requestId)
+            .eq("operation", "founder_input.text_saved")
+            .eq("correlationId", "corr-founder-draft-meaningful")
+        )
+        .unique()
+    )
+    expect(founderSaveAudit?.inputFingerprint).toBeUndefined()
+  })
+
   it("fences stale email workers and exposes due deliveries to the reaper", async () => {
     const backend = await operatorBackend()
     const request = await backend.mutation(api.contentRequests.createManual, {

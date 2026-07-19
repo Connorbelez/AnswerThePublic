@@ -66,5 +66,15 @@ export async function createConvexTestContentRequestRepository(
         correlationId,
       })
     },
+    async getFounderInput(humanId) {
+      return backend.query(api.founderInputs.getMine, { humanId })
+    },
+    async saveFounderText(humanId, text, correlationId) {
+      return backend.mutation(api.founderInputs.saveText, {
+        humanId,
+        text,
+        correlationId,
+      })
+    },
   }
 }

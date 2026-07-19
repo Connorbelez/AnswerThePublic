@@ -9,12 +9,14 @@ import { anyApi } from "convex/server"
 
 import type * as principals from "../principals"
 import type * as contentRequests from "../contentRequests"
+import type * as founderInputs from "../founderInputs"
 import type * as notifications from "../notifications"
 import type * as migrations from "../migrations"
 import type * as scoutIngestions from "../scoutIngestions"
 
 const fullApi: ApiFromModules<{
   contentRequests: typeof contentRequests
+  founderInputs: typeof founderInputs
   notifications: typeof notifications
   migrations: typeof migrations
   principals: typeof principals

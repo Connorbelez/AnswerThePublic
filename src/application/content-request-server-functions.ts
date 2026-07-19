@@ -64,6 +64,30 @@ export const saveContextDeckPreferences = createServerFn({ method: "POST" })
     )
   })
 
+export const getFounderInput = createServerFn({ method: "POST" })
+  .validator((data: { humanId: string }) => data)
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).getFounderInput(
+      data.humanId
+    )
+  })
+
+export const saveFounderText = createServerFn({ method: "POST" })
+  .validator(
+    (data: { humanId: string; text: string; correlationId: string }) => data
+  )
+  .handler(async ({ data }) => {
+    const { createContentRequestServiceFromRequest } =
+      await import("@/application/content-request-service-request.server")
+    return (await createContentRequestServiceFromRequest()).saveFounderText(
+      data.humanId,
+      data.text,
+      data.correlationId
+    )
+  })
+
 export const createManualContentRequest = createServerFn({ method: "POST" })
   .validator((data: CreateManualRequestInput) => data)
   .handler(async ({ data }) => {

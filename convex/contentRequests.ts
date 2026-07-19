@@ -58,6 +58,8 @@ const contentRequestValidator = v.object({
   watchers: v.array(principalSummaryValidator),
   firstOpenedAt: v.union(v.number(), v.null()),
   latestOpenedAt: v.union(v.number(), v.null()),
+  hasFounderDraft: v.boolean(),
+  founderDraftUpdatedAt: v.union(v.number(), v.null()),
   source: sourceOutputValidator,
   createdAt: v.number(),
   updatedAt: v.number(),
@@ -178,6 +180,10 @@ async function toPublicRequest(
       ctx.db.get(principalId)
     )
   )
+  const founderInput = await ctx.db
+    .query("founderInputDocuments")
+    .withIndex("by_request", (index) => index.eq("requestId", request._id))
+    .unique()
   return {
     requestId: request._id,
     humanId: request.humanId,
@@ -207,6 +213,8 @@ async function toPublicRequest(
     ),
     firstOpenedAt: request.firstOpenedAt ?? null,
     latestOpenedAt: request.latestOpenedAt ?? null,
+    hasFounderDraft: founderInput?.hasMeaningfulDraft ?? false,
+    founderDraftUpdatedAt: founderInput?.updatedAt ?? null,
     source: publicSource(source),
     createdAt: request.createdAt,
     updatedAt: request.updatedAt,
@@ -655,6 +663,15 @@ export const assign = mutation({
     const assignee = await ctx.db.get(args.assigneePrincipalId)
     if (!assignee || assignee.organizationId !== actor.organizationId) {
       throw new ConvexError({ code: "ASSIGNEE_NOT_FOUND" })
+    }
+    if (assignee.role === "founder") {
+      const founderInput = await ctx.db
+        .query("founderInputDocuments")
+        .withIndex("by_request", (index) => index.eq("requestId", request._id))
+        .unique()
+      if (founderInput && founderInput.founderPrincipalId !== assignee._id) {
+        throw new ConvexError({ code: "FOUNDER_INPUT_HANDOFF_REQUIRED" })
+      }
     }
     const watcherPrincipalIds = [
       ...new Set(args.watcherPrincipalIds ?? request.watcherPrincipalIds ?? []),

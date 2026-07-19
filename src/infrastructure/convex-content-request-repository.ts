@@ -92,5 +92,15 @@ export function createConvexContentRequestRepository({
         { humanId, ...preferences, correlationId }
       )
     },
+    async getFounderInput(humanId) {
+      return (await client()).query(api.founderInputs.getMine, { humanId })
+    },
+    async saveFounderText(humanId, text, correlationId) {
+      return (await client()).mutation(api.founderInputs.saveText, {
+        humanId,
+        text,
+        correlationId,
+      })
+    },
   }
 }

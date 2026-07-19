@@ -46,6 +46,8 @@ export type ContentRequest = {
   watchers: Array<PrincipalSummary>
   firstOpenedAt: number | null
   latestOpenedAt: number | null
+  hasFounderDraft: boolean
+  founderDraftUpdatedAt: number | null
   source: OriginalSource | null
   createdAt: number
   updatedAt: number
@@ -126,6 +128,15 @@ export type ContextDeckPreferences = {
   knownContextIds: Array<string>
 }
 
+export type FounderInputDocument = {
+  documentId: string
+  requestHumanId: string
+  text: string
+  revision: number
+  hasMeaningfulDraft: boolean
+  updatedAt: number
+}
+
 export interface ContentRequestRepository {
   createManual(input: PersistManualRequestInput): Promise<ContentRequest>
   getByHumanId(humanId: string): Promise<ContentRequest | null>
@@ -145,6 +156,12 @@ export interface ContentRequestRepository {
     preferences: ContextDeckPreferences,
     correlationId: string
   ): Promise<ContextDeckPreferences>
+  getFounderInput(humanId: string): Promise<FounderInputDocument | null>
+  saveFounderText(
+    humanId: string,
+    text: string,
+    correlationId: string
+  ): Promise<FounderInputDocument>
 }
 
 export interface ContentRequestService {
@@ -166,6 +183,12 @@ export interface ContentRequestService {
     preferences: ContextDeckPreferences,
     correlationId: string
   ): Promise<ContextDeckPreferences>
+  getFounderInput(humanId: string): Promise<FounderInputDocument | null>
+  saveFounderText(
+    humanId: string,
+    text: string,
+    correlationId: string
+  ): Promise<FounderInputDocument>
 }
 
 export function createContentRequestService(
@@ -193,5 +216,8 @@ export function createContentRequestService(
         preferences,
         correlationId
       ),
+    getFounderInput: (humanId) => repository.getFounderInput(humanId),
+    saveFounderText: (humanId, text, correlationId) =>
+      repository.saveFounderText(humanId, text, correlationId),
   }
 }

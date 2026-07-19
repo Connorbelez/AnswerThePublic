@@ -12,10 +12,13 @@ import {
   getContentRequest,
   getContentRequestContext,
   getContextDeckPreferences,
+  getFounderInput,
   listAssignablePrincipals,
   openContentRequest,
   saveContextDeckPreferences,
+  saveFounderText,
 } from "@/application/content-request-server-functions"
+import { loadWorkspaceSession } from "@/application/load-workspace-session"
 import { RequestAssignmentControl } from "@/components/request-assignment-control"
 import { UnifiedContextCanvas } from "@/components/unified-context-canvas"
 import type { ContextDeckPreferences } from "@/application/content-requests"
@@ -29,15 +32,30 @@ import {
 
 export const Route = createFileRoute("/app/requests/$requestId")({
   loader: async ({ params }) => {
-    const [request, principals, contextItems, contextDeckPreferences] =
-      await Promise.all([
-        getContentRequest({ data: { humanId: params.requestId } }),
-        listAssignablePrincipals(),
-        getContentRequestContext({ data: { humanId: params.requestId } }),
-        getContextDeckPreferences({ data: { humanId: params.requestId } }),
-      ])
+    const session = await loadWorkspaceSession()
+    const [
+      request,
+      principals,
+      contextItems,
+      contextDeckPreferences,
+      founderInput,
+    ] = await Promise.all([
+      getContentRequest({ data: { humanId: params.requestId } }),
+      listAssignablePrincipals(),
+      getContentRequestContext({ data: { humanId: params.requestId } }),
+      getContextDeckPreferences({ data: { humanId: params.requestId } }),
+      session.status === "authenticated" && session.session.role === "founder"
+        ? getFounderInput({ data: { humanId: params.requestId } })
+        : Promise.resolve(null),
+    ])
     if (!request) throw notFound()
-    return { request, principals, contextItems, contextDeckPreferences }
+    return {
+      request,
+      principals,
+      contextItems,
+      contextDeckPreferences,
+      founderInput,
+    }
   },
   component: ContentRequestPage,
 })
@@ -65,11 +83,17 @@ function isRetryableOpenError(error: unknown) {
 }
 
 function ContentRequestPage() {
-  const { request, principals, contextItems, contextDeckPreferences } =
-    Route.useLoaderData()
+  const {
+    request,
+    principals,
+    contextItems,
+    contextDeckPreferences,
+    founderInput,
+  } = Route.useLoaderData()
   const session = appRoute.useLoaderData()
   const recordOpen = useServerFn(openContentRequest)
   const persistContextDeckPreferences = useServerFn(saveContextDeckPreferences)
+  const persistFounderText = useServerFn(saveFounderText)
   const handleContextDeckPreferences = useCallback(
     async (preferences: ContextDeckPreferences, correlationId: string) => {
       await persistContextDeckPreferences({
@@ -77,6 +101,14 @@ function ContentRequestPage() {
       })
     },
     [persistContextDeckPreferences, request.humanId]
+  )
+  const handleFounderText = useCallback(
+    async (text: string, correlationId: string) => {
+      await persistFounderText({
+        data: { humanId: request.humanId, text, correlationId },
+      })
+    },
+    [persistFounderText, request.humanId]
   )
   const openRecordingState = useRef<{
     requestId: string
@@ -152,8 +184,10 @@ function ContentRequestPage() {
         request={request}
         contextItems={contextItems}
         preferenceOwnerKey={`${session.organizationId}:${session.principalId}`}
+        initialDraft={founderInput?.text ?? ""}
         initialPreferences={contextDeckPreferences}
         onPreferencesChange={handleContextDeckPreferences}
+        onDraftSave={handleFounderText}
       />
     )
   }
@@ -175,6 +209,12 @@ function ContentRequestPage() {
           <span>{request.humanId}</span>
           <span>{requestOriginLabel(request.origin)} request</span>
           <span>Assigned to {request.assignee.subject}</span>
+          <span>
+            {request.lifecycle
+              .replaceAll("_", " ")
+              .replace(/^./, (value) => value.toUpperCase())}
+          </span>
+          {request.hasFounderDraft ? <span>Founder draft saved</span> : null}
         </div>
         <h1>{request.title}</h1>
       </div>

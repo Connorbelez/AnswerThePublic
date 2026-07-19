@@ -40,6 +40,43 @@ type PreferenceWrite = {
   ownerKey: string
 }
 
+type DraftWrite = {
+  text: string
+  correlationId: string
+  version: number
+}
+
+function draftSaveErrorCode(error: unknown) {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "data" in error &&
+    typeof error.data === "object" &&
+    error.data !== null &&
+    "code" in error.data
+  ) {
+    return String(error.data.code)
+  }
+  return null
+}
+
+function isRetryableDraftSaveError(error: unknown) {
+  if (error instanceof TypeError) return true
+  const code = draftSaveErrorCode(error)
+  return ![
+    "UNAUTHENTICATED",
+    "AUTHORIZATION_NOT_CONFIGURED",
+    "PRINCIPAL_NOT_PROVISIONED",
+    "ORGANIZATION_ACCESS_DENIED",
+    "ROLE_ACCESS_DENIED",
+    "RESOURCE_ACCESS_DENIED",
+    "FOUNDER_INPUT_HANDOFF_REQUIRED",
+    "NOT_FOUND",
+    "VALIDATION_FAILED",
+    "IDEMPOTENCY_KEY_REUSED",
+  ].includes(String(code))
+}
+
 const presentation: Record<
   ContentContextItem["kind"],
   { eyebrow: string; icon: typeof BookOpen }
@@ -201,17 +238,21 @@ export function UnifiedContextCanvas({
   request,
   contextItems,
   preferenceOwnerKey,
+  initialDraft = "",
   initialPreferences,
   onPreferencesChange,
+  onDraftSave,
 }: {
   request: ContentRequest
   contextItems: Array<ContentContextItem>
   preferenceOwnerKey: string
+  initialDraft?: string
   initialPreferences?: ContextDeckPreferences | null
   onPreferencesChange?: (
     preferences: ContextDeckPreferences,
     correlationId: string
   ) => void | Promise<void>
+  onDraftSave?: (text: string, correlationId: string) => Promise<unknown>
 }) {
   const items = useMemo(
     () => contextItemsFor(request, contextItems),
@@ -236,7 +277,10 @@ export function UnifiedContextCanvas({
   )
   const [expanded, setExpanded] = useState(false)
   const [inputMode, setInputMode] = useState<"type" | "record">("type")
-  const [draft, setDraft] = useState("")
+  const [draft, setDraft] = useState(initialDraft)
+  const [saveStatus, setSaveStatus] = useState<
+    "Saved" | "Saving" | "Offline" | "Save pending" | "Save blocked"
+  >("Saved")
   const editorRef = useRef<HTMLTextAreaElement>(null)
   const filterPinRefs = useRef(new Map<string, HTMLButtonElement>())
   const preferencesMounted = useRef(false)
@@ -245,12 +289,77 @@ export function UnifiedContextCanvas({
   const latestPreferenceWrite = useRef<PreferenceWrite | null>(null)
   const preferenceCallback = useRef(onPreferencesChange)
   const preferenceWriteChain = useRef<Promise<void>>(Promise.resolve())
+  const draftMounted = useRef(false)
+  const draftTimer = useRef<number | null>(null)
+  const draftRetryTimer = useRef<number | null>(null)
+  const draftVersion = useRef(0)
+  const latestDraftWrite = useRef<DraftWrite | null>(null)
+  const draftSaveCallback = useRef(onDraftSave)
+  const draftWriteChain = useRef<Promise<void>>(Promise.resolve())
+  const draftPersist = useRef<(write: DraftWrite) => void>(() => undefined)
   const [preferenceSyncFailed, setPreferenceSyncFailed] = useState(false)
   const preferenceStorageKey = `fairlend:context-preferences:${encodeURIComponent(preferenceOwnerKey)}:${request.humanId}`
 
   useEffect(() => {
     preferenceCallback.current = onPreferencesChange
   }, [onPreferencesChange])
+
+  useEffect(() => {
+    draftSaveCallback.current = onDraftSave
+  }, [onDraftSave])
+
+  const persistDraftWrite = useCallback((write: DraftWrite) => {
+    const callback = draftSaveCallback.current
+    if (!callback) return
+    if (!window.navigator.onLine) {
+      if (componentMounted.current) setSaveStatus("Offline")
+      return
+    }
+    if (draftRetryTimer.current !== null) {
+      window.clearTimeout(draftRetryTimer.current)
+      draftRetryTimer.current = null
+    }
+    draftWriteChain.current = draftWriteChain.current.then(async () => {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          await callback(write.text, write.correlationId)
+          if (latestDraftWrite.current?.version === write.version) {
+            latestDraftWrite.current = null
+            if (componentMounted.current) setSaveStatus("Saved")
+          }
+          return
+        } catch (error) {
+          if (!isRetryableDraftSaveError(error)) {
+            if (componentMounted.current) setSaveStatus("Save blocked")
+            return
+          }
+          if (attempt < 2 && window.navigator.onLine) {
+            await new Promise((resolve) =>
+              window.setTimeout(resolve, 300 * 2 ** attempt)
+            )
+          }
+        }
+      }
+      if (componentMounted.current) {
+        if (window.navigator.onLine) {
+          setSaveStatus("Save pending")
+          draftRetryTimer.current = window.setTimeout(() => {
+            draftRetryTimer.current = null
+            if (latestDraftWrite.current) {
+              setSaveStatus("Saving")
+              draftPersist.current(latestDraftWrite.current)
+            }
+          }, 5_000)
+        } else {
+          setSaveStatus("Offline")
+        }
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    draftPersist.current = persistDraftWrite
+  }, [persistDraftWrite])
 
   const persistPreferenceWrite = useCallback(
     (write: PreferenceWrite) => {
@@ -341,6 +450,53 @@ export function UnifiedContextCanvas({
       }
     }
   }, [persistPreferenceWrite, preferenceOwnerKey, preferenceStorageKey])
+
+  useEffect(() => {
+    const handleOffline = () => setSaveStatus("Offline")
+    const handleOnline = () => {
+      if (latestDraftWrite.current) {
+        setSaveStatus("Saving")
+        persistDraftWrite(latestDraftWrite.current)
+      } else {
+        setSaveStatus("Saved")
+      }
+    }
+    if (!window.navigator.onLine) window.queueMicrotask(handleOffline)
+    window.addEventListener("offline", handleOffline)
+    window.addEventListener("online", handleOnline)
+    return () => {
+      window.removeEventListener("offline", handleOffline)
+      window.removeEventListener("online", handleOnline)
+      if (draftTimer.current !== null) {
+        window.clearTimeout(draftTimer.current)
+        draftTimer.current = null
+      }
+      if (draftRetryTimer.current !== null) {
+        window.clearTimeout(draftRetryTimer.current)
+        draftRetryTimer.current = null
+      }
+      if (latestDraftWrite.current) persistDraftWrite(latestDraftWrite.current)
+    }
+  }, [persistDraftWrite])
+
+  useEffect(() => {
+    if (!draftMounted.current) {
+      draftMounted.current = true
+      return
+    }
+    if (!onDraftSave) return
+    const write = {
+      text: draft,
+      correlationId: crypto.randomUUID(),
+      version: draftVersion.current,
+    }
+    latestDraftWrite.current = write
+    if (draftTimer.current !== null) window.clearTimeout(draftTimer.current)
+    draftTimer.current = window.setTimeout(() => {
+      draftTimer.current = null
+      persistDraftWrite(write)
+    }, 500)
+  }, [draft, onDraftSave, persistDraftWrite])
 
   useEffect(() => {
     if (!preferencesMounted.current) {
@@ -522,6 +678,14 @@ export function UnifiedContextCanvas({
               <Mic /> Record
             </ToggleGroupItem>
           </ToggleGroup>
+          <span
+            className="unified-editor__save-status"
+            data-state={saveStatus.toLowerCase()}
+            role="status"
+            aria-live="polite"
+          >
+            {saveStatus}
+          </span>
           <Button
             type="button"
             variant="ghost"
@@ -541,7 +705,15 @@ export function UnifiedContextCanvas({
               ref={editorRef}
               aria-label="Founder input"
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => {
+                if (draftRetryTimer.current !== null) {
+                  window.clearTimeout(draftRetryTimer.current)
+                  draftRetryTimer.current = null
+                }
+                draftVersion.current += 1
+                setDraft(event.target.value)
+                setSaveStatus(window.navigator.onLine ? "Saving" : "Offline")
+              }}
               placeholder="Add your perspective…"
             />
           ) : (
