@@ -780,6 +780,40 @@ export const getByHumanId = query({
   },
 })
 
+const activeFounderLifecycles = ["pending", "in_progress"] as const
+
+async function listActiveFounderRequests(
+  ctx: QueryCtx,
+  organizationId: string,
+  assigneePrincipalId: Id<"principals">,
+  limit: number
+) {
+  const lifecycleQueues = await Promise.all(
+    activeFounderLifecycles.map((lifecycle) =>
+      ctx.db
+        .query("contentRequests")
+        .withIndex("by_organization_assignee_state_queue", (index) =>
+          index
+            .eq("organizationId", organizationId)
+            .eq("assigneePrincipalId", assigneePrincipalId)
+            .eq("retention", "active")
+            .eq("disposition", "active")
+            .eq("lifecycle", lifecycle)
+        )
+        .order("asc")
+        .take(limit)
+    )
+  )
+  return lifecycleQueues
+    .flat()
+    .sort(
+      (left, right) =>
+        (left.queueSortKey ?? "").localeCompare(right.queueSortKey ?? "") ||
+        left._id.localeCompare(right._id)
+    )
+    .slice(0, limit)
+}
+
 export const list = query({
   args: { limit: v.optional(v.number()) },
   returns: v.array(contentRequestValidator),
@@ -788,24 +822,12 @@ export const list = query({
     const limit = Math.min(Math.max(Math.trunc(args.limit ?? 50), 1), 100)
     const requests =
       principal.role === "founder"
-        ? (
-            await ctx.db
-              .query("contentRequests")
-              .withIndex("by_organization_assignee_queue_sort", (index) =>
-                index
-                  .eq("organizationId", principal.organizationId)
-                  .eq("assigneePrincipalId", principal._id)
-              )
-              .order("asc")
-              .collect()
+        ? await listActiveFounderRequests(
+            ctx,
+            principal.organizationId,
+            principal._id,
+            limit
           )
-            .filter(
-              (request) =>
-                request.retention === "active" &&
-                request.disposition === "active" &&
-                ["pending", "in_progress"].includes(request.lifecycle)
-            )
-            .slice(0, limit)
         : await ctx.db
             .query("contentRequests")
             .withIndex("by_organization_queue_sort", (index) =>
@@ -832,40 +854,25 @@ export const listFounderWorkspace = query({
         field: "founderEmail",
       })
     }
-    const principals = await ctx.db
+    const founder = await ctx.db
       .query("principals")
-      .withIndex("by_organization_subject", (index) =>
-        index.eq("organizationId", principal.organizationId)
+      .withIndex("by_organization_role_email", (index) =>
+        index
+          .eq("organizationId", principal.organizationId)
+          .eq("role", "founder")
+          .eq("email", founderEmail)
       )
-      .collect()
-    const founder = principals.find(
-      (candidate) =>
-        candidate.role === "founder" &&
-        candidate.kind !== "system" &&
-        candidate.email?.trim().toLowerCase() === founderEmail
-    )
-    if (!founder) {
+      .first()
+    if (!founder || founder.kind === "system") {
       throw new ConvexError({ code: "FOUNDER_WORKSPACE_NOT_FOUND" })
     }
     const limit = Math.min(Math.max(Math.trunc(args.limit ?? 50), 1), 100)
-    const requests = (
-      await ctx.db
-        .query("contentRequests")
-        .withIndex("by_organization_assignee_queue_sort", (index) =>
-          index
-            .eq("organizationId", principal.organizationId)
-            .eq("assigneePrincipalId", founder._id)
-        )
-        .order("asc")
-        .collect()
+    const requests = await listActiveFounderRequests(
+      ctx,
+      principal.organizationId,
+      founder._id,
+      limit
     )
-      .filter(
-        (request) =>
-          request.retention === "active" &&
-          request.disposition === "active" &&
-          ["pending", "in_progress"].includes(request.lifecycle)
-      )
-      .slice(0, limit)
     return Promise.all(requests.map((request) => toPublicRequest(ctx, request)))
   },
 })

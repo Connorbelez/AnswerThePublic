@@ -196,7 +196,8 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_organization_subject", ["organizationId", "subject"])
-    .index("by_organization_role", ["organizationId", "role"]),
+    .index("by_organization_role", ["organizationId", "role"])
+    .index("by_organization_role_email", ["organizationId", "role", "email"]),
   people: defineTable({
     organizationId: v.string(),
     displayName: v.string(),
@@ -307,6 +308,14 @@ export default defineSchema({
     .index("by_organization_assignee_queue_sort", [
       "organizationId",
       "assigneePrincipalId",
+      "queueSortKey",
+    ])
+    .index("by_organization_assignee_state_queue", [
+      "organizationId",
+      "assigneePrincipalId",
+      "retention",
+      "disposition",
+      "lifecycle",
       "queueSortKey",
     ])
     .searchIndex("search_content", {

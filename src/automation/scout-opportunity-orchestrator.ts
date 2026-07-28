@@ -43,6 +43,7 @@ export type ScoutOpportunityOrchestrationOptions = {
   readReport?: (path: string) => Promise<string>
   runCli?: CliRunner
   runConvexDev?: ConvexDevRunner
+  wait?: (milliseconds: number) => Promise<void>
 }
 
 export const SCOUT_ORCHESTRATION_EXIT = {
@@ -268,6 +269,10 @@ export async function orchestrateScoutOpportunities(
   }
 
   const runCli = options.runCli ?? runContentRequestsCli
+  const wait =
+    options.wait ??
+    ((milliseconds: number) =>
+      new Promise<void>((resolve) => setTimeout(resolve, milliseconds)))
   let lastFailure: Record<string, unknown> = {
     status: "ingestion_error",
     error: "The ingestion command did not complete.",
@@ -327,6 +332,7 @@ export async function orchestrateScoutOpportunities(
         error: error instanceof Error ? error.message : "CLI execution failed.",
       }
     }
+    if (attempt < 2) await wait(500 * attempt)
   }
 
   io.writeError(JSON.stringify(lastFailure))

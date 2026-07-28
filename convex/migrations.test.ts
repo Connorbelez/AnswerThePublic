@@ -459,4 +459,43 @@ describe("V1 migration deployment gate", () => {
       operator.query(internal.migrations.validateV1Invariants, {})
     ).resolves.toMatchObject({ issues: [] })
   })
+
+  it("normalizes legacy principal emails for direct indexed lookup", async () => {
+    const backend = convexTest(schema, modules).withIdentity(operatorIdentity)
+    await backend.run((ctx) =>
+      ctx.db.insert("principals", {
+        subject: "legacy-founder",
+        organizationId: "org_fairlend",
+        role: "founder",
+        kind: "human",
+        email: " Legacy.Founder@FairLend.CA ",
+        updatedAt: 1,
+      })
+    )
+
+    await expect(
+      backend.mutation(
+        internal.migrations.backfillNormalizedPrincipalEmails,
+        {}
+      )
+    ).resolves.toEqual({ migrated: 1, done: true })
+    await backend.run(async (ctx) => {
+      const founder = await ctx.db
+        .query("principals")
+        .withIndex("by_organization_role_email", (index) =>
+          index
+            .eq("organizationId", "org_fairlend")
+            .eq("role", "founder")
+            .eq("email", "legacy.founder@fairlend.ca")
+        )
+        .unique()
+      expect(founder?.subject).toBe("legacy-founder")
+    })
+    await expect(
+      backend.mutation(
+        internal.migrations.backfillNormalizedPrincipalEmails,
+        {}
+      )
+    ).resolves.toEqual({ migrated: 0, done: true })
+  })
 })

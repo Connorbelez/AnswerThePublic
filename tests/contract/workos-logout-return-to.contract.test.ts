@@ -32,4 +32,18 @@ describe("WorkOS logout returnTo", () => {
 
     expect(resolveWorkosLogoutReturnTo("/")).toBe("http://localhost:3000/")
   })
+
+  it("rejects network-path references instead of resolving an off-origin redirect", async () => {
+    getRequestUrl.mockReturnValue(new URL("https://app.fairlend.ca/logout"))
+    process.env.FAIRLEND_APP_URL = "https://fallback.fairlend.ca"
+    const { resolveWorkosLogoutReturnTo } =
+      await import("@/infrastructure/workos-logout-return-to.server")
+
+    expect(() => resolveWorkosLogoutReturnTo("//evil.example")).toThrow(
+      /network-path/i
+    )
+    expect(() => resolveWorkosLogoutReturnTo("\\\\evil.example")).toThrow(
+      /network-path/i
+    )
+  })
 })

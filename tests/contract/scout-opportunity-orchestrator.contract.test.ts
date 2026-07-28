@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   orchestrateScoutOpportunities,
@@ -33,6 +33,10 @@ function harness() {
 }
 
 describe("scheduled scout opportunity orchestration", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it("validates locally and derives a stable content-addressed idempotency key", async () => {
     const first = harness()
     const second = harness()
@@ -222,6 +226,7 @@ describe("scheduled scout opportunity orchestration", () => {
   })
 
   it("retries one transient failure with the same idempotency key", async () => {
+    vi.useFakeTimers()
     const result = harness()
     const keys: Array<string> = []
     const runCli = vi.fn(async (args, options) => {
@@ -238,7 +243,7 @@ describe("scheduled scout opportunity orchestration", () => {
       return 0
     })
 
-    const exitCode = await orchestrateScoutOpportunities(
+    const orchestration = orchestrateScoutOpportunities(
       { file: "report.md" },
       {
         io: result.io,
@@ -252,6 +257,13 @@ describe("scheduled scout opportunity orchestration", () => {
       }
     )
 
+    await vi.advanceTimersByTimeAsync(0)
+    expect(runCli).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(499)
+    expect(runCli).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+
+    const exitCode = await orchestration
     expect(exitCode).toBe(SCOUT_ORCHESTRATION_EXIT.success)
     expect(runCli).toHaveBeenCalledTimes(2)
     expect(keys[0]).toBe(keys[1])

@@ -5,7 +5,8 @@ import {
 
 function readFlag(args: Array<string>, flag: string) {
   const index = args.indexOf(flag)
-  return index >= 0 ? args[index + 1] : undefined
+  if (index < 0 || args[index + 1]?.startsWith("--")) return undefined
+  return args[index + 1]
 }
 
 function usage() {

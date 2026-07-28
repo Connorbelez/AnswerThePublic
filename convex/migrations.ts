@@ -153,6 +153,32 @@ export const backfillContentRequestTypes = internalMutation({
   },
 })
 
+export const backfillNormalizedPrincipalEmails = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  returns: v.object({ migrated: v.number(), done: v.boolean() }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("principals").paginate({
+      cursor: args.cursor ?? null,
+      numItems: 100,
+    })
+    let migrated = 0
+    for (const principal of page.page) {
+      const normalizedEmail = principal.email?.trim().toLowerCase()
+      if (!normalizedEmail || normalizedEmail === principal.email) continue
+      await ctx.db.patch(principal._id, { email: normalizedEmail })
+      migrated += 1
+    }
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.backfillNormalizedPrincipalEmails,
+        { cursor: page.continueCursor }
+      )
+    }
+    return { migrated, done: page.isDone }
+  },
+})
+
 export const backfillNormalizedSourceUrls = internalMutation({
   args: { cursor: v.optional(v.string()) },
   returns: v.object({ migrated: v.number(), done: v.boolean() }),

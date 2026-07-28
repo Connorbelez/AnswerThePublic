@@ -29,20 +29,34 @@ export function requiredLocalWorkosEnvironment(environment: NodeJS.ProcessEnv) {
   )
 }
 
+function quoteEnvironmentValue(value: string) {
+  if (!value.includes("'")) return `'${value}'`
+  if (!value.includes("`")) return `\`${value}\``
+  throw new Error(
+    "WorkOS environment values cannot contain both single quotes and backticks."
+  )
+}
+
+export function serializeConvexEnvironment(values: Record<string, string>) {
+  return `${Object.entries(values)
+    .map(([name, value]) => `${name}=${quoteEnvironmentValue(value)}`)
+    .join("\n")}\n`
+}
+
 export function syncConvexWorkosEnvironment(environment: NodeJS.ProcessEnv) {
   requirePersonalDevDeployment(environment.CONVEX_DEPLOYMENT)
   const values = requiredLocalWorkosEnvironment(environment)
-
-  for (const [name, value] of Object.entries(values)) {
-    const result = spawnSync("bunx", ["convex", "env", "set", name, value], {
-      cwd: process.cwd(),
-      env: environment,
-      stdio: "inherit",
-    })
-    if (result.error) throw result.error
-    if (result.status !== 0) {
-      throw new Error(`Failed to synchronize ${name} to Convex dev.`)
-    }
+  const result = spawnSync("bunx", ["convex", "env", "set", "--force"], {
+    cwd: process.cwd(),
+    env: environment,
+    input: serializeConvexEnvironment(values),
+    stdio: ["pipe", "inherit", "inherit"],
+  })
+  if (result.error) throw result.error
+  if (result.status !== 0) {
+    throw new Error(
+      "Failed to synchronize the WorkOS environment to Convex dev."
+    )
   }
 }
 

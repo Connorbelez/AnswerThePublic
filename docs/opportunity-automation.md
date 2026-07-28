@@ -11,7 +11,7 @@ credentialed non-development installations.
 
 The automation runs from this repository and reads the maintained research
 contract at
-`/Users/connor/Dev/fairlend-cms/artifacts/fairlend-community-media-opportunity-scout.md`.
+`artifacts/fairlend-community-media-opportunity-scout.md`.
 Every generated report is written to `.artifacts/opportunity-scout/` before any
 remote mutation. Generated reports are intentionally ignored by Git; successful
 ingestion preserves the report and raw opportunity evidence in the application.

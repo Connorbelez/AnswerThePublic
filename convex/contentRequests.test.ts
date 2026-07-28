@@ -623,7 +623,7 @@ describe("Content Request workflow contract", () => {
       issuer: "https://api.workos.com/",
       org_id: "org_fairlend",
       role: "founder",
-      email: "elie@fairlend.ca",
+      email: "ELIE@FAIRLEND.CA",
     })
     const administrator = workspace.withIdentity({
       subject: "user_admin",
@@ -635,6 +635,10 @@ describe("Content Request workflow contract", () => {
     await operator.mutation(api.principals.syncCurrent)
     const founderPrincipal = await founder.mutation(api.principals.syncCurrent)
     await administrator.mutation(api.principals.syncCurrent)
+    const storedFounder = await administrator.run((ctx) =>
+      ctx.db.get(founderPrincipal.principalId)
+    )
+    expect(storedFounder?.email).toBe("elie@fairlend.ca")
     const assigned = await operator.mutation(api.contentRequests.createManual, {
       title: "Assigned to Elie",
       origin: "manual",
@@ -704,6 +708,95 @@ describe("Content Request workflow contract", () => {
         correlationId: "corr-founder-denied",
       })
     ).rejects.toMatchObject({ data: { code: "ROLE_ACCESS_DENIED" } })
+  })
+
+  it("merges bounded pending and in-progress founder queues in queue order", async () => {
+    const workspace = convexTest(schema, modules)
+    const operator = workspace.withIdentity(operatorIdentity)
+    const founder = workspace.withIdentity({
+      subject: "user_bounded_founder",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "founder",
+      email: "bounded@fairlend.ca",
+    })
+    const administrator = workspace.withIdentity({
+      subject: "user_bounded_admin",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "administrator",
+      email: "admin@fairlend.ca",
+    })
+    const operatorPrincipal = await operator.mutation(
+      api.principals.syncCurrent
+    )
+    const founderPrincipal = await founder.mutation(api.principals.syncCurrent)
+    await administrator.mutation(api.principals.syncCurrent)
+
+    await administrator.run(async (ctx) => {
+      const fixtures = [
+        {
+          humanId: "CR-FOUNDER-ARCHIVED",
+          title: "Archived queue entry",
+          queueSortKey: "00",
+          lifecycle: "pending" as const,
+          retention: "archived" as const,
+        },
+        {
+          humanId: "CR-FOUNDER-RESPONDED",
+          title: "Responded queue entry",
+          queueSortKey: "01",
+          lifecycle: "responded" as const,
+          retention: "active" as const,
+        },
+        {
+          humanId: "CR-FOUNDER-PENDING",
+          title: "Pending queue entry",
+          queueSortKey: "02",
+          lifecycle: "pending" as const,
+          retention: "active" as const,
+        },
+        {
+          humanId: "CR-FOUNDER-IN-PROGRESS",
+          title: "In-progress queue entry",
+          queueSortKey: "03",
+          lifecycle: "in_progress" as const,
+          retention: "active" as const,
+        },
+      ]
+      for (const [index, fixture] of fixtures.entries()) {
+        await ctx.db.insert("contentRequests", {
+          ...fixture,
+          organizationId: "org_fairlend",
+          normalizedTitle: fixture.title.toLowerCase(),
+          searchText: fixture.title.toLowerCase(),
+          aliases: [],
+          origin: "manual",
+          priority: "critical",
+          disposition: "active",
+          aggregateVersion: 1,
+          assigneePrincipalId: founderPrincipal.principalId,
+          watcherPrincipalIds: [],
+          createdByPrincipalId: operatorPrincipal.principalId,
+          createdAt: index,
+          updatedAt: index,
+        })
+      }
+    })
+
+    const founderLibrary = await founder.query(api.contentRequests.list, {
+      limit: 2,
+    })
+    expect(founderLibrary.map((request) => request.title)).toEqual([
+      "Pending queue entry",
+      "In-progress queue entry",
+    ])
+    await expect(
+      administrator.query(api.contentRequests.listFounderWorkspace, {
+        founderEmail: "bounded@fairlend.ca",
+        limit: 2,
+      })
+    ).resolves.toEqual(founderLibrary)
   })
 
   it("autosaves only the assigned founder's text and exposes draft metadata without private content", async () => {

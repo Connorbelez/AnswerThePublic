@@ -38,6 +38,7 @@ playwright-report/
 .vscode/*
 !.vscode/extensions.json
 .idea/
+.cursor/hooks/state/
 *.suo
 *.ntvs*
 *.njsproj

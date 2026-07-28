@@ -39,6 +39,7 @@ compatible schema and before admitting normal traffic:
 ```bash
 bunx convex run --prod migrations:backfillAssignmentFields '{}'
 bunx convex run --prod migrations:backfillContentRequestTypes '{}'
+bunx convex run --prod migrations:backfillNormalizedPrincipalEmails '{}'
 bunx convex run --prod migrations:backfillNormalizedSourceUrls '{}'
 bunx convex run --prod migrations:backfillPrimaryDeliverables '{}'
 bunx convex run --prod migrations:backfillOriginalDeliveryTargets '{}'

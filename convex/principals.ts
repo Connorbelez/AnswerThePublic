@@ -111,7 +111,11 @@ async function syncIdentityPrincipal(
   if (existing?.kind === "system") {
     throw new ConvexError({ code: "RESERVED_SUBJECT" })
   }
-  const email = verifiedEmail?.trim() || identity.email || existing?.email
+  const email = (
+    verifiedEmail?.trim() ||
+    identity.email ||
+    existing?.email
+  )?.toLowerCase()
   const cleanedDisplayName =
     displayName?.trim() || existing?.displayName || undefined
   const fields = {
@@ -282,17 +286,15 @@ export const seedFounder = mutation({
       })
     }
 
-    const founders = await ctx.db
+    const existingByEmail = await ctx.db
       .query("principals")
-      .withIndex("by_organization_role", (index) =>
-        index.eq("organizationId", organizationId).eq("role", "founder")
+      .withIndex("by_organization_role_email", (index) =>
+        index
+          .eq("organizationId", organizationId)
+          .eq("role", "founder")
+          .eq("email", email)
       )
-      .collect()
-    const existingByEmail = founders.find(
-      (candidate) =>
-        candidate.kind !== "system" &&
-        candidate.email?.trim().toLowerCase() === email
-    )
+      .first()
     const existingBySubject = await ctx.db
       .query("principals")
       .withIndex("by_organization_subject", (index) =>
