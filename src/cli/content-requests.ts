@@ -1,3 +1,9 @@
+import {
+  getWorkOsCliAccessToken,
+  runWorkOsAuthCommand,
+  type CliAuthStore,
+} from "@/cli/content-requests-auth"
+
 type CliIo = {
   writeOut(value: string): void
   writeError(value: string): void
@@ -8,6 +14,10 @@ type CliOptions = {
   readFile?: (path: string) => Promise<string>
   env?: Record<string, string | undefined>
   io?: CliIo
+  authStore?: CliAuthStore
+  openUrl?: (url: string) => Promise<void> | void
+  sleep?: (milliseconds: number) => Promise<void>
+  now?: () => number
 }
 
 function readFlag(args: Array<string>, flag: string) {
@@ -24,6 +34,7 @@ function requireFlag(args: Array<string>, flag: string) {
 function usage() {
   return [
     "Content Requests CLI",
+    "  auth login|status|logout",
     "  list [--limit 50]",
     "  get <CR-ID>",
     "  find <ID, title, or fuzzy query>",
@@ -62,7 +73,7 @@ function usage() {
     "  target-reopen <target-id> [--idempotency-key key]",
     "  control <operation> [--json '{...}' | --file input.json] [--fields a,b] [--idempotency-key key]",
     "  bulk --file commands.json [--idempotency-key stable-batch-key]",
-    "Environment: CONTENT_REQUESTS_API_URL, CONTENT_REQUESTS_ACCESS_TOKEN",
+    "Environment: CONTENT_REQUESTS_API_URL; CONTENT_REQUESTS_ACCESS_TOKEN or WORKOS_CLIENT_ID + WORKOS_ORGANIZATION_ID",
   ].join("\n")
 }
 
@@ -81,10 +92,26 @@ export async function runContentRequestsCli(
     io.writeOut(usage())
     return 0
   }
+  if (command === "auth") {
+    return runWorkOsAuthCommand(args, {
+      fetchImpl,
+      env,
+      io,
+      authStore: options.authStore,
+      openUrl: options.openUrl,
+      sleep: options.sleep,
+      now: options.now,
+    })
+  }
   const baseUrl = env.CONTENT_REQUESTS_API_URL?.replace(/\/$/, "")
-  const token = env.CONTENT_REQUESTS_ACCESS_TOKEN
   if (!baseUrl) throw new Error("CONTENT_REQUESTS_API_URL is required.")
-  if (!token) throw new Error("CONTENT_REQUESTS_ACCESS_TOKEN is required.")
+  const token =
+    env.CONTENT_REQUESTS_ACCESS_TOKEN ??
+    (await getWorkOsCliAccessToken({
+      fetchImpl,
+      env,
+      authStore: options.authStore,
+    }))
   const headers = {
     authorization: `Bearer ${token}`,
     "content-type": "application/json",
