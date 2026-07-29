@@ -3,8 +3,9 @@
 The project-owned opportunity automation invokes the installed
 `$orchestrate-fairlend-opportunities` compound skill. One run performs two
 explicit stages: it first produces the maintained human-readable scout report,
-then locally validates and atomically ingests that complete report through the
-existing CLI/API boundary.
+then locally validates and atomically ingests that complete report into the
+configured Convex dev deployment. The HTTP API boundary remains available for
+credentialed non-development installations.
 
 ## Runtime contract
 
@@ -23,16 +24,31 @@ bun --env-file=.env.local run scout:orchestrate -- \
   --validate-only
 
 bun --env-file=.env.local run scout:orchestrate -- \
-  --file .artifacts/opportunity-scout/<report>.md
+  --file .artifacts/opportunity-scout/<report>.md \
+  --target convex-dev
 ```
 
 The orchestrator derives its idempotency key from the complete report SHA-256
 digest. Re-running the same artifact is therefore an idempotent replay, including
 after an ambiguous network failure.
 
-## Credentials
+## Convex dev target
 
-Set `CONTENT_REQUESTS_ACCESS_TOKEN` in `.env.local` to a dedicated WorkOS agent
+The project automation uses `--target convex-dev`. The orchestrator requires a
+`dev:<deployment>` `CONVEX_DEPLOYMENT`, requires `VITE_CONVEX_URL` to name that
+same deployment, and invokes Convex with `--deployment dev`. Any production or
+mismatched target fails before mutation. It synchronizes the dedicated
+`workos-agent:codex-dev-opportunity-automation` principal and attributes each
+request to it.
+
+The local machine must be authenticated to the Convex project, and
+`FAIRLEND_WORKOS_ORGANIZATION_ID` must match the dev deployment configuration.
+No production deployment is mutated by this target.
+
+## HTTP API target
+
+Use `--target api` (the command default) and set
+`CONTENT_REQUESTS_ACCESS_TOKEN` in `.env.local` to a dedicated WorkOS agent
 installation credential for this automation. Set `CONTENT_REQUESTS_API_URL`, or
 use the existing `FAIRLEND_APP_URL` fallback. Never store either credential in
 the Codex automation prompt or a generated report.

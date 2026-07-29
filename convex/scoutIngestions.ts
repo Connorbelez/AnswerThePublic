@@ -197,6 +197,7 @@ export const apply = mutation({
             title: opportunity.title,
             normalizedTitle: normalizeText(opportunity.title),
             searchText: `${opportunity.title} ${existing.aliases.join(" ")} ${opportunity.question ?? ""} ${opportunity.normalizedSourceUrl}`,
+            requestType: existing.requestType ?? "standard",
             priority,
             timingLabel: opportunity.timingLabel,
             expiresAt,
@@ -218,6 +219,7 @@ export const apply = mutation({
           })
         } else {
           await ctx.db.patch(requestId, {
+            requestType: existing.requestType ?? "standard",
             timingLabel: opportunity.timingLabel,
             latestIngestionRunId: ingestionRunId,
             priority: "critical",
@@ -234,6 +236,7 @@ export const apply = mutation({
           normalizedTitle: normalizeText(opportunity.title),
           searchText: `${opportunity.title} ${opportunity.question ?? ""} ${opportunity.normalizedSourceUrl}`,
           aliases: [],
+          requestType: "standard",
           origin: "automated_scout",
           priority,
           normalizedSourceUrl: opportunity.normalizedSourceUrl,

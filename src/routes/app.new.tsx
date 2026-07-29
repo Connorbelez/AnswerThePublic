@@ -1,10 +1,11 @@
 import { useState } from "react"
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router"
+import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { useServerFn } from "@tanstack/react-start"
 import { ArrowLeft, LoaderCircle } from "lucide-react"
 
 import { createManualContentRequest } from "@/application/content-request-server-functions"
 import { Button } from "@/components/ui/button"
+import { ButtonLink } from "@/components/ui/button-link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Field,
@@ -29,14 +30,14 @@ function NewRequestPage() {
   const hydrated = useHydrated()
 
   return (
-    <main className="workspace workspace--narrow">
-      <Button variant="ghost" render={<Link to="/app" />}>
+    <main className="workspace workspace--narrow" id="main-content">
+      <ButtonLink variant="ghost" to="/app">
         <ArrowLeft data-icon="inline-start" />
         Content requests
-      </Button>
-      <Card className="request-form-card" tone="elevated">
+      </ButtonLink>
+      <Card className="request-form-card platform-panel" tone="elevated">
         <CardHeader>
-          <CardTitle as="h1">Create a Content Request</CardTitle>
+          <CardTitle as="h1">Create a content request</CardTitle>
           <p>
             Direct asks are Critical by default. Add only what you know—the rest
             can stay blank.
@@ -124,9 +125,9 @@ function NewRequestPage() {
             </FieldGroup>
             {error ? <FieldError>{error}</FieldError> : null}
             <div className="form-actions">
-              <Button variant="ghost" render={<Link to="/app" />}>
+              <ButtonLink variant="ghost" to="/app">
                 Cancel
-              </Button>
+              </ButtonLink>
               <Button type="submit" disabled={submitting || !hydrated}>
                 {submitting ? <LoaderCircle className="animate-spin" /> : null}
                 Create Critical request

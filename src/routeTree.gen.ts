@@ -8,462 +8,462 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from "./routes/__root"
-import { Route as IndexRouteImport } from "./routes/index"
-import { Route as AppRouteImport } from "./routes/app"
-import { Route as LogoutRouteImport } from "./routes/logout"
-import { Route as SignInRouteImport } from "./routes/sign-in"
-import { Route as UnauthorizedRouteImport } from "./routes/unauthorized"
-import { Route as ApiWorkspaceViewRouteImport } from "./routes/api/workspace-view"
-import { Route as AppIndexRouteImport } from "./routes/app.index"
-import { Route as AppExpertisePrototypeRouteImport } from "./routes/app.expertise-prototype"
-import { Route as AppNewRouteImport } from "./routes/app.new"
-import { Route as RespondTokenRouteImport } from "./routes/respond.$token"
-import { Route as ShareTokenRouteImport } from "./routes/share.$token"
-import { Route as ApiAuthCallbackRouteImport } from "./routes/api/auth/callback"
-import { Route as ApiAuthSignInRouteImport } from "./routes/api/auth/sign-in"
-import { Route as ApiChatgptMcpRouteImport } from "./routes/api/chatgpt/mcp"
-import { Route as ApiE2eAutomatedRequestRouteImport } from "./routes/api/e2e/automated-request"
-import { Route as ApiE2eGuestGrantStateRouteImport } from "./routes/api/e2e/guest-grant-state"
-import { Route as ApiE2ePublicShareRouteImport } from "./routes/api/e2e/public-share"
-import { Route as ApiE2eSettleTranscriptionRouteImport } from "./routes/api/e2e/settle-transcription"
-import { Route as ApiE2eStorageUploadRouteImport } from "./routes/api/e2e/storage-upload"
-import { Route as ApiV1AgentJobsRouteImport } from "./routes/api/v1/agent-jobs"
-import { Route as ApiV1ContentRequestsRouteImport } from "./routes/api/v1/content-requests"
-import { Route as ApiV1ControlRouteImport } from "./routes/api/v1/control"
-import { Route as ApiV1ScoutIngestionsRouteImport } from "./routes/api/v1/scout-ingestions"
-import { Route as AppRequestsRequestIdRouteImport } from "./routes/app.requests.$requestId"
-import { Route as ApiV1AgentJobsJobIdRouteImport } from "./routes/api/v1/agent-jobs.$jobId"
-import { Route as ApiV1CliContentRequestsRouteImport } from "./routes/api/v1/cli/content-requests"
-import { Route as ApiV1CliControlRouteImport } from "./routes/api/v1/cli/control"
-import { Route as ApiV1CliScoutIngestionsRouteImport } from "./routes/api/v1/cli/scout-ingestions"
-import { Route as ApiV1ContentRequestsRequestIdRouteImport } from "./routes/api/v1/content-requests.$requestId"
-import { Route as ApiV1DeliverablesDeliverableIdRouteImport } from "./routes/api/v1/deliverables.$deliverableId"
-import { Route as ApiV1DeliveryTargetsTargetIdRouteImport } from "./routes/api/v1/delivery-targets.$targetId"
-import { Route as ApiV1SemanticConflictsConflictIdRouteImport } from "./routes/api/v1/semantic-conflicts.$conflictId"
-import { Route as ApiV1CliContentRequestsRequestIdRouteImport } from "./routes/api/v1/cli/content-requests.$requestId"
-import { Route as ApiV1ContentRequestsRequestIdDeliverablesRouteImport } from "./routes/api/v1/content-requests.$requestId.deliverables"
-import { Route as ApiV1ContentRequestsRequestIdDeliveryTargetsRouteImport } from "./routes/api/v1/content-requests.$requestId.delivery-targets"
-import { Route as ApiV1ContentRequestsRequestIdSemanticConflictsRouteImport } from "./routes/api/v1/content-requests.$requestId.semantic-conflicts"
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/app'
+import { Route as LogoutRouteImport } from './routes/logout'
+import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as UnauthorizedRouteImport } from './routes/unauthorized'
+import { Route as ApiWorkspaceViewRouteImport } from './routes/api/workspace-view'
+import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as AppExpertisePrototypeRouteImport } from './routes/app.expertise-prototype'
+import { Route as AppNewRouteImport } from './routes/app.new'
+import { Route as RespondTokenRouteImport } from './routes/respond.$token'
+import { Route as ShareTokenRouteImport } from './routes/share.$token'
+import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
+import { Route as ApiAuthSignInRouteImport } from './routes/api/auth/sign-in'
+import { Route as ApiChatgptMcpRouteImport } from './routes/api/chatgpt/mcp'
+import { Route as ApiE2eAutomatedRequestRouteImport } from './routes/api/e2e/automated-request'
+import { Route as ApiE2eGuestGrantStateRouteImport } from './routes/api/e2e/guest-grant-state'
+import { Route as ApiE2ePublicShareRouteImport } from './routes/api/e2e/public-share'
+import { Route as ApiE2eSettleTranscriptionRouteImport } from './routes/api/e2e/settle-transcription'
+import { Route as ApiE2eStorageUploadRouteImport } from './routes/api/e2e/storage-upload'
+import { Route as ApiV1AgentJobsRouteImport } from './routes/api/v1/agent-jobs'
+import { Route as ApiV1ContentRequestsRouteImport } from './routes/api/v1/content-requests'
+import { Route as ApiV1ControlRouteImport } from './routes/api/v1/control'
+import { Route as ApiV1ScoutIngestionsRouteImport } from './routes/api/v1/scout-ingestions'
+import { Route as AppRequestsRequestIdRouteImport } from './routes/app.requests.$requestId'
+import { Route as ApiV1AgentJobsJobIdRouteImport } from './routes/api/v1/agent-jobs.$jobId'
+import { Route as ApiV1CliContentRequestsRouteImport } from './routes/api/v1/cli/content-requests'
+import { Route as ApiV1CliControlRouteImport } from './routes/api/v1/cli/control'
+import { Route as ApiV1CliScoutIngestionsRouteImport } from './routes/api/v1/cli/scout-ingestions'
+import { Route as ApiV1ContentRequestsRequestIdRouteImport } from './routes/api/v1/content-requests.$requestId'
+import { Route as ApiV1DeliverablesDeliverableIdRouteImport } from './routes/api/v1/deliverables.$deliverableId'
+import { Route as ApiV1DeliveryTargetsTargetIdRouteImport } from './routes/api/v1/delivery-targets.$targetId'
+import { Route as ApiV1SemanticConflictsConflictIdRouteImport } from './routes/api/v1/semantic-conflicts.$conflictId'
+import { Route as ApiV1CliContentRequestsRequestIdRouteImport } from './routes/api/v1/cli/content-requests.$requestId'
+import { Route as ApiV1ContentRequestsRequestIdDeliverablesRouteImport } from './routes/api/v1/content-requests.$requestId.deliverables'
+import { Route as ApiV1ContentRequestsRequestIdDeliveryTargetsRouteImport } from './routes/api/v1/content-requests.$requestId.delivery-targets'
+import { Route as ApiV1ContentRequestsRequestIdSemanticConflictsRouteImport } from './routes/api/v1/content-requests.$requestId.semantic-conflicts'
 
 const IndexRoute = IndexRouteImport.update({
-  id: "/",
-  path: "/",
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppRoute = AppRouteImport.update({
-  id: "/app",
-  path: "/app",
+  id: '/app',
+  path: '/app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LogoutRoute = LogoutRouteImport.update({
-  id: "/logout",
-  path: "/logout",
+  id: '/logout',
+  path: '/logout',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignInRoute = SignInRouteImport.update({
-  id: "/sign-in",
-  path: "/sign-in",
+  id: '/sign-in',
+  path: '/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UnauthorizedRoute = UnauthorizedRouteImport.update({
-  id: "/unauthorized",
-  path: "/unauthorized",
+  id: '/unauthorized',
+  path: '/unauthorized',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWorkspaceViewRoute = ApiWorkspaceViewRouteImport.update({
-  id: "/api/workspace-view",
-  path: "/api/workspace-view",
+  id: '/api/workspace-view',
+  path: '/api/workspace-view',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
-  id: "/",
-  path: "/",
+  id: '/',
+  path: '/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppExpertisePrototypeRoute = AppExpertisePrototypeRouteImport.update({
-  id: "/expertise-prototype",
-  path: "/expertise-prototype",
+  id: '/expertise-prototype',
+  path: '/expertise-prototype',
   getParentRoute: () => AppRoute,
 } as any)
 const AppNewRoute = AppNewRouteImport.update({
-  id: "/new",
-  path: "/new",
+  id: '/new',
+  path: '/new',
   getParentRoute: () => AppRoute,
 } as any)
 const RespondTokenRoute = RespondTokenRouteImport.update({
-  id: "/respond/$token",
-  path: "/respond/$token",
+  id: '/respond/$token',
+  path: '/respond/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShareTokenRoute = ShareTokenRouteImport.update({
-  id: "/share/$token",
-  path: "/share/$token",
+  id: '/share/$token',
+  path: '/share/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthCallbackRoute = ApiAuthCallbackRouteImport.update({
-  id: "/api/auth/callback",
-  path: "/api/auth/callback",
+  id: '/api/auth/callback',
+  path: '/api/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSignInRoute = ApiAuthSignInRouteImport.update({
-  id: "/api/auth/sign-in",
-  path: "/api/auth/sign-in",
+  id: '/api/auth/sign-in',
+  path: '/api/auth/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatgptMcpRoute = ApiChatgptMcpRouteImport.update({
-  id: "/api/chatgpt/mcp",
-  path: "/api/chatgpt/mcp",
+  id: '/api/chatgpt/mcp',
+  path: '/api/chatgpt/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiE2eAutomatedRequestRoute = ApiE2eAutomatedRequestRouteImport.update({
-  id: "/api/e2e/automated-request",
-  path: "/api/e2e/automated-request",
+  id: '/api/e2e/automated-request',
+  path: '/api/e2e/automated-request',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiE2eGuestGrantStateRoute = ApiE2eGuestGrantStateRouteImport.update({
-  id: "/api/e2e/guest-grant-state",
-  path: "/api/e2e/guest-grant-state",
+  id: '/api/e2e/guest-grant-state',
+  path: '/api/e2e/guest-grant-state',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiE2ePublicShareRoute = ApiE2ePublicShareRouteImport.update({
-  id: "/api/e2e/public-share",
-  path: "/api/e2e/public-share",
+  id: '/api/e2e/public-share',
+  path: '/api/e2e/public-share',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiE2eSettleTranscriptionRoute =
   ApiE2eSettleTranscriptionRouteImport.update({
-    id: "/api/e2e/settle-transcription",
-    path: "/api/e2e/settle-transcription",
+    id: '/api/e2e/settle-transcription',
+    path: '/api/e2e/settle-transcription',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiE2eStorageUploadRoute = ApiE2eStorageUploadRouteImport.update({
-  id: "/api/e2e/storage-upload",
-  path: "/api/e2e/storage-upload",
+  id: '/api/e2e/storage-upload',
+  path: '/api/e2e/storage-upload',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1AgentJobsRoute = ApiV1AgentJobsRouteImport.update({
-  id: "/api/v1/agent-jobs",
-  path: "/api/v1/agent-jobs",
+  id: '/api/v1/agent-jobs',
+  path: '/api/v1/agent-jobs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1ContentRequestsRoute = ApiV1ContentRequestsRouteImport.update({
-  id: "/api/v1/content-requests",
-  path: "/api/v1/content-requests",
+  id: '/api/v1/content-requests',
+  path: '/api/v1/content-requests',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1ControlRoute = ApiV1ControlRouteImport.update({
-  id: "/api/v1/control",
-  path: "/api/v1/control",
+  id: '/api/v1/control',
+  path: '/api/v1/control',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1ScoutIngestionsRoute = ApiV1ScoutIngestionsRouteImport.update({
-  id: "/api/v1/scout-ingestions",
-  path: "/api/v1/scout-ingestions",
+  id: '/api/v1/scout-ingestions',
+  path: '/api/v1/scout-ingestions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppRequestsRequestIdRoute = AppRequestsRequestIdRouteImport.update({
-  id: "/requests/$requestId",
-  path: "/requests/$requestId",
+  id: '/requests/$requestId',
+  path: '/requests/$requestId',
   getParentRoute: () => AppRoute,
 } as any)
 const ApiV1AgentJobsJobIdRoute = ApiV1AgentJobsJobIdRouteImport.update({
-  id: "/$jobId",
-  path: "/$jobId",
+  id: '/$jobId',
+  path: '/$jobId',
   getParentRoute: () => ApiV1AgentJobsRoute,
 } as any)
 const ApiV1CliContentRequestsRoute = ApiV1CliContentRequestsRouteImport.update({
-  id: "/api/v1/cli/content-requests",
-  path: "/api/v1/cli/content-requests",
+  id: '/api/v1/cli/content-requests',
+  path: '/api/v1/cli/content-requests',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1CliControlRoute = ApiV1CliControlRouteImport.update({
-  id: "/api/v1/cli/control",
-  path: "/api/v1/cli/control",
+  id: '/api/v1/cli/control',
+  path: '/api/v1/cli/control',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1CliScoutIngestionsRoute = ApiV1CliScoutIngestionsRouteImport.update({
-  id: "/api/v1/cli/scout-ingestions",
-  path: "/api/v1/cli/scout-ingestions",
+  id: '/api/v1/cli/scout-ingestions',
+  path: '/api/v1/cli/scout-ingestions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1ContentRequestsRequestIdRoute =
   ApiV1ContentRequestsRequestIdRouteImport.update({
-    id: "/$requestId",
-    path: "/$requestId",
+    id: '/$requestId',
+    path: '/$requestId',
     getParentRoute: () => ApiV1ContentRequestsRoute,
   } as any)
 const ApiV1DeliverablesDeliverableIdRoute =
   ApiV1DeliverablesDeliverableIdRouteImport.update({
-    id: "/api/v1/deliverables/$deliverableId",
-    path: "/api/v1/deliverables/$deliverableId",
+    id: '/api/v1/deliverables/$deliverableId',
+    path: '/api/v1/deliverables/$deliverableId',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiV1DeliveryTargetsTargetIdRoute =
   ApiV1DeliveryTargetsTargetIdRouteImport.update({
-    id: "/api/v1/delivery-targets/$targetId",
-    path: "/api/v1/delivery-targets/$targetId",
+    id: '/api/v1/delivery-targets/$targetId',
+    path: '/api/v1/delivery-targets/$targetId',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiV1SemanticConflictsConflictIdRoute =
   ApiV1SemanticConflictsConflictIdRouteImport.update({
-    id: "/api/v1/semantic-conflicts/$conflictId",
-    path: "/api/v1/semantic-conflicts/$conflictId",
+    id: '/api/v1/semantic-conflicts/$conflictId',
+    path: '/api/v1/semantic-conflicts/$conflictId',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiV1CliContentRequestsRequestIdRoute =
   ApiV1CliContentRequestsRequestIdRouteImport.update({
-    id: "/$requestId",
-    path: "/$requestId",
+    id: '/$requestId',
+    path: '/$requestId',
     getParentRoute: () => ApiV1CliContentRequestsRoute,
   } as any)
 const ApiV1ContentRequestsRequestIdDeliverablesRoute =
   ApiV1ContentRequestsRequestIdDeliverablesRouteImport.update({
-    id: "/deliverables",
-    path: "/deliverables",
+    id: '/deliverables',
+    path: '/deliverables',
     getParentRoute: () => ApiV1ContentRequestsRequestIdRoute,
   } as any)
 const ApiV1ContentRequestsRequestIdDeliveryTargetsRoute =
   ApiV1ContentRequestsRequestIdDeliveryTargetsRouteImport.update({
-    id: "/delivery-targets",
-    path: "/delivery-targets",
+    id: '/delivery-targets',
+    path: '/delivery-targets',
     getParentRoute: () => ApiV1ContentRequestsRequestIdRoute,
   } as any)
 const ApiV1ContentRequestsRequestIdSemanticConflictsRoute =
   ApiV1ContentRequestsRequestIdSemanticConflictsRouteImport.update({
-    id: "/semantic-conflicts",
-    path: "/semantic-conflicts",
+    id: '/semantic-conflicts',
+    path: '/semantic-conflicts',
     getParentRoute: () => ApiV1ContentRequestsRequestIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
-  "/": typeof IndexRoute
-  "/app": typeof AppRouteWithChildren
-  "/logout": typeof LogoutRoute
-  "/sign-in": typeof SignInRoute
-  "/unauthorized": typeof UnauthorizedRoute
-  "/api/workspace-view": typeof ApiWorkspaceViewRoute
-  "/app/expertise-prototype": typeof AppExpertisePrototypeRoute
-  "/app/new": typeof AppNewRoute
-  "/respond/$token": typeof RespondTokenRoute
-  "/share/$token": typeof ShareTokenRoute
-  "/app/": typeof AppIndexRoute
-  "/api/auth/callback": typeof ApiAuthCallbackRoute
-  "/api/auth/sign-in": typeof ApiAuthSignInRoute
-  "/api/chatgpt/mcp": typeof ApiChatgptMcpRoute
-  "/api/e2e/automated-request": typeof ApiE2eAutomatedRequestRoute
-  "/api/e2e/guest-grant-state": typeof ApiE2eGuestGrantStateRoute
-  "/api/e2e/public-share": typeof ApiE2ePublicShareRoute
-  "/api/e2e/settle-transcription": typeof ApiE2eSettleTranscriptionRoute
-  "/api/e2e/storage-upload": typeof ApiE2eStorageUploadRoute
-  "/api/v1/agent-jobs": typeof ApiV1AgentJobsRouteWithChildren
-  "/api/v1/content-requests": typeof ApiV1ContentRequestsRouteWithChildren
-  "/api/v1/control": typeof ApiV1ControlRoute
-  "/api/v1/scout-ingestions": typeof ApiV1ScoutIngestionsRoute
-  "/app/requests/$requestId": typeof AppRequestsRequestIdRoute
-  "/api/v1/agent-jobs/$jobId": typeof ApiV1AgentJobsJobIdRoute
-  "/api/v1/cli/content-requests": typeof ApiV1CliContentRequestsRouteWithChildren
-  "/api/v1/cli/control": typeof ApiV1CliControlRoute
-  "/api/v1/cli/scout-ingestions": typeof ApiV1CliScoutIngestionsRoute
-  "/api/v1/content-requests/$requestId": typeof ApiV1ContentRequestsRequestIdRouteWithChildren
-  "/api/v1/deliverables/$deliverableId": typeof ApiV1DeliverablesDeliverableIdRoute
-  "/api/v1/delivery-targets/$targetId": typeof ApiV1DeliveryTargetsTargetIdRoute
-  "/api/v1/semantic-conflicts/$conflictId": typeof ApiV1SemanticConflictsConflictIdRoute
-  "/api/v1/cli/content-requests/$requestId": typeof ApiV1CliContentRequestsRequestIdRoute
-  "/api/v1/content-requests/$requestId/deliverables": typeof ApiV1ContentRequestsRequestIdDeliverablesRoute
-  "/api/v1/content-requests/$requestId/delivery-targets": typeof ApiV1ContentRequestsRequestIdDeliveryTargetsRoute
-  "/api/v1/content-requests/$requestId/semantic-conflicts": typeof ApiV1ContentRequestsRequestIdSemanticConflictsRoute
+  '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
+  '/logout': typeof LogoutRoute
+  '/sign-in': typeof SignInRoute
+  '/unauthorized': typeof UnauthorizedRoute
+  '/api/workspace-view': typeof ApiWorkspaceViewRoute
+  '/app/expertise-prototype': typeof AppExpertisePrototypeRoute
+  '/app/new': typeof AppNewRoute
+  '/respond/$token': typeof RespondTokenRoute
+  '/share/$token': typeof ShareTokenRoute
+  '/app/': typeof AppIndexRoute
+  '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/auth/sign-in': typeof ApiAuthSignInRoute
+  '/api/chatgpt/mcp': typeof ApiChatgptMcpRoute
+  '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
+  '/api/e2e/guest-grant-state': typeof ApiE2eGuestGrantStateRoute
+  '/api/e2e/public-share': typeof ApiE2ePublicShareRoute
+  '/api/e2e/settle-transcription': typeof ApiE2eSettleTranscriptionRoute
+  '/api/e2e/storage-upload': typeof ApiE2eStorageUploadRoute
+  '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
+  '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
+  '/api/v1/control': typeof ApiV1ControlRoute
+  '/api/v1/scout-ingestions': typeof ApiV1ScoutIngestionsRoute
+  '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
+  '/api/v1/agent-jobs/$jobId': typeof ApiV1AgentJobsJobIdRoute
+  '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
+  '/api/v1/cli/control': typeof ApiV1CliControlRoute
+  '/api/v1/cli/scout-ingestions': typeof ApiV1CliScoutIngestionsRoute
+  '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRouteWithChildren
+  '/api/v1/deliverables/$deliverableId': typeof ApiV1DeliverablesDeliverableIdRoute
+  '/api/v1/delivery-targets/$targetId': typeof ApiV1DeliveryTargetsTargetIdRoute
+  '/api/v1/semantic-conflicts/$conflictId': typeof ApiV1SemanticConflictsConflictIdRoute
+  '/api/v1/cli/content-requests/$requestId': typeof ApiV1CliContentRequestsRequestIdRoute
+  '/api/v1/content-requests/$requestId/deliverables': typeof ApiV1ContentRequestsRequestIdDeliverablesRoute
+  '/api/v1/content-requests/$requestId/delivery-targets': typeof ApiV1ContentRequestsRequestIdDeliveryTargetsRoute
+  '/api/v1/content-requests/$requestId/semantic-conflicts': typeof ApiV1ContentRequestsRequestIdSemanticConflictsRoute
 }
 export interface FileRoutesByTo {
-  "/": typeof IndexRoute
-  "/logout": typeof LogoutRoute
-  "/sign-in": typeof SignInRoute
-  "/unauthorized": typeof UnauthorizedRoute
-  "/api/workspace-view": typeof ApiWorkspaceViewRoute
-  "/app/expertise-prototype": typeof AppExpertisePrototypeRoute
-  "/app/new": typeof AppNewRoute
-  "/respond/$token": typeof RespondTokenRoute
-  "/share/$token": typeof ShareTokenRoute
-  "/app": typeof AppIndexRoute
-  "/api/auth/callback": typeof ApiAuthCallbackRoute
-  "/api/auth/sign-in": typeof ApiAuthSignInRoute
-  "/api/chatgpt/mcp": typeof ApiChatgptMcpRoute
-  "/api/e2e/automated-request": typeof ApiE2eAutomatedRequestRoute
-  "/api/e2e/guest-grant-state": typeof ApiE2eGuestGrantStateRoute
-  "/api/e2e/public-share": typeof ApiE2ePublicShareRoute
-  "/api/e2e/settle-transcription": typeof ApiE2eSettleTranscriptionRoute
-  "/api/e2e/storage-upload": typeof ApiE2eStorageUploadRoute
-  "/api/v1/agent-jobs": typeof ApiV1AgentJobsRouteWithChildren
-  "/api/v1/content-requests": typeof ApiV1ContentRequestsRouteWithChildren
-  "/api/v1/control": typeof ApiV1ControlRoute
-  "/api/v1/scout-ingestions": typeof ApiV1ScoutIngestionsRoute
-  "/app/requests/$requestId": typeof AppRequestsRequestIdRoute
-  "/api/v1/agent-jobs/$jobId": typeof ApiV1AgentJobsJobIdRoute
-  "/api/v1/cli/content-requests": typeof ApiV1CliContentRequestsRouteWithChildren
-  "/api/v1/cli/control": typeof ApiV1CliControlRoute
-  "/api/v1/cli/scout-ingestions": typeof ApiV1CliScoutIngestionsRoute
-  "/api/v1/content-requests/$requestId": typeof ApiV1ContentRequestsRequestIdRouteWithChildren
-  "/api/v1/deliverables/$deliverableId": typeof ApiV1DeliverablesDeliverableIdRoute
-  "/api/v1/delivery-targets/$targetId": typeof ApiV1DeliveryTargetsTargetIdRoute
-  "/api/v1/semantic-conflicts/$conflictId": typeof ApiV1SemanticConflictsConflictIdRoute
-  "/api/v1/cli/content-requests/$requestId": typeof ApiV1CliContentRequestsRequestIdRoute
-  "/api/v1/content-requests/$requestId/deliverables": typeof ApiV1ContentRequestsRequestIdDeliverablesRoute
-  "/api/v1/content-requests/$requestId/delivery-targets": typeof ApiV1ContentRequestsRequestIdDeliveryTargetsRoute
-  "/api/v1/content-requests/$requestId/semantic-conflicts": typeof ApiV1ContentRequestsRequestIdSemanticConflictsRoute
+  '/': typeof IndexRoute
+  '/logout': typeof LogoutRoute
+  '/sign-in': typeof SignInRoute
+  '/unauthorized': typeof UnauthorizedRoute
+  '/api/workspace-view': typeof ApiWorkspaceViewRoute
+  '/app/expertise-prototype': typeof AppExpertisePrototypeRoute
+  '/app/new': typeof AppNewRoute
+  '/respond/$token': typeof RespondTokenRoute
+  '/share/$token': typeof ShareTokenRoute
+  '/app': typeof AppIndexRoute
+  '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/auth/sign-in': typeof ApiAuthSignInRoute
+  '/api/chatgpt/mcp': typeof ApiChatgptMcpRoute
+  '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
+  '/api/e2e/guest-grant-state': typeof ApiE2eGuestGrantStateRoute
+  '/api/e2e/public-share': typeof ApiE2ePublicShareRoute
+  '/api/e2e/settle-transcription': typeof ApiE2eSettleTranscriptionRoute
+  '/api/e2e/storage-upload': typeof ApiE2eStorageUploadRoute
+  '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
+  '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
+  '/api/v1/control': typeof ApiV1ControlRoute
+  '/api/v1/scout-ingestions': typeof ApiV1ScoutIngestionsRoute
+  '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
+  '/api/v1/agent-jobs/$jobId': typeof ApiV1AgentJobsJobIdRoute
+  '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
+  '/api/v1/cli/control': typeof ApiV1CliControlRoute
+  '/api/v1/cli/scout-ingestions': typeof ApiV1CliScoutIngestionsRoute
+  '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRouteWithChildren
+  '/api/v1/deliverables/$deliverableId': typeof ApiV1DeliverablesDeliverableIdRoute
+  '/api/v1/delivery-targets/$targetId': typeof ApiV1DeliveryTargetsTargetIdRoute
+  '/api/v1/semantic-conflicts/$conflictId': typeof ApiV1SemanticConflictsConflictIdRoute
+  '/api/v1/cli/content-requests/$requestId': typeof ApiV1CliContentRequestsRequestIdRoute
+  '/api/v1/content-requests/$requestId/deliverables': typeof ApiV1ContentRequestsRequestIdDeliverablesRoute
+  '/api/v1/content-requests/$requestId/delivery-targets': typeof ApiV1ContentRequestsRequestIdDeliveryTargetsRoute
+  '/api/v1/content-requests/$requestId/semantic-conflicts': typeof ApiV1ContentRequestsRequestIdSemanticConflictsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  "/": typeof IndexRoute
-  "/app": typeof AppRouteWithChildren
-  "/logout": typeof LogoutRoute
-  "/sign-in": typeof SignInRoute
-  "/unauthorized": typeof UnauthorizedRoute
-  "/api/workspace-view": typeof ApiWorkspaceViewRoute
-  "/app/expertise-prototype": typeof AppExpertisePrototypeRoute
-  "/app/new": typeof AppNewRoute
-  "/respond/$token": typeof RespondTokenRoute
-  "/share/$token": typeof ShareTokenRoute
-  "/app/": typeof AppIndexRoute
-  "/api/auth/callback": typeof ApiAuthCallbackRoute
-  "/api/auth/sign-in": typeof ApiAuthSignInRoute
-  "/api/chatgpt/mcp": typeof ApiChatgptMcpRoute
-  "/api/e2e/automated-request": typeof ApiE2eAutomatedRequestRoute
-  "/api/e2e/guest-grant-state": typeof ApiE2eGuestGrantStateRoute
-  "/api/e2e/public-share": typeof ApiE2ePublicShareRoute
-  "/api/e2e/settle-transcription": typeof ApiE2eSettleTranscriptionRoute
-  "/api/e2e/storage-upload": typeof ApiE2eStorageUploadRoute
-  "/api/v1/agent-jobs": typeof ApiV1AgentJobsRouteWithChildren
-  "/api/v1/content-requests": typeof ApiV1ContentRequestsRouteWithChildren
-  "/api/v1/control": typeof ApiV1ControlRoute
-  "/api/v1/scout-ingestions": typeof ApiV1ScoutIngestionsRoute
-  "/app/requests/$requestId": typeof AppRequestsRequestIdRoute
-  "/api/v1/agent-jobs/$jobId": typeof ApiV1AgentJobsJobIdRoute
-  "/api/v1/cli/content-requests": typeof ApiV1CliContentRequestsRouteWithChildren
-  "/api/v1/cli/control": typeof ApiV1CliControlRoute
-  "/api/v1/cli/scout-ingestions": typeof ApiV1CliScoutIngestionsRoute
-  "/api/v1/content-requests/$requestId": typeof ApiV1ContentRequestsRequestIdRouteWithChildren
-  "/api/v1/deliverables/$deliverableId": typeof ApiV1DeliverablesDeliverableIdRoute
-  "/api/v1/delivery-targets/$targetId": typeof ApiV1DeliveryTargetsTargetIdRoute
-  "/api/v1/semantic-conflicts/$conflictId": typeof ApiV1SemanticConflictsConflictIdRoute
-  "/api/v1/cli/content-requests/$requestId": typeof ApiV1CliContentRequestsRequestIdRoute
-  "/api/v1/content-requests/$requestId/deliverables": typeof ApiV1ContentRequestsRequestIdDeliverablesRoute
-  "/api/v1/content-requests/$requestId/delivery-targets": typeof ApiV1ContentRequestsRequestIdDeliveryTargetsRoute
-  "/api/v1/content-requests/$requestId/semantic-conflicts": typeof ApiV1ContentRequestsRequestIdSemanticConflictsRoute
+  '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
+  '/logout': typeof LogoutRoute
+  '/sign-in': typeof SignInRoute
+  '/unauthorized': typeof UnauthorizedRoute
+  '/api/workspace-view': typeof ApiWorkspaceViewRoute
+  '/app/expertise-prototype': typeof AppExpertisePrototypeRoute
+  '/app/new': typeof AppNewRoute
+  '/respond/$token': typeof RespondTokenRoute
+  '/share/$token': typeof ShareTokenRoute
+  '/app/': typeof AppIndexRoute
+  '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/auth/sign-in': typeof ApiAuthSignInRoute
+  '/api/chatgpt/mcp': typeof ApiChatgptMcpRoute
+  '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
+  '/api/e2e/guest-grant-state': typeof ApiE2eGuestGrantStateRoute
+  '/api/e2e/public-share': typeof ApiE2ePublicShareRoute
+  '/api/e2e/settle-transcription': typeof ApiE2eSettleTranscriptionRoute
+  '/api/e2e/storage-upload': typeof ApiE2eStorageUploadRoute
+  '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
+  '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
+  '/api/v1/control': typeof ApiV1ControlRoute
+  '/api/v1/scout-ingestions': typeof ApiV1ScoutIngestionsRoute
+  '/app/requests/$requestId': typeof AppRequestsRequestIdRoute
+  '/api/v1/agent-jobs/$jobId': typeof ApiV1AgentJobsJobIdRoute
+  '/api/v1/cli/content-requests': typeof ApiV1CliContentRequestsRouteWithChildren
+  '/api/v1/cli/control': typeof ApiV1CliControlRoute
+  '/api/v1/cli/scout-ingestions': typeof ApiV1CliScoutIngestionsRoute
+  '/api/v1/content-requests/$requestId': typeof ApiV1ContentRequestsRequestIdRouteWithChildren
+  '/api/v1/deliverables/$deliverableId': typeof ApiV1DeliverablesDeliverableIdRoute
+  '/api/v1/delivery-targets/$targetId': typeof ApiV1DeliveryTargetsTargetIdRoute
+  '/api/v1/semantic-conflicts/$conflictId': typeof ApiV1SemanticConflictsConflictIdRoute
+  '/api/v1/cli/content-requests/$requestId': typeof ApiV1CliContentRequestsRequestIdRoute
+  '/api/v1/content-requests/$requestId/deliverables': typeof ApiV1ContentRequestsRequestIdDeliverablesRoute
+  '/api/v1/content-requests/$requestId/delivery-targets': typeof ApiV1ContentRequestsRequestIdDeliveryTargetsRoute
+  '/api/v1/content-requests/$requestId/semantic-conflicts': typeof ApiV1ContentRequestsRequestIdSemanticConflictsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | "/"
-    | "/app"
-    | "/logout"
-    | "/sign-in"
-    | "/unauthorized"
-    | "/api/workspace-view"
-    | "/app/expertise-prototype"
-    | "/app/new"
-    | "/respond/$token"
-    | "/share/$token"
-    | "/app/"
-    | "/api/auth/callback"
-    | "/api/auth/sign-in"
-    | "/api/chatgpt/mcp"
-    | "/api/e2e/automated-request"
-    | "/api/e2e/guest-grant-state"
-    | "/api/e2e/public-share"
-    | "/api/e2e/settle-transcription"
-    | "/api/e2e/storage-upload"
-    | "/api/v1/agent-jobs"
-    | "/api/v1/content-requests"
-    | "/api/v1/control"
-    | "/api/v1/scout-ingestions"
-    | "/app/requests/$requestId"
-    | "/api/v1/agent-jobs/$jobId"
-    | "/api/v1/cli/content-requests"
-    | "/api/v1/cli/control"
-    | "/api/v1/cli/scout-ingestions"
-    | "/api/v1/content-requests/$requestId"
-    | "/api/v1/deliverables/$deliverableId"
-    | "/api/v1/delivery-targets/$targetId"
-    | "/api/v1/semantic-conflicts/$conflictId"
-    | "/api/v1/cli/content-requests/$requestId"
-    | "/api/v1/content-requests/$requestId/deliverables"
-    | "/api/v1/content-requests/$requestId/delivery-targets"
-    | "/api/v1/content-requests/$requestId/semantic-conflicts"
+    | '/'
+    | '/app'
+    | '/logout'
+    | '/sign-in'
+    | '/unauthorized'
+    | '/api/workspace-view'
+    | '/app/expertise-prototype'
+    | '/app/new'
+    | '/respond/$token'
+    | '/share/$token'
+    | '/app/'
+    | '/api/auth/callback'
+    | '/api/auth/sign-in'
+    | '/api/chatgpt/mcp'
+    | '/api/e2e/automated-request'
+    | '/api/e2e/guest-grant-state'
+    | '/api/e2e/public-share'
+    | '/api/e2e/settle-transcription'
+    | '/api/e2e/storage-upload'
+    | '/api/v1/agent-jobs'
+    | '/api/v1/content-requests'
+    | '/api/v1/control'
+    | '/api/v1/scout-ingestions'
+    | '/app/requests/$requestId'
+    | '/api/v1/agent-jobs/$jobId'
+    | '/api/v1/cli/content-requests'
+    | '/api/v1/cli/control'
+    | '/api/v1/cli/scout-ingestions'
+    | '/api/v1/content-requests/$requestId'
+    | '/api/v1/deliverables/$deliverableId'
+    | '/api/v1/delivery-targets/$targetId'
+    | '/api/v1/semantic-conflicts/$conflictId'
+    | '/api/v1/cli/content-requests/$requestId'
+    | '/api/v1/content-requests/$requestId/deliverables'
+    | '/api/v1/content-requests/$requestId/delivery-targets'
+    | '/api/v1/content-requests/$requestId/semantic-conflicts'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | "/"
-    | "/logout"
-    | "/sign-in"
-    | "/unauthorized"
-    | "/api/workspace-view"
-    | "/app/expertise-prototype"
-    | "/app/new"
-    | "/respond/$token"
-    | "/share/$token"
-    | "/app"
-    | "/api/auth/callback"
-    | "/api/auth/sign-in"
-    | "/api/chatgpt/mcp"
-    | "/api/e2e/automated-request"
-    | "/api/e2e/guest-grant-state"
-    | "/api/e2e/public-share"
-    | "/api/e2e/settle-transcription"
-    | "/api/e2e/storage-upload"
-    | "/api/v1/agent-jobs"
-    | "/api/v1/content-requests"
-    | "/api/v1/control"
-    | "/api/v1/scout-ingestions"
-    | "/app/requests/$requestId"
-    | "/api/v1/agent-jobs/$jobId"
-    | "/api/v1/cli/content-requests"
-    | "/api/v1/cli/control"
-    | "/api/v1/cli/scout-ingestions"
-    | "/api/v1/content-requests/$requestId"
-    | "/api/v1/deliverables/$deliverableId"
-    | "/api/v1/delivery-targets/$targetId"
-    | "/api/v1/semantic-conflicts/$conflictId"
-    | "/api/v1/cli/content-requests/$requestId"
-    | "/api/v1/content-requests/$requestId/deliverables"
-    | "/api/v1/content-requests/$requestId/delivery-targets"
-    | "/api/v1/content-requests/$requestId/semantic-conflicts"
+    | '/'
+    | '/logout'
+    | '/sign-in'
+    | '/unauthorized'
+    | '/api/workspace-view'
+    | '/app/expertise-prototype'
+    | '/app/new'
+    | '/respond/$token'
+    | '/share/$token'
+    | '/app'
+    | '/api/auth/callback'
+    | '/api/auth/sign-in'
+    | '/api/chatgpt/mcp'
+    | '/api/e2e/automated-request'
+    | '/api/e2e/guest-grant-state'
+    | '/api/e2e/public-share'
+    | '/api/e2e/settle-transcription'
+    | '/api/e2e/storage-upload'
+    | '/api/v1/agent-jobs'
+    | '/api/v1/content-requests'
+    | '/api/v1/control'
+    | '/api/v1/scout-ingestions'
+    | '/app/requests/$requestId'
+    | '/api/v1/agent-jobs/$jobId'
+    | '/api/v1/cli/content-requests'
+    | '/api/v1/cli/control'
+    | '/api/v1/cli/scout-ingestions'
+    | '/api/v1/content-requests/$requestId'
+    | '/api/v1/deliverables/$deliverableId'
+    | '/api/v1/delivery-targets/$targetId'
+    | '/api/v1/semantic-conflicts/$conflictId'
+    | '/api/v1/cli/content-requests/$requestId'
+    | '/api/v1/content-requests/$requestId/deliverables'
+    | '/api/v1/content-requests/$requestId/delivery-targets'
+    | '/api/v1/content-requests/$requestId/semantic-conflicts'
   id:
-    | "__root__"
-    | "/"
-    | "/app"
-    | "/logout"
-    | "/sign-in"
-    | "/unauthorized"
-    | "/api/workspace-view"
-    | "/app/expertise-prototype"
-    | "/app/new"
-    | "/respond/$token"
-    | "/share/$token"
-    | "/app/"
-    | "/api/auth/callback"
-    | "/api/auth/sign-in"
-    | "/api/chatgpt/mcp"
-    | "/api/e2e/automated-request"
-    | "/api/e2e/guest-grant-state"
-    | "/api/e2e/public-share"
-    | "/api/e2e/settle-transcription"
-    | "/api/e2e/storage-upload"
-    | "/api/v1/agent-jobs"
-    | "/api/v1/content-requests"
-    | "/api/v1/control"
-    | "/api/v1/scout-ingestions"
-    | "/app/requests/$requestId"
-    | "/api/v1/agent-jobs/$jobId"
-    | "/api/v1/cli/content-requests"
-    | "/api/v1/cli/control"
-    | "/api/v1/cli/scout-ingestions"
-    | "/api/v1/content-requests/$requestId"
-    | "/api/v1/deliverables/$deliverableId"
-    | "/api/v1/delivery-targets/$targetId"
-    | "/api/v1/semantic-conflicts/$conflictId"
-    | "/api/v1/cli/content-requests/$requestId"
-    | "/api/v1/content-requests/$requestId/deliverables"
-    | "/api/v1/content-requests/$requestId/delivery-targets"
-    | "/api/v1/content-requests/$requestId/semantic-conflicts"
+    | '__root__'
+    | '/'
+    | '/app'
+    | '/logout'
+    | '/sign-in'
+    | '/unauthorized'
+    | '/api/workspace-view'
+    | '/app/expertise-prototype'
+    | '/app/new'
+    | '/respond/$token'
+    | '/share/$token'
+    | '/app/'
+    | '/api/auth/callback'
+    | '/api/auth/sign-in'
+    | '/api/chatgpt/mcp'
+    | '/api/e2e/automated-request'
+    | '/api/e2e/guest-grant-state'
+    | '/api/e2e/public-share'
+    | '/api/e2e/settle-transcription'
+    | '/api/e2e/storage-upload'
+    | '/api/v1/agent-jobs'
+    | '/api/v1/content-requests'
+    | '/api/v1/control'
+    | '/api/v1/scout-ingestions'
+    | '/app/requests/$requestId'
+    | '/api/v1/agent-jobs/$jobId'
+    | '/api/v1/cli/content-requests'
+    | '/api/v1/cli/control'
+    | '/api/v1/cli/scout-ingestions'
+    | '/api/v1/content-requests/$requestId'
+    | '/api/v1/deliverables/$deliverableId'
+    | '/api/v1/delivery-targets/$targetId'
+    | '/api/v1/semantic-conflicts/$conflictId'
+    | '/api/v1/cli/content-requests/$requestId'
+    | '/api/v1/content-requests/$requestId/deliverables'
+    | '/api/v1/content-requests/$requestId/delivery-targets'
+    | '/api/v1/content-requests/$requestId/semantic-conflicts'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -495,257 +495,257 @@ export interface RootRouteChildren {
   ApiV1SemanticConflictsConflictIdRoute: typeof ApiV1SemanticConflictsConflictIdRoute
 }
 
-declare module "@tanstack/react-router" {
+declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    "/": {
-      id: "/"
-      path: "/"
-      fullPath: "/"
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/app": {
-      id: "/app"
-      path: "/app"
-      fullPath: "/app"
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/logout": {
-      id: "/logout"
-      path: "/logout"
-      fullPath: "/logout"
+    '/logout': {
+      id: '/logout'
+      path: '/logout'
+      fullPath: '/logout'
       preLoaderRoute: typeof LogoutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/sign-in": {
-      id: "/sign-in"
-      path: "/sign-in"
-      fullPath: "/sign-in"
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
       preLoaderRoute: typeof SignInRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/unauthorized": {
-      id: "/unauthorized"
-      path: "/unauthorized"
-      fullPath: "/unauthorized"
+    '/unauthorized': {
+      id: '/unauthorized'
+      path: '/unauthorized'
+      fullPath: '/unauthorized'
       preLoaderRoute: typeof UnauthorizedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/workspace-view": {
-      id: "/api/workspace-view"
-      path: "/api/workspace-view"
-      fullPath: "/api/workspace-view"
+    '/api/workspace-view': {
+      id: '/api/workspace-view'
+      path: '/api/workspace-view'
+      fullPath: '/api/workspace-view'
       preLoaderRoute: typeof ApiWorkspaceViewRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/app/": {
-      id: "/app/"
-      path: "/"
-      fullPath: "/app/"
+    '/app/': {
+      id: '/app/'
+      path: '/'
+      fullPath: '/app/'
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    "/app/expertise-prototype": {
-      id: "/app/expertise-prototype"
-      path: "/expertise-prototype"
-      fullPath: "/app/expertise-prototype"
+    '/app/expertise-prototype': {
+      id: '/app/expertise-prototype'
+      path: '/expertise-prototype'
+      fullPath: '/app/expertise-prototype'
       preLoaderRoute: typeof AppExpertisePrototypeRouteImport
       parentRoute: typeof AppRoute
     }
-    "/app/new": {
-      id: "/app/new"
-      path: "/new"
-      fullPath: "/app/new"
+    '/app/new': {
+      id: '/app/new'
+      path: '/new'
+      fullPath: '/app/new'
       preLoaderRoute: typeof AppNewRouteImport
       parentRoute: typeof AppRoute
     }
-    "/respond/$token": {
-      id: "/respond/$token"
-      path: "/respond/$token"
-      fullPath: "/respond/$token"
+    '/respond/$token': {
+      id: '/respond/$token'
+      path: '/respond/$token'
+      fullPath: '/respond/$token'
       preLoaderRoute: typeof RespondTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/share/$token": {
-      id: "/share/$token"
-      path: "/share/$token"
-      fullPath: "/share/$token"
+    '/share/$token': {
+      id: '/share/$token'
+      path: '/share/$token'
+      fullPath: '/share/$token'
       preLoaderRoute: typeof ShareTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/auth/callback": {
-      id: "/api/auth/callback"
-      path: "/api/auth/callback"
-      fullPath: "/api/auth/callback"
+    '/api/auth/callback': {
+      id: '/api/auth/callback'
+      path: '/api/auth/callback'
+      fullPath: '/api/auth/callback'
       preLoaderRoute: typeof ApiAuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/auth/sign-in": {
-      id: "/api/auth/sign-in"
-      path: "/api/auth/sign-in"
-      fullPath: "/api/auth/sign-in"
+    '/api/auth/sign-in': {
+      id: '/api/auth/sign-in'
+      path: '/api/auth/sign-in'
+      fullPath: '/api/auth/sign-in'
       preLoaderRoute: typeof ApiAuthSignInRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/chatgpt/mcp": {
-      id: "/api/chatgpt/mcp"
-      path: "/api/chatgpt/mcp"
-      fullPath: "/api/chatgpt/mcp"
+    '/api/chatgpt/mcp': {
+      id: '/api/chatgpt/mcp'
+      path: '/api/chatgpt/mcp'
+      fullPath: '/api/chatgpt/mcp'
       preLoaderRoute: typeof ApiChatgptMcpRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/e2e/automated-request": {
-      id: "/api/e2e/automated-request"
-      path: "/api/e2e/automated-request"
-      fullPath: "/api/e2e/automated-request"
+    '/api/e2e/automated-request': {
+      id: '/api/e2e/automated-request'
+      path: '/api/e2e/automated-request'
+      fullPath: '/api/e2e/automated-request'
       preLoaderRoute: typeof ApiE2eAutomatedRequestRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/e2e/guest-grant-state": {
-      id: "/api/e2e/guest-grant-state"
-      path: "/api/e2e/guest-grant-state"
-      fullPath: "/api/e2e/guest-grant-state"
+    '/api/e2e/guest-grant-state': {
+      id: '/api/e2e/guest-grant-state'
+      path: '/api/e2e/guest-grant-state'
+      fullPath: '/api/e2e/guest-grant-state'
       preLoaderRoute: typeof ApiE2eGuestGrantStateRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/e2e/public-share": {
-      id: "/api/e2e/public-share"
-      path: "/api/e2e/public-share"
-      fullPath: "/api/e2e/public-share"
+    '/api/e2e/public-share': {
+      id: '/api/e2e/public-share'
+      path: '/api/e2e/public-share'
+      fullPath: '/api/e2e/public-share'
       preLoaderRoute: typeof ApiE2ePublicShareRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/e2e/settle-transcription": {
-      id: "/api/e2e/settle-transcription"
-      path: "/api/e2e/settle-transcription"
-      fullPath: "/api/e2e/settle-transcription"
+    '/api/e2e/settle-transcription': {
+      id: '/api/e2e/settle-transcription'
+      path: '/api/e2e/settle-transcription'
+      fullPath: '/api/e2e/settle-transcription'
       preLoaderRoute: typeof ApiE2eSettleTranscriptionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/e2e/storage-upload": {
-      id: "/api/e2e/storage-upload"
-      path: "/api/e2e/storage-upload"
-      fullPath: "/api/e2e/storage-upload"
+    '/api/e2e/storage-upload': {
+      id: '/api/e2e/storage-upload'
+      path: '/api/e2e/storage-upload'
+      fullPath: '/api/e2e/storage-upload'
       preLoaderRoute: typeof ApiE2eStorageUploadRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/v1/agent-jobs": {
-      id: "/api/v1/agent-jobs"
-      path: "/api/v1/agent-jobs"
-      fullPath: "/api/v1/agent-jobs"
+    '/api/v1/agent-jobs': {
+      id: '/api/v1/agent-jobs'
+      path: '/api/v1/agent-jobs'
+      fullPath: '/api/v1/agent-jobs'
       preLoaderRoute: typeof ApiV1AgentJobsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/v1/content-requests": {
-      id: "/api/v1/content-requests"
-      path: "/api/v1/content-requests"
-      fullPath: "/api/v1/content-requests"
+    '/api/v1/content-requests': {
+      id: '/api/v1/content-requests'
+      path: '/api/v1/content-requests'
+      fullPath: '/api/v1/content-requests'
       preLoaderRoute: typeof ApiV1ContentRequestsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/v1/control": {
-      id: "/api/v1/control"
-      path: "/api/v1/control"
-      fullPath: "/api/v1/control"
+    '/api/v1/control': {
+      id: '/api/v1/control'
+      path: '/api/v1/control'
+      fullPath: '/api/v1/control'
       preLoaderRoute: typeof ApiV1ControlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/v1/scout-ingestions": {
-      id: "/api/v1/scout-ingestions"
-      path: "/api/v1/scout-ingestions"
-      fullPath: "/api/v1/scout-ingestions"
+    '/api/v1/scout-ingestions': {
+      id: '/api/v1/scout-ingestions'
+      path: '/api/v1/scout-ingestions'
+      fullPath: '/api/v1/scout-ingestions'
       preLoaderRoute: typeof ApiV1ScoutIngestionsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/app/requests/$requestId": {
-      id: "/app/requests/$requestId"
-      path: "/requests/$requestId"
-      fullPath: "/app/requests/$requestId"
+    '/app/requests/$requestId': {
+      id: '/app/requests/$requestId'
+      path: '/requests/$requestId'
+      fullPath: '/app/requests/$requestId'
       preLoaderRoute: typeof AppRequestsRequestIdRouteImport
       parentRoute: typeof AppRoute
     }
-    "/api/v1/agent-jobs/$jobId": {
-      id: "/api/v1/agent-jobs/$jobId"
-      path: "/$jobId"
-      fullPath: "/api/v1/agent-jobs/$jobId"
+    '/api/v1/agent-jobs/$jobId': {
+      id: '/api/v1/agent-jobs/$jobId'
+      path: '/$jobId'
+      fullPath: '/api/v1/agent-jobs/$jobId'
       preLoaderRoute: typeof ApiV1AgentJobsJobIdRouteImport
       parentRoute: typeof ApiV1AgentJobsRoute
     }
-    "/api/v1/cli/content-requests": {
-      id: "/api/v1/cli/content-requests"
-      path: "/api/v1/cli/content-requests"
-      fullPath: "/api/v1/cli/content-requests"
+    '/api/v1/cli/content-requests': {
+      id: '/api/v1/cli/content-requests'
+      path: '/api/v1/cli/content-requests'
+      fullPath: '/api/v1/cli/content-requests'
       preLoaderRoute: typeof ApiV1CliContentRequestsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/v1/cli/control": {
-      id: "/api/v1/cli/control"
-      path: "/api/v1/cli/control"
-      fullPath: "/api/v1/cli/control"
+    '/api/v1/cli/control': {
+      id: '/api/v1/cli/control'
+      path: '/api/v1/cli/control'
+      fullPath: '/api/v1/cli/control'
       preLoaderRoute: typeof ApiV1CliControlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/v1/cli/scout-ingestions": {
-      id: "/api/v1/cli/scout-ingestions"
-      path: "/api/v1/cli/scout-ingestions"
-      fullPath: "/api/v1/cli/scout-ingestions"
+    '/api/v1/cli/scout-ingestions': {
+      id: '/api/v1/cli/scout-ingestions'
+      path: '/api/v1/cli/scout-ingestions'
+      fullPath: '/api/v1/cli/scout-ingestions'
       preLoaderRoute: typeof ApiV1CliScoutIngestionsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/v1/content-requests/$requestId": {
-      id: "/api/v1/content-requests/$requestId"
-      path: "/$requestId"
-      fullPath: "/api/v1/content-requests/$requestId"
+    '/api/v1/content-requests/$requestId': {
+      id: '/api/v1/content-requests/$requestId'
+      path: '/$requestId'
+      fullPath: '/api/v1/content-requests/$requestId'
       preLoaderRoute: typeof ApiV1ContentRequestsRequestIdRouteImport
       parentRoute: typeof ApiV1ContentRequestsRoute
     }
-    "/api/v1/deliverables/$deliverableId": {
-      id: "/api/v1/deliverables/$deliverableId"
-      path: "/api/v1/deliverables/$deliverableId"
-      fullPath: "/api/v1/deliverables/$deliverableId"
+    '/api/v1/deliverables/$deliverableId': {
+      id: '/api/v1/deliverables/$deliverableId'
+      path: '/api/v1/deliverables/$deliverableId'
+      fullPath: '/api/v1/deliverables/$deliverableId'
       preLoaderRoute: typeof ApiV1DeliverablesDeliverableIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/v1/delivery-targets/$targetId": {
-      id: "/api/v1/delivery-targets/$targetId"
-      path: "/api/v1/delivery-targets/$targetId"
-      fullPath: "/api/v1/delivery-targets/$targetId"
+    '/api/v1/delivery-targets/$targetId': {
+      id: '/api/v1/delivery-targets/$targetId'
+      path: '/api/v1/delivery-targets/$targetId'
+      fullPath: '/api/v1/delivery-targets/$targetId'
       preLoaderRoute: typeof ApiV1DeliveryTargetsTargetIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/v1/semantic-conflicts/$conflictId": {
-      id: "/api/v1/semantic-conflicts/$conflictId"
-      path: "/api/v1/semantic-conflicts/$conflictId"
-      fullPath: "/api/v1/semantic-conflicts/$conflictId"
+    '/api/v1/semantic-conflicts/$conflictId': {
+      id: '/api/v1/semantic-conflicts/$conflictId'
+      path: '/api/v1/semantic-conflicts/$conflictId'
+      fullPath: '/api/v1/semantic-conflicts/$conflictId'
       preLoaderRoute: typeof ApiV1SemanticConflictsConflictIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/api/v1/cli/content-requests/$requestId": {
-      id: "/api/v1/cli/content-requests/$requestId"
-      path: "/$requestId"
-      fullPath: "/api/v1/cli/content-requests/$requestId"
+    '/api/v1/cli/content-requests/$requestId': {
+      id: '/api/v1/cli/content-requests/$requestId'
+      path: '/$requestId'
+      fullPath: '/api/v1/cli/content-requests/$requestId'
       preLoaderRoute: typeof ApiV1CliContentRequestsRequestIdRouteImport
       parentRoute: typeof ApiV1CliContentRequestsRoute
     }
-    "/api/v1/content-requests/$requestId/deliverables": {
-      id: "/api/v1/content-requests/$requestId/deliverables"
-      path: "/deliverables"
-      fullPath: "/api/v1/content-requests/$requestId/deliverables"
+    '/api/v1/content-requests/$requestId/deliverables': {
+      id: '/api/v1/content-requests/$requestId/deliverables'
+      path: '/deliverables'
+      fullPath: '/api/v1/content-requests/$requestId/deliverables'
       preLoaderRoute: typeof ApiV1ContentRequestsRequestIdDeliverablesRouteImport
       parentRoute: typeof ApiV1ContentRequestsRequestIdRoute
     }
-    "/api/v1/content-requests/$requestId/delivery-targets": {
-      id: "/api/v1/content-requests/$requestId/delivery-targets"
-      path: "/delivery-targets"
-      fullPath: "/api/v1/content-requests/$requestId/delivery-targets"
+    '/api/v1/content-requests/$requestId/delivery-targets': {
+      id: '/api/v1/content-requests/$requestId/delivery-targets'
+      path: '/delivery-targets'
+      fullPath: '/api/v1/content-requests/$requestId/delivery-targets'
       preLoaderRoute: typeof ApiV1ContentRequestsRequestIdDeliveryTargetsRouteImport
       parentRoute: typeof ApiV1ContentRequestsRequestIdRoute
     }
-    "/api/v1/content-requests/$requestId/semantic-conflicts": {
-      id: "/api/v1/content-requests/$requestId/semantic-conflicts"
-      path: "/semantic-conflicts"
-      fullPath: "/api/v1/content-requests/$requestId/semantic-conflicts"
+    '/api/v1/content-requests/$requestId/semantic-conflicts': {
+      id: '/api/v1/content-requests/$requestId/semantic-conflicts'
+      path: '/semantic-conflicts'
+      fullPath: '/api/v1/content-requests/$requestId/semantic-conflicts'
       preLoaderRoute: typeof ApiV1ContentRequestsRequestIdSemanticConflictsRouteImport
       parentRoute: typeof ApiV1ContentRequestsRequestIdRoute
     }
@@ -777,7 +777,7 @@ const ApiV1AgentJobsRouteChildren: ApiV1AgentJobsRouteChildren = {
 }
 
 const ApiV1AgentJobsRouteWithChildren = ApiV1AgentJobsRoute._addFileChildren(
-  ApiV1AgentJobsRouteChildren
+  ApiV1AgentJobsRouteChildren,
 )
 
 interface ApiV1ContentRequestsRequestIdRouteChildren {
@@ -798,7 +798,7 @@ const ApiV1ContentRequestsRequestIdRouteChildren: ApiV1ContentRequestsRequestIdR
 
 const ApiV1ContentRequestsRequestIdRouteWithChildren =
   ApiV1ContentRequestsRequestIdRoute._addFileChildren(
-    ApiV1ContentRequestsRequestIdRouteChildren
+    ApiV1ContentRequestsRequestIdRouteChildren,
   )
 
 interface ApiV1ContentRequestsRouteChildren {
@@ -825,7 +825,7 @@ const ApiV1CliContentRequestsRouteChildren: ApiV1CliContentRequestsRouteChildren
 
 const ApiV1CliContentRequestsRouteWithChildren =
   ApiV1CliContentRequestsRoute._addFileChildren(
-    ApiV1CliContentRequestsRouteChildren
+    ApiV1CliContentRequestsRouteChildren,
   )
 
 const rootRouteChildren: RootRouteChildren = {
@@ -860,9 +860,9 @@ export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
 
-import type { getRouter } from "./router.tsx"
-import type { startInstance } from "./start.ts"
-declare module "@tanstack/react-start" {
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>

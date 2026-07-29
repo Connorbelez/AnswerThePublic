@@ -1,0 +1,271 @@
+{
+  "label": "baseline",
+  "project": "mobile-webkit",
+  "viewport": {
+    "width": 432,
+    "height": 910
+  },
+  "capturedAt": "2026-07-20T03:58:05.937Z",
+  "bundle": {
+    "assetCount": 25,
+    "totalBytes": 5755929,
+    "totalGzipBytes": 1983680,
+    "largestAssets": [
+      {
+        "file": "app.requests._requestId-Dwco2U7T.js",
+        "bytes": 4989102,
+        "gzipBytes": 1766531
+      },
+      {
+        "file": "index-_PdmMOMy.js",
+        "bytes": 272588,
+        "gzipBytes": 85760
+      },
+      {
+        "file": "index-BEEHPunC.css",
+        "bytes": 220422,
+        "gzipBytes": 33451
+      },
+      {
+        "file": "avatar-CbzWNeex.js",
+        "bytes": 93504,
+        "gzipBytes": 31468
+      },
+      {
+        "file": "utils-CHbsrnz1.js",
+        "bytes": 59204,
+        "gzipBytes": 19860
+      },
+      {
+        "file": "content-request-server-functions-DuPpKk9H.js",
+        "bytes": 41955,
+        "gzipBytes": 14786
+      },
+      {
+        "file": "app-BaO--ob-.js",
+        "bytes": 16173,
+        "gzipBytes": 6140
+      },
+      {
+        "file": "native-select-Dl58iWf8.js",
+        "bytes": 13466,
+        "gzipBytes": 4959
+      },
+      {
+        "file": "app.index-Bnoa3upJ.js",
+        "bytes": 11821,
+        "gzipBytes": 4024
+      },
+      {
+        "file": "jsx-runtime-n5LQ9ujS.js",
+        "bytes": 8535,
+        "gzipBytes": 3268
+      },
+      {
+        "file": "ToolbarRootContext-CdFVfIm1.js",
+        "bytes": 6411,
+        "gzipBytes": 2589
+      },
+      {
+        "file": "use-hydrated-B4UPAy_j.js",
+        "bytes": 4880,
+        "gzipBytes": 2225
+      }
+    ]
+  },
+  "warmNavigationMs": 171.6,
+  "routes": [
+    {
+      "route": "/sign-in",
+      "finalUrl": "/sign-in",
+      "visibleMs": 136.3,
+      "lcpMs": 92,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 665743,
+      "encodedBytes": 662743,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/unauthorized",
+      "finalUrl": "/unauthorized",
+      "visibleMs": 80.5,
+      "lcpMs": 71,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 665822,
+      "encodedBytes": 662822,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/route-that-does-not-exist",
+      "finalUrl": "/route-that-does-not-exist",
+      "visibleMs": 72.4,
+      "lcpMs": 59,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 663497,
+      "encodedBytes": 661097,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 135.5,
+      "lcpMs": 221,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 819206,
+      "encodedBytes": 813206,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 1
+        }
+      ]
+    },
+    {
+      "route": "/app/new",
+      "finalUrl": "/app/new",
+      "visibleMs": 220.4,
+      "lcpMs": 121,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 800257,
+      "encodedBytes": 794257,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010002",
+      "finalUrl": "/app/requests/CR-00000000000010002",
+      "visibleMs": 543.4,
+      "lcpMs": 1753,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 5806070,
+      "encodedBytes": 5799470,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": [
+        {
+          "id": "landmark-one-main",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "region",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "skip-link",
+          "impact": "moderate",
+          "nodes": 1
+        }
+      ]
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 154.5,
+      "lcpMs": 304,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 819206,
+      "encodedBytes": 813206,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010002",
+      "finalUrl": "/app/requests/CR-00000000000010002",
+      "visibleMs": 108.9,
+      "lcpMs": 872,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 5812007,
+      "encodedBytes": 5804207,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": [
+        {
+          "id": "landmark-one-main",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "region",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "skip-link",
+          "impact": "moderate",
+          "nodes": 1
+        }
+      ]
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 156.4,
+      "lcpMs": 260,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 819206,
+      "encodedBytes": 813206,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 1
+        }
+      ]
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 109.7,
+      "lcpMs": 200,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 819206,
+      "encodedBytes": 813206,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 1
+        }
+      ]
+    },
+    {
+      "route": "/share/f904418097691257c630a1976b66c2ca7cd35a707fdf4d7574d0a8d00f6e2b78",
+      "finalUrl": "/share/f904418097691257c630a1976b66c2ca7cd35a707fdf4d7574d0a8d00f6e2b78",
+      "visibleMs": 85.1,
+      "lcpMs": 78,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 821787,
+      "encodedBytes": 818487,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    }
+  ]
+}

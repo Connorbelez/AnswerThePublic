@@ -133,6 +133,72 @@ describe("scheduled scout opportunity orchestration", () => {
     })
   })
 
+  it("ingests directly into the explicitly configured Convex dev deployment", async () => {
+    const result = harness()
+    const runConvexDev = vi.fn().mockResolvedValue({
+      ingestionRunId: "run-1",
+      status: "applied",
+      created: 3,
+      updated: 0,
+      manualPreserved: 0,
+      requestHumanIds: ["CR-1", "CR-2", "CR-3"],
+    })
+    const exitCode = await orchestrateScoutOpportunities(
+      { file: "report.md", target: "convex-dev" },
+      {
+        io: result.io,
+        env: {
+          CONVEX_DEPLOYMENT: "dev:sensible-cheetah-210",
+          VITE_CONVEX_URL: "https://sensible-cheetah-210.convex.cloud",
+          FAIRLEND_WORKOS_ORGANIZATION_ID: "org_test",
+        },
+        readReport: vi.fn().mockResolvedValue("valid report"),
+        parse: vi.fn().mockReturnValue(parsedReport()),
+        runConvexDev,
+      }
+    )
+
+    expect(exitCode).toBe(SCOUT_ORCHESTRATION_EXIT.success)
+    expect(runConvexDev).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: expect.stringMatching(/^scout:/),
+        markdown: "valid report",
+      })
+    )
+    expect(JSON.parse(result.output[0])).toMatchObject({
+      status: "ingested",
+      target: "convex-dev",
+      result: { status: "applied", created: 3 },
+    })
+  })
+
+  it("fails closed instead of permitting a Convex dev target to resolve to production", async () => {
+    const result = harness()
+    const runConvexDev = vi.fn()
+    const exitCode = await orchestrateScoutOpportunities(
+      { file: "report.md", target: "convex-dev" },
+      {
+        io: result.io,
+        env: {
+          CONVEX_DEPLOYMENT: "prod:shocking-lark-997",
+          VITE_CONVEX_URL: "https://shocking-lark-997.convex.cloud",
+          FAIRLEND_WORKOS_ORGANIZATION_ID: "org_test",
+        },
+        readReport: vi.fn().mockResolvedValue("valid report"),
+        parse: vi.fn().mockReturnValue(parsedReport()),
+        runConvexDev,
+      }
+    )
+
+    expect(exitCode).toBe(SCOUT_ORCHESTRATION_EXIT.configurationError)
+    expect(runConvexDev).not.toHaveBeenCalled()
+    expect(JSON.parse(result.errors[0])).toMatchObject({
+      status: "configuration_error",
+      target: "convex-dev",
+      invalid: [expect.stringContaining("must be dev")],
+    })
+  })
+
   it("reports missing runtime configuration without exposing values", async () => {
     const result = harness()
     const exitCode = await orchestrateScoutOpportunities(

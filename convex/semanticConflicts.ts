@@ -10,6 +10,7 @@ import {
 import { lifecycleForPrimary } from "./lib/deliverableLifecycle"
 import { enqueueNotification } from "./lib/notificationOutbox"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
+import { endCurrentFounderHandoff } from "./lib/founderHandoff"
 
 const conflictValidator = v.object({
   conflictId: v.id("semanticConflicts"),
@@ -221,6 +222,7 @@ export const proposeAssigneeChange = mutation({
       throw new ConvexError({ code: "FOUNDER_INPUT_HANDOFF_REQUIRED" })
     }
 
+    await endCurrentFounderHandoff(ctx, request._id, proposed._id, now)
     await ctx.db.patch(request._id, {
       assigneePrincipalId: proposed._id,
       watcherPrincipalIds,
@@ -620,6 +622,7 @@ export const resolve = mutation({
       await refreshOperatorWorkspaceProjection(ctx, request._id)
       return publicConflict(request.humanId, rebasedConflict)
     }
+    await endCurrentFounderHandoff(ctx, request._id, selectedAssignee._id, now)
     await ctx.db.patch(request._id, {
       assigneePrincipalId: selectedAssignee._id,
       aggregateVersion: afterVersion,

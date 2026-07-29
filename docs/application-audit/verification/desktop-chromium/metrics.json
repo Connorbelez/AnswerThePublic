@@ -1,0 +1,240 @@
+{
+  "label": "verification",
+  "project": "desktop-chromium",
+  "viewport": {
+    "width": 1536,
+    "height": 1024
+  },
+  "capturedAt": "2026-07-20T06:47:45.256Z",
+  "bundle": {
+    "assetCount": 32,
+    "totalBytes": 5777485,
+    "totalGzipBytes": 1980479,
+    "executableBytes": 5777485,
+    "executableGzipBytes": 1980479,
+    "deferredBinaryBytes": 0,
+    "deferredBinaryGzipBytes": 0,
+    "largestAssets": [
+      {
+        "file": "founder-request-canvas-B3_7BmQs.js",
+        "kind": "executable",
+        "bytes": 4741452,
+        "gzipBytes": 1682697
+      },
+      {
+        "file": "index-FBS7G8PG.js",
+        "kind": "executable",
+        "bytes": 316782,
+        "gzipBytes": 100863
+      },
+      {
+        "file": "index-B19C_gze.css",
+        "kind": "executable",
+        "bytes": 231700,
+        "gzipBytes": 35153
+      },
+      {
+        "file": "markdown-content-BtqzDHf-.js",
+        "kind": "executable",
+        "bytes": 154387,
+        "gzipBytes": 45613
+      },
+      {
+        "file": "app.requests._requestId-CLal3v6f.js",
+        "kind": "executable",
+        "bytes": 97808,
+        "gzipBytes": 30509
+      },
+      {
+        "file": "avatar-t-OGl5Cq.js",
+        "kind": "executable",
+        "bytes": 93516,
+        "gzipBytes": 31484
+      },
+      {
+        "file": "utils-BXza46oy.js",
+        "kind": "executable",
+        "bytes": 35835,
+        "gzipBytes": 11744
+      },
+      {
+        "file": "dist-CYALE3ch.js",
+        "kind": "executable",
+        "bytes": 31753,
+        "gzipBytes": 11544
+      },
+      {
+        "file": "app-Cm8sLhPD.js",
+        "kind": "executable",
+        "bytes": 16470,
+        "gzipBytes": 6181
+      },
+      {
+        "file": "app.index-VzApyMGq.js",
+        "kind": "executable",
+        "bytes": 13225,
+        "gzipBytes": 4572
+      },
+      {
+        "file": "toggle-group-Du9kETZy.js",
+        "kind": "executable",
+        "bytes": 9036,
+        "gzipBytes": 3475
+      },
+      {
+        "file": "ToolbarRootContext-Cm-hsFrv.js",
+        "kind": "executable",
+        "bytes": 6406,
+        "gzipBytes": 2574
+      }
+    ]
+  },
+  "warmNavigationMs": -0.3,
+  "warmNavigationCompleteMs": 82.8,
+  "routes": [
+    {
+      "route": "/sign-in",
+      "finalUrl": "/sign-in",
+      "visibleMs": 61.8,
+      "lcpMs": 40,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 620153,
+      "encodedBytes": 618053,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/unauthorized",
+      "finalUrl": "/unauthorized",
+      "visibleMs": 48,
+      "lcpMs": 40,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 3827,
+      "encodedBytes": 618127,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/route-that-does-not-exist",
+      "finalUrl": "/route-that-does-not-exist",
+      "visibleMs": 66.8,
+      "lcpMs": 48,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 1500,
+      "encodedBytes": 616400,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 93,
+      "lcpMs": 76,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 776015,
+      "encodedBytes": 770315,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/new",
+      "finalUrl": "/app/new",
+      "visibleMs": 69.9,
+      "lcpMs": 56,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 12647,
+      "encodedBytes": 749882,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010002",
+      "finalUrl": "/app/requests/CR-00000000000010002",
+      "visibleMs": 62.3,
+      "lcpMs": 488,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 262289,
+      "encodedBytes": 1007229,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 73.2,
+      "lcpMs": 60,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 4904386,
+      "encodedBytes": 5667501,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010002",
+      "finalUrl": "/app/requests/CR-00000000000010002",
+      "visibleMs": 55.1,
+      "lcpMs": 584,
+      "cls": 0.0002,
+      "longTasks": 2,
+      "transferredBytes": 113588,
+      "encodedBytes": 5759009,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 66.3,
+      "lcpMs": 60,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 776015,
+      "encodedBytes": 770315,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 64.4,
+      "lcpMs": 56,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 776015,
+      "encodedBytes": 770315,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/share/ad410fc564e6aa63fb6cead7f52f01bd98e97f09fadc434f6a4cbef2b2ed8f18",
+      "finalUrl": "/share/ad410fc564e6aa63fb6cead7f52f01bd98e97f09fadc434f6a4cbef2b2ed8f18",
+      "visibleMs": 48.6,
+      "lcpMs": 40,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 159793,
+      "encodedBytes": 773793,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010002",
+      "finalUrl": "/app/requests/CR-00000000000010002",
+      "visibleMs": 65.9,
+      "lcpMs": 412,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 9603,
+      "encodedBytes": 1007229,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    }
+  ]
+}

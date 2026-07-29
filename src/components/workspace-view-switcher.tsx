@@ -11,18 +11,29 @@ export function WorkspaceViewSwitcher({
   const nextWorkspaceView = workspaceView === "operator" ? "elie" : "operator"
 
   return (
-    <form action="/api/workspace-view" method="post">
+    <form
+      className="workspace-view-switcher"
+      action="/api/workspace-view"
+      method="post"
+    >
       <Button
         type="submit"
         name="workspaceView"
         value={nextWorkspaceView}
         variant="outline"
         size="sm"
+        aria-label={
+          workspaceView === "operator"
+            ? "View Elie’s workspace"
+            : "Return to admin workspace"
+        }
       >
         <Eye aria-hidden="true" />
-        {workspaceView === "operator"
-          ? "View Elie’s workspace"
-          : "Return to admin workspace"}
+        <span>
+          {workspaceView === "operator"
+            ? "View Elie’s workspace"
+            : "Return to admin workspace"}
+        </span>
       </Button>
     </form>
   )
