@@ -1,0 +1,22 @@
+{
+  "lifecycle": {
+    "effectiveLaunch": {
+      "browserLaunched": true,
+      "engine": "chrome",
+      "launchHash": 12798390076057946000
+    },
+    "launched": false,
+    "relaunchedBrowser": false,
+    "restartedBackground": false,
+    "restoreStatus": "not_configured",
+    "reused": true,
+    "saveStatus": "not_attempted"
+  },
+  "origin": "http://127.0.0.1:3000/sign-in?returnTo=%2Fapp",
+  "result": {
+    "message": "Cannot read properties of undefined (reading '__wbindgen_externrefs')",
+    "name": "TypeError",
+    "ok": false,
+    "stack": "TypeError: Cannot read properties of undefined (reading '__wbindgen_externrefs')\n    at __wbindgen_init_externref_table (http://127.0.0.1:3000/node_modules/@automerge/automerge/dist/mjs/wasm_bindgen_output/bundler/automerge_wasm_bg.js?v=b6210985:1547:24)\n    at http://127.0.0.1:3000/node_modules/.vite/deps/fullfat_bundler-BK0kanT4.js?v=b6210985:1118:6"
+  }
+}

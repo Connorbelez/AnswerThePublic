@@ -1,0 +1,104 @@
+{
+  "lifecycle": {
+    "effectiveLaunch": {
+      "browserLaunched": true,
+      "engine": "chrome",
+      "launchHash": 12798390076057946000
+    },
+    "launched": false,
+    "relaunchedBrowser": false,
+    "restartedBackground": false,
+    "restoreStatus": "not_configured",
+    "reused": true,
+    "saveStatus": "not_attempted"
+  },
+  "messages": [
+    {
+      "args": [
+        {
+          "type": "string",
+          "value": "[vite] connecting..."
+        }
+      ],
+      "text": "[vite] connecting...",
+      "type": "debug"
+    },
+    {
+      "args": [
+        {
+          "type": "string",
+          "value": "[vite] failed to connect to websocket (Error: WebSocket closed without opened.). "
+        }
+      ],
+      "text": "[vite] failed to connect to websocket (Error: WebSocket closed without opened.). ",
+      "type": "error"
+    },
+    {
+      "args": [
+        {
+          "type": "string",
+          "value": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools"
+        },
+        {
+          "type": "string",
+          "value": "font-weight:bold"
+        }
+      ],
+      "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+      "type": "info"
+    },
+    {
+      "args": [
+        {
+          "type": "string",
+          "value": "%o\n\n%s\n\n%s\n"
+        },
+        {
+          "className": "Error",
+          "description": "Error: Could not find the \"_generated\" directory, make sure to run `npx convex dev` or `npx convex codegen`. Make sure your `import.meta.glob` includes the files in the \"_generated\" directory\n    at http://127.0.0.1:3010/app:1:2427\n    at http://127.0.0.1:3010/app:1:2716",
+          "objectId": "1343887640147299114.2.2",
+          "preview": {
+            "description": "Error: Could not find the \"_generated\" directory, make sure to run `npx convex dev` or `npx convex codegen`. Make sure your `import.meta.glob` includes the files in the \"_generated\" directory\n    at http://127.0.0.1:3010/app:1:2427\n    at http://127.0.0.1:3010/app:1:2716",
+            "overflow": false,
+            "properties": [
+              {
+                "name": "stack",
+                "type": "string",
+                "value": "Error: Could not find the \"_generated\" directory, …pp:1:2427\n    at http://127.0.0.1:3010/app:1:2716"
+              },
+              {
+                "name": "message",
+                "type": "string",
+                "value": "Could not find the \"_generated\" directory, make su… includes the files in the \"_generated\" directory"
+              }
+            ],
+            "subtype": "error",
+            "type": "object"
+          },
+          "subtype": "error",
+          "type": "object"
+        },
+        {
+          "type": "string",
+          "value": "The above error occurred in the <MatchInnerImpl> component."
+        },
+        {
+          "type": "string",
+          "value": "React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl."
+        }
+      ],
+      "text": "%o\n\n%s\n\n%s\n {stack: \"Error: Could not find the \"_generated\" directory, …pp:1:2427\n    at http://127.0.0.1:3010/app:1:2716\", message: \"Could not find the \"_generated\" directory, make su… includes the files in the \"_generated\" directory\"} The above error occurred in the <MatchInnerImpl> component. React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.",
+      "type": "error"
+    },
+    {
+      "args": [
+        {
+          "type": "string",
+          "value": "Warning: Error in route match: __root__/"
+        }
+      ],
+      "text": "Warning: Error in route match: __root__/",
+      "type": "warning"
+    }
+  ]
+}

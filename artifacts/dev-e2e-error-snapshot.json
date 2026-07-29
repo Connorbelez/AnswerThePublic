@@ -1,0 +1,35 @@
+{
+  "lifecycle": {
+    "effectiveLaunch": {
+      "browserLaunched": true,
+      "engine": "chrome",
+      "launchHash": 12798390076057946000
+    },
+    "launched": false,
+    "relaunchedBrowser": false,
+    "restartedBackground": false,
+    "restoreStatus": "not_configured",
+    "reused": true,
+    "saveStatus": "not_attempted"
+  },
+  "origin": "http://127.0.0.1:3010/app",
+  "refs": {
+    "e1": {
+      "name": "Skip to main content",
+      "role": "link"
+    },
+    "e2": {
+      "name": "FairLend Content Requests",
+      "role": "region"
+    },
+    "e3": {
+      "name": "We couldn't load this page",
+      "role": "heading"
+    },
+    "e4": {
+      "name": "Try again",
+      "role": "button"
+    }
+  },
+  "snapshot": "- generic\n  - link \"Skip to main content\" [ref=e1]\n  - main\n    - region \"FairLend Content Requests\" [ref=e2]\n    - alert\n      - heading \"We couldn't load this page\" [level=1, ref=e3]\n      - button \"Try again\" [ref=e4]"
+}
