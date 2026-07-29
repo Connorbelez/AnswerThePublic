@@ -152,8 +152,16 @@ export function safeErrorResponse(error: unknown, validationStatus = 400) {
         : status === 503
           ? "Authorization is not configured."
           : "The operation could not be applied in the current state."
-    )
+      )
   }
+  console.error(
+    JSON.stringify({
+      level: "error",
+      message: "Unhandled Content Requests API error",
+      errorName: error instanceof Error ? error.name : typeof error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    })
+  )
   return jsonError(500, "INTERNAL_ERROR", "The request could not be completed.")
 }
 

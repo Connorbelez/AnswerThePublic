@@ -115,6 +115,29 @@ function serviceStub(overrides: Partial<ContentRequestService> = {}) {
 }
 
 describe("Content Request adapter contracts", () => {
+  it("logs unexpected failures while keeping the HTTP response generic", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+    const handlers = createContentRequestCollectionHandler(async () => {
+      throw new Error("diagnostic-only failure")
+    })
+
+    const response = await handlers.GET({
+      request: new Request("https://fairlend.test/api/v1/content-requests"),
+    })
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "The request could not be completed.",
+      },
+    })
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining("diagnostic-only failure")
+    )
+    consoleError.mockRestore()
+  })
+
   it("maps an HTTP manual-create body and correlation ID to the shared service", async () => {
     const createManual = vi.fn().mockResolvedValue({ humanId: "CR-123" })
     const handlers = createContentRequestCollectionHandler(async () =>
