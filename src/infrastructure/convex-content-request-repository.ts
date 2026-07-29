@@ -67,6 +67,21 @@ export function createConvexContentRequestRepository({
     async createManual(input: PersistManualRequestInput) {
       return (await client()).mutation(api.contentRequests.createManual, input)
     },
+    async createExpertInterview(input) {
+      const created = await (
+        await client()
+      ).mutation(api.expertInterviews.create, input)
+      return {
+        request: created.request,
+        expertInterview: {
+          package: created.package,
+          brief: created.brief,
+          gaps: created.gaps,
+          questions: created.questions,
+          instructions: created.instructions,
+        },
+      }
+    },
     async saveExpertInterviewPackage(input) {
       return (await client()).mutation(api.expertInterviews.savePackage, input)
     },

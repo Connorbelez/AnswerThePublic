@@ -148,7 +148,7 @@ export const apply = mutation({
     const requestHumanIds: Array<string> = []
 
     for (const opportunity of report.opportunities) {
-      const sourceMatches = await ctx.db
+      const sourceCandidates = await ctx.db
         .query("contentRequests")
         .withIndex("by_organization_normalized_source_url", (index) =>
           index
@@ -156,6 +156,21 @@ export const apply = mutation({
             .eq("normalizedSourceUrl", opportunity.normalizedSourceUrl)
         )
         .collect()
+      const sourceCandidateExpertPackages = await Promise.all(
+        sourceCandidates.map((candidate) =>
+          candidate.requestType === "expert_interview"
+            ? Promise.resolve(true)
+            : ctx.db
+                .query("expertInterviews")
+                .withIndex("by_request", (index) =>
+                  index.eq("requestId", candidate._id)
+                )
+                .unique()
+        )
+      )
+      const sourceMatches = sourceCandidates.filter(
+        (_, index) => !sourceCandidateExpertPackages[index]
+      )
       if (sourceMatches.length > 1) {
         throw new ConvexError({
           code: "SOURCE_COLLISION_REQUIRES_REMEDIATION",

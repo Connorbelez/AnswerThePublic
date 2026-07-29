@@ -11,6 +11,7 @@ import type {
   OperatorWorkspaceInput,
 } from "@/application/content-requests"
 import { toPublicShareResponse } from "@/application/content-requests"
+import type { CreateExpertInterviewInput } from "@/application/expert-interviews"
 import type { PromoteOpportunityInput } from "@/application/promote-opportunity"
 
 async function createGuestAccessRepositoryForRequest(): Promise<GuestAccessRepository> {
@@ -1009,6 +1010,24 @@ export const createManualContentRequest = createServerFn({ method: "POST" })
     const { createContentRequestServiceFromRequest } =
       await import("@/application/content-request-service-request.server")
     return (await createContentRequestServiceFromRequest()).createManual(data)
+  })
+
+export const createExpertInterviewContentRequest = createServerFn({
+  method: "POST",
+})
+  .validator((data: CreateExpertInterviewInput) => data)
+  .handler(async ({ data }) => {
+    const [
+      { createContentRequestServiceFromRequest },
+      { createExpertInterview },
+    ] = await Promise.all([
+      import("@/application/content-request-service-request.server"),
+      import("@/application/expert-interviews"),
+    ])
+    return createExpertInterview(
+      await createContentRequestServiceFromRequest(),
+      data
+    )
   })
 
 export const openContentRequest = createServerFn({ method: "POST" })

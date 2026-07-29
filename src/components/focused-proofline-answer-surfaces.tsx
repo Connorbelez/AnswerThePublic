@@ -377,12 +377,15 @@ export function FocusedProoflineQuestionAnswers({
               >
                 <CollapsibleTrigger
                   render={
-                    <button
+                    <Button
                       aria-label={`${index + 1}. ${item.question}`}
+                      aria-current={index === boundedIndex ? "step" : undefined}
                       className={cn(
-                        "flex w-full items-center gap-3 bg-background px-3 py-3 text-left",
-                        index === boundedIndex && "bg-muted/60"
+                        "flex h-auto min-h-11 w-full items-center justify-start gap-3 bg-background px-3 py-3 text-left whitespace-normal",
+                        index === boundedIndex &&
+                          "bg-muted/60 hover:bg-muted/60 hover:text-foreground dark:hover:bg-muted/60 dark:hover:text-foreground"
                       )}
+                      variant="ghost"
                       type="button"
                     />
                   }
@@ -460,19 +463,20 @@ export function FocusedProoflineQuestionAnswers({
               const answered = Boolean(answers[item.id])
               const isSkipped = skipped.includes(item.id)
               return (
-                <button
+                <Button
                   aria-label={`${index + 1} ${item.question}`}
                   aria-current={index === boundedIndex ? "step" : undefined}
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm",
+                    "flex h-auto min-h-11 w-full items-center justify-start gap-2 rounded-xl px-3 py-2 text-left text-sm whitespace-normal",
                     index === boundedIndex
-                      ? "bg-foreground text-background"
+                      ? "bg-foreground text-background hover:bg-foreground hover:text-background dark:hover:bg-foreground dark:hover:text-background"
                       : "hover:bg-muted"
                   )}
                   disabled={disabled}
                   key={item.id}
                   onClick={() => onJump(index)}
                   type="button"
+                  variant="ghost"
                 >
                   {answered ? (
                     <CircleCheck className="size-4 shrink-0" />
@@ -484,7 +488,7 @@ export function FocusedProoflineQuestionAnswers({
                     </span>
                   )}
                   <span className="line-clamp-2">{item.question}</span>
-                </button>
+                </Button>
               )
             })}
           </div>

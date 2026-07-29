@@ -41,7 +41,13 @@ const interviewPackage = {
       existingCoverage: "Guides list bridge-loan eligibility.",
       whyItFallsShort: "They do not describe a live closing failure.",
       expertOpportunity: "Explain who gets called first and why.",
-      citations: [],
+      citations: [
+        {
+          label: "Bridge eligibility guide",
+          url: "https://example.test/bridge-eligibility",
+          supports: "The published eligibility coverage that omits recovery.",
+        },
+      ],
     },
   ],
   questions: [

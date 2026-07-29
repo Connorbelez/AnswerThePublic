@@ -193,26 +193,6 @@ describe("expert-interview local-agent interface", () => {
   })
 
   it("creates a Critical request and persists the brief, gaps, motivations, and agent instructions", async () => {
-    const createManual = vi.fn().mockResolvedValue(request)
-    const update = vi.fn().mockResolvedValue({
-      ...request,
-      requestType: "expert_interview",
-      priority: "critical",
-    })
-    const saveExpertInterviewPackage = vi.fn().mockResolvedValue({
-      expertInterviewId: "expert-1",
-      requestHumanId: request.humanId,
-      ...input,
-      createdAt: 1,
-      updatedAt: 1,
-    })
-    const upsertContext = vi.fn().mockImplementation(
-      async (
-        value: Omit<ContentContextItem, "contextId"> & {
-          correlationId: string
-        }
-      ) => ({ ...value, contextId: value.correlationId })
-    )
     const currentRequest = {
       ...request,
       requestType: "expert_interview" as const,
@@ -220,46 +200,63 @@ describe("expert-interview local-agent interface", () => {
       aggregateVersion: 6,
       updatedAt: 6,
     }
+    const created = {
+      request: currentRequest,
+      expertInterview: {
+        package: {
+          expertInterviewId: "expert-1",
+          requestHumanId: request.humanId,
+          brief: input.brief,
+          gaps: input.gaps,
+          questions: input.questions,
+          operatorInstructions: input.operatorInstructions ?? null,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        brief: contextItem(
+          "brief-1",
+          "source_summary",
+          "Expert interview brief",
+          ["Topic: Bridge financing"]
+        ),
+        gaps: [
+          contextItem(
+            "gaps-1",
+            "missing_research",
+            "Knowledge gap · complete ordered set",
+            ["Gap 1 · gap-1"]
+          ),
+        ],
+        questions: [
+          contextItem(
+            "questions-1",
+            "talking_points",
+            "Interview question · complete ordered set",
+            ["Question 1 · q-1"]
+          ),
+        ],
+        instructions: contextItem(
+          "instructions-1",
+          "research_requirements",
+          "Expert interview agent instructions",
+          ["Operator-directed priority"]
+        ),
+      },
+    }
+    const createExpertInterviewRecord = vi.fn().mockResolvedValue(created)
     const result = await createExpertInterview(
       service({
-        createManual,
-        update,
-        saveExpertInterviewPackage,
-        upsertContext,
-        getByHumanId: vi.fn().mockResolvedValue(currentRequest),
+        createExpertInterview: createExpertInterviewRecord,
       }),
       input
     )
 
-    expect(createManual).toHaveBeenCalledWith(
+    expect(createExpertInterviewRecord).toHaveBeenCalledTimes(1)
+    expect(createExpertInterviewRecord).toHaveBeenCalledWith(
       expect.objectContaining({
         title: input.title,
-        correlationId: "expert-1:request",
+        correlationId: "expert-1",
         source: expect.objectContaining({ channel: "expert_interview" }),
-      })
-    )
-    expect(update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        humanId: "CR-0241",
-        priority: "critical",
-      })
-    )
-    expect(saveExpertInterviewPackage).toHaveBeenCalledWith({
-      humanId: "CR-0241",
-      brief: input.brief,
-      gaps: input.gaps,
-      questions: input.questions,
-      operatorInstructions: input.operatorInstructions,
-      correlationId: "expert-1:package",
-    })
-    expect(upsertContext).toHaveBeenCalledTimes(4)
-    expect(upsertContext).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Interview question · q-1",
-        bulletPoints: expect.arrayContaining([
-          expect.stringContaining("Question:"),
-          expect.stringContaining("Motivation:"),
-        ]),
       })
     )
     expect(result.request.priority).toBe("critical")
@@ -274,32 +271,52 @@ describe("expert-interview local-agent interface", () => {
   })
 
   it("rejects an invalid complete package before creating a request", async () => {
-    const createManual = vi.fn()
+    const createExpertInterviewRecord = vi.fn()
     await expect(
-      createExpertInterview(service({ createManual }), {
-        ...input,
-        brief: {
-          ...input.brief,
-          framing:
-            "unsupported" as CreateExpertInterviewInput["brief"]["framing"],
-        },
-      })
+      createExpertInterview(
+        service({ createExpertInterview: createExpertInterviewRecord }),
+        {
+          ...input,
+          brief: {
+            ...input.brief,
+            framing:
+              "unsupported" as CreateExpertInterviewInput["brief"]["framing"],
+          },
+        }
+      )
     ).rejects.toThrow("INVALID_EXPERT_INTERVIEW_FRAMING")
-    expect(createManual).not.toHaveBeenCalled()
+    expect(createExpertInterviewRecord).not.toHaveBeenCalled()
   })
 
   it("rejects oversized nested package data before invoking any mutation", async () => {
-    const createManual = vi.fn()
+    const createExpertInterviewRecord = vi.fn()
     await expect(
-      createExpertInterview(service({ createManual }), {
-        ...input,
-        brief: {
-          ...input.brief,
-          summary: "x".repeat(10_001),
-        },
-      })
+      createExpertInterview(
+        service({ createExpertInterview: createExpertInterviewRecord }),
+        {
+          ...input,
+          brief: {
+            ...input.brief,
+            summary: "x".repeat(10_001),
+          },
+        }
+      )
     ).rejects.toThrow("EXPERT_INTERVIEW_TEXT_TOO_LONG")
-    expect(createManual).not.toHaveBeenCalled()
+    expect(createExpertInterviewRecord).not.toHaveBeenCalled()
+  })
+
+  it("rejects a non-HTTP original source before invoking creation", async () => {
+    const createExpertInterviewRecord = vi.fn()
+    await expect(
+      createExpertInterview(
+        service({ createExpertInterview: createExpertInterviewRecord }),
+        {
+          ...input,
+          source: { url: "javascript:alert(1)" },
+        }
+      )
+    ).rejects.toThrow("INVALID_EXPERT_INTERVIEW_SOURCE_URL")
+    expect(createExpertInterviewRecord).not.toHaveBeenCalled()
   })
 
   it("classifies processing from the durable request and package instead of context titles", async () => {

@@ -66,7 +66,13 @@ async function seedTwoRespondentInterview() {
         existingCoverage: "Public guidance explains ordinary bridge closings.",
         whyItFallsShort: "It omits the recovery order when dates slip.",
         expertOpportunity: "Compare practitioner first calls.",
-        citations: [],
+        citations: [
+          {
+            label: "Bridge closing guide",
+            url: "https://example.test/bridge-closing-guide",
+            supports: "The ordinary process that omits recovery sequencing.",
+          },
+        ],
       },
     ],
     questions: [

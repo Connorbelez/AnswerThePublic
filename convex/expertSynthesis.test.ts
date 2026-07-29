@@ -41,7 +41,13 @@ async function fixture() {
         existingCoverage: "Normal process.",
         whyItFallsShort: "No recovery sequence.",
         expertOpportunity: "Compare practitioner sequences.",
-        citations: [],
+        citations: [
+          {
+            label: "Bridge closing guide",
+            url: "https://example.test/bridge-closing-guide",
+            supports: "The ordinary process that omits recovery sequencing.",
+          },
+        ],
       },
     ],
     questions: [
@@ -189,11 +195,14 @@ describe("Expert Synthesis submission selection", () => {
         createdAt: 2,
       })
     })
-    await expect(
-      backend.query(api.expertSynthesis.listContextVersionIds, {
+    const synthesisContextVersionIds = await backend.query(
+      api.expertSynthesis.listContextVersionIds,
+      {
         humanId: request.humanId,
-      })
-    ).resolves.toEqual([contextVersionId])
+      }
+    )
+    expect(synthesisContextVersionIds).toHaveLength(5)
+    expect(synthesisContextVersionIds).toContain(contextVersionId)
 
     await expect(
       backend.mutation(api.expertSynthesis.createProcessingSnapshot, {
@@ -747,7 +756,7 @@ describe("Expert Synthesis submission selection", () => {
   })
 
   it("targets only an explicit Deliverable ID and otherwise creates a new Deliverable", async () => {
-    const { backend, contextVersionId, request, submissionId } = await fixture()
+    const { backend, request, submissionId } = await fixture()
     const deliverable = await backend.mutation(
       api.deliverables.createDerivative,
       {
@@ -790,7 +799,7 @@ describe("Expert Synthesis submission selection", () => {
     expect(completion.provenance).toMatchObject({
       deliverableId: deliverable.deliverableId,
       submissionIds: [submissionId],
-      contextVersionIds: [contextVersionId],
+      contextVersionIds: snapshot.contextVersionIds,
       payloadDigest: snapshot.payloadDigest,
     })
     const newSnapshot = await backend.mutation(

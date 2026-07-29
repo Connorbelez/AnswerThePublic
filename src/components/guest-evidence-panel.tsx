@@ -31,6 +31,8 @@ import {
   AttachmentMedia,
   AttachmentTitle,
 } from "@/components/ui/attachment"
+import { Input } from "@/components/ui/input"
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import {
   createVoiceCaptureQueue,
   type QueuedVoiceCapture,
@@ -663,20 +665,21 @@ export function GuestEvidencePanel({
       <label className="block text-sm font-medium" htmlFor="evidence-scope">
         Attach to
       </label>
-      <select
-        className="h-10 w-full rounded-2xl border bg-background px-3 text-sm"
+      <NativeSelect
+        className="w-full"
         disabled={evidenceDisabled}
         id="evidence-scope"
         onChange={(event) => setScopeValue(event.target.value)}
+        size="touch"
         value={scopeValue}
       >
-        <option value="batch">Complete response</option>
+        <NativeSelectOption value="batch">Complete response</NativeSelectOption>
         {questions.map((question) => (
-          <option key={question.id} value={question.id}>
+          <NativeSelectOption key={question.id} value={question.id}>
             {question.question}
-          </option>
+          </NativeSelectOption>
         ))}
-      </select>
+      </NativeSelect>
       <FounderVoiceRecorder
         idleInstruction="Tap anywhere in this area. Your transcript stays attached as attributed evidence."
         readOnly={evidenceDisabled}
@@ -687,10 +690,10 @@ export function GuestEvidencePanel({
       <div>
         <label
           aria-disabled={evidenceDisabled || uploading}
-          className="inline-flex h-9 cursor-pointer items-center justify-center rounded-xl border bg-background px-4 text-sm font-medium shadow-xs transition-colors hover:bg-muted aria-disabled:pointer-events-none aria-disabled:opacity-50"
+          className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-xl border bg-background px-4 text-sm font-medium shadow-xs transition-colors hover:bg-muted aria-disabled:pointer-events-none aria-disabled:opacity-50"
         >
           {uploading ? "Uploading file…" : "Attach supporting file"}
-          <input
+          <Input
             accept={ACCEPTED_FILES}
             className="sr-only"
             disabled={evidenceDisabled || uploading}
@@ -790,9 +793,9 @@ export function GuestEvidencePanel({
                   <Trash2 />
                 </AttachmentAction>
                 {retryAssetId === asset.assetId ? (
-                  <label className="inline-flex cursor-pointer items-center rounded-lg border px-2 py-1 text-xs font-medium">
+                  <label className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border px-3 py-1 text-xs font-medium">
                     Select {asset.kind === "audio" ? "audio" : "file"} again
-                    <input
+                    <Input
                       accept={
                         asset.kind === "audio" ? ACCEPTED_AUDIO : ACCEPTED_FILES
                       }

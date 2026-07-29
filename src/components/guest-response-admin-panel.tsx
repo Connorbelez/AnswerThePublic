@@ -22,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress, ProgressLabel } from "@/components/ui/progress"
 
@@ -366,25 +367,31 @@ function GuestResponseAdminCard({
           >
             Feedback target
           </label>
-          <select
-            className="h-9 w-full rounded-2xl border bg-background px-3 text-sm"
+          <NativeSelect
+            className="w-full"
             disabled={disabled || pending !== null}
             id={`${view.grantId}-feedback-target`}
             onChange={(event) => setFeedbackTarget(event.target.value)}
+            size="touch"
             value={feedbackTarget}
           >
-            <option value="workspace">Whole response</option>
+            <NativeSelectOption value="workspace">
+              Whole response
+            </NativeSelectOption>
             {view.workspace.questionAnswers.map(({ questionId }) => (
-              <option key={questionId} value={questionId}>
+              <NativeSelectOption key={questionId} value={questionId}>
                 {questionLabel(view, questionId)}
-              </option>
+              </NativeSelectOption>
             ))}
             {view.assets?.map(({ asset }) => (
-              <option key={asset.assetId} value={`asset:${asset.assetId}`}>
+              <NativeSelectOption
+                key={asset.assetId}
+                value={`asset:${asset.assetId}`}
+              >
                 Evidence: {asset.fileName}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
           <label
             className="block text-sm font-medium"
             htmlFor={`${view.grantId}-feedback-body`}

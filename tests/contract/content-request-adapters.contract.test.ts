@@ -18,6 +18,7 @@ import { AuthenticationRequiredError } from "@/application/workspace-session"
 function serviceStub(overrides: Partial<ContentRequestService> = {}) {
   return {
     createManual: vi.fn(),
+    createExpertInterview: vi.fn(),
     saveExpertInterviewPackage: vi.fn(),
     getExpertInterview: vi.fn(),
     searchPeople: vi.fn(),

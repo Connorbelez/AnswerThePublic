@@ -280,6 +280,84 @@ test("an operator creates a minimal manual request and opens its stable route", 
   await context.close()
 })
 
+test("an operator creates an expert interview from the content request interface", async ({
+  browser,
+}, testInfo) => {
+  const projectKey = testInfo.project.name.replaceAll(/[^a-z0-9]+/gi, "-")
+  const context = await browser.newContext({
+    extraHTTPHeaders: {
+      "x-fairlend-e2e-key": "local-playwright-only",
+      "x-fairlend-e2e-user": JSON.stringify({
+        subject: `expert_interview_creator_${projectKey}`,
+        organizationId: "org_fairlend",
+        email: "expert-interview-creator@fairlend.ca",
+        displayName: "Expert interview creator",
+        workosRole: "operator-editor",
+      }),
+    },
+  })
+  const page = await context.newPage()
+  const title = `Garden suite draw interview ${projectKey}`
+
+  await page.goto("/app/new")
+  await expect(
+    page.getByRole("button", { name: "Create Critical request" })
+  ).toBeEnabled()
+  await page.getByText("Expert interview", { exact: true }).click()
+  await page.getByLabel("Request title").fill(title)
+  await page.getByLabel("Topic").fill("Garden suite construction financing")
+  await page.getByLabel("Audience").fill("Toronto homeowners")
+  await page
+    .getByLabel("Article summary")
+    .fill("Explain how borrowers can plan cash flow across construction draws.")
+  await page
+    .getByLabel("FairLend posture")
+    .fill("Give practical guidance and be explicit about financing tradeoffs.")
+  await page
+    .getByLabel("Founder contribution")
+    .fill("Add firsthand underwriting patterns from real construction files.")
+  await page.getByLabel("Gap title").fill("First-draw timing is unclear")
+  await page
+    .getByLabel("Existing coverage")
+    .fill("Most guides describe total loan size but not draw timing.")
+  await page
+    .getByLabel("Why it falls short")
+    .fill("Borrowers cannot translate the guidance into a cash-flow plan.")
+  await page
+    .getByLabel("Expert opportunity")
+    .fill("Explain the real inspection and advance sequence.")
+  await page.getByLabel("Source label").fill("CMHC construction guidance")
+  await page
+    .getByLabel("Source URL", { exact: true })
+    .fill("https://example.test/cmhc-construction-guidance")
+  await page
+    .getByLabel("What it supports")
+    .fill("Construction financing is advanced against project progress.")
+  await page
+    .getByLabel("Question", { exact: true })
+    .fill("How should a borrower prepare for the first construction draw?")
+  await page
+    .getByLabel("Why ask this?")
+    .fill("It converts abstract lending terms into an actionable plan.")
+  await page.getByRole("button", { name: "Create expert interview" }).click()
+
+  await expect(page).toHaveURL(/\/app\/requests\/CR-[A-Z0-9]+$/)
+  await expect(page.getByRole("heading", { name: title })).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "Expert interview brief" })
+  ).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "First-draw timing is unclear" })
+  ).toBeVisible()
+  await expect(
+    page.getByRole("heading", {
+      name: "How should a borrower prepare for the first construction draw?",
+    })
+  ).toBeVisible()
+  await expect(page.getByTestId("expert-interview-question")).toHaveCount(1)
+  await context.close()
+})
+
 test("an operator opens a first-class Expert Interview in stable package order", async ({
   browser,
 }) => {

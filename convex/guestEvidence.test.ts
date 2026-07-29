@@ -42,7 +42,13 @@ const interviewPackage = {
       existingCoverage: "Published guides list bridge-loan eligibility.",
       whyItFallsShort: "They omit the live recovery sequence.",
       expertOpportunity: "Explain who is called first and why.",
-      citations: [],
+      citations: [
+        {
+          label: "Bridge eligibility guide",
+          url: "https://example.test/bridge-eligibility",
+          supports: "The published eligibility coverage that omits recovery.",
+        },
+      ],
     },
   ],
   questions: [

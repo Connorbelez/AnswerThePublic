@@ -116,8 +116,9 @@ export const backfillAssignmentFields = internalMutation({
 })
 
 /**
- * Expand-only request classification migration. Legacy rows are Standard
- * Requests; Expert Interviews are set explicitly when their package is saved.
+ * Expand-only request classification migration. Legacy rows with a durable
+ * Expert Interview package retain that classification; every other legacy row
+ * is a Standard Request.
  */
 export const backfillContentRequestTypes = internalMutation({
   args: { cursor: v.optional(v.string()) },
@@ -129,8 +130,17 @@ export const backfillContentRequestTypes = internalMutation({
     })
     let migrated = 0
     for (const request of page.page) {
-      if (request.requestType) continue
-      await ctx.db.patch(request._id, { requestType: "standard" })
+      const expertInterview = await ctx.db
+        .query("expertInterviews")
+        .withIndex("by_request", (index) => index.eq("requestId", request._id))
+        .unique()
+      const expectedRequestType = expertInterview
+        ? "expert_interview"
+        : "standard"
+      if (request.requestType === expectedRequestType) continue
+      await ctx.db.patch(request._id, {
+        requestType: expectedRequestType,
+      })
       migrated += 1
     }
     if (!page.isDone)
@@ -153,21 +163,55 @@ export const backfillNormalizedSourceUrls = internalMutation({
     })
     let migrated = 0
     for (const request of page.page) {
+      const expertInterview =
+        request.requestType === "expert_interview"
+          ? true
+          : await ctx.db
+              .query("expertInterviews")
+              .withIndex("by_request", (index) =>
+                index.eq("requestId", request._id)
+              )
+              .unique()
+      if (expertInterview) {
+        if (request.normalizedSourceUrl) {
+          await ctx.db.patch(request._id, { normalizedSourceUrl: undefined })
+          migrated += 1
+        }
+        continue
+      }
       if (request.normalizedSourceUrl || !request.sourceSnapshotId) continue
       const source = await ctx.db.get(request.sourceSnapshotId)
       const normalizedSourceUrl = source?.url
         ? normalizeSourceUrl(source.url)
         : null
       if (!normalizedSourceUrl) continue
-      const conflictingRequest = await ctx.db
+      const conflictingRequests = await ctx.db
         .query("contentRequests")
         .withIndex("by_organization_normalized_source_url", (index) =>
           index
             .eq("organizationId", request.organizationId)
             .eq("normalizedSourceUrl", normalizedSourceUrl)
         )
-        .first()
-      if (conflictingRequest && conflictingRequest._id !== request._id) {
+        .collect()
+      let conflictingRequest: (typeof conflictingRequests)[number] | undefined
+      for (const candidate of conflictingRequests) {
+        if (
+          candidate._id === request._id ||
+          candidate.requestType === "expert_interview"
+        )
+          continue
+        const candidateExpertInterview = await ctx.db
+          .query("expertInterviews")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", candidate._id)
+          )
+          .unique()
+        if (!candidateExpertInterview) {
+          conflictingRequest = candidate
+          break
+        }
+      }
+      if (conflictingRequest) {
         const existingConflict = await ctx.db
           .query("migrationConflicts")
           .withIndex("by_request_type", (index) =>
@@ -670,8 +714,6 @@ export const validateV1Invariants = internalQuery({
     })
     const issues: Array<{ humanId: string; code: string }> = []
     for (const request of page.page) {
-      if (!request.requestType)
-        issues.push({ humanId: request.humanId, code: "request_type" })
       if (
         !request.assigneePrincipalId ||
         request.watcherPrincipalIds === undefined ||
@@ -681,42 +723,63 @@ export const validateV1Invariants = internalQuery({
       if (request.activeVoiceCaptureCount === undefined)
         issues.push({ humanId: request.humanId, code: "voice_capture_count" })
 
-      const [deliverables, targets, projection, jobs, source, recipient] =
-        await Promise.all([
-          ctx.db
-            .query("deliverables")
-            .withIndex("by_request", (index) =>
-              index.eq("requestId", request._id)
-            )
-            .collect(),
-          ctx.db
-            .query("deliveryTargets")
-            .withIndex("by_request", (index) =>
-              index.eq("requestId", request._id)
-            )
-            .collect(),
-          ctx.db
-            .query("operatorWorkspaceItems")
-            .withIndex("by_request", (index) =>
-              index.eq("requestId", request._id)
-            )
-            .unique(),
-          ctx.db
-            .query("agentJobs")
-            .withIndex("by_request", (index) =>
-              index.eq("requestId", request._id)
-            )
-            .collect(),
-          request.sourceSnapshotId
-            ? ctx.db.get(request.sourceSnapshotId)
-            : Promise.resolve(null),
-          ctx.db.get(
-            request.assigneePrincipalId ?? request.createdByPrincipalId
-          ),
-        ])
-      const expectedNormalizedSourceUrl = source?.url
-        ? normalizeSourceUrl(source.url)
-        : null
+      const [
+        deliverables,
+        targets,
+        projection,
+        jobs,
+        source,
+        recipient,
+        expertInterview,
+      ] = await Promise.all([
+        ctx.db
+          .query("deliverables")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", request._id)
+          )
+          .collect(),
+        ctx.db
+          .query("deliveryTargets")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", request._id)
+          )
+          .collect(),
+        ctx.db
+          .query("operatorWorkspaceItems")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", request._id)
+          )
+          .unique(),
+        ctx.db
+          .query("agentJobs")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", request._id)
+          )
+          .collect(),
+        request.sourceSnapshotId
+          ? ctx.db.get(request.sourceSnapshotId)
+          : Promise.resolve(null),
+        ctx.db.get(request.assigneePrincipalId ?? request.createdByPrincipalId),
+        ctx.db
+          .query("expertInterviews")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", request._id)
+          )
+          .unique(),
+      ])
+      if (
+        !request.requestType ||
+        (Boolean(expertInterview) &&
+          request.requestType !== "expert_interview") ||
+        (!expertInterview && request.requestType === "expert_interview")
+      )
+        issues.push({ humanId: request.humanId, code: "request_type" })
+      const isExpertInterview =
+        request.requestType === "expert_interview" || Boolean(expertInterview)
+      const expectedNormalizedSourceUrl =
+        !isExpertInterview && source?.url
+          ? normalizeSourceUrl(source.url)
+          : null
       const collision = await ctx.db
         .query("migrationConflicts")
         .withIndex("by_request_type", (index) =>
@@ -725,14 +788,15 @@ export const validateV1Invariants = internalQuery({
             .eq("type", "normalized_source_url_collision")
         )
         .unique()
-      if (collision && !collision.resolved) {
+      if (!isExpertInterview && collision && !collision.resolved) {
         issues.push({
           humanId: request.humanId,
           code: "normalized_source_url_collision",
         })
       } else if (
-        expectedNormalizedSourceUrl &&
-        request.normalizedSourceUrl !== expectedNormalizedSourceUrl
+        (isExpertInterview && request.normalizedSourceUrl !== undefined) ||
+        (expectedNormalizedSourceUrl &&
+          request.normalizedSourceUrl !== expectedNormalizedSourceUrl)
       )
         issues.push({
           humanId: request.humanId,

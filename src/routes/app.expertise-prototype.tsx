@@ -813,17 +813,21 @@ function FocusedAdmin({
             ["Ready", "7"],
             ["Failed", "1"],
           ].map(([label, count], index) => (
-            <button
+            <Button
+              aria-pressed={index === 0}
               className={cn(
-                "flex items-center justify-between rounded-xl px-3 py-2",
-                index === 0 ? "bg-foreground text-background" : "hover:bg-muted"
+                "flex h-auto min-h-11 items-center justify-between rounded-xl px-3 py-2 whitespace-normal",
+                index === 0
+                  ? "bg-foreground text-background hover:bg-foreground hover:text-background dark:hover:bg-foreground dark:hover:text-background"
+                  : "hover:bg-muted"
               )}
               key={label}
               type="button"
+              variant="ghost"
             >
               <span>{label}</span>
               <span>{count}</span>
-            </button>
+            </Button>
           ))}
         </div>
         <div className="mt-5 space-y-2">
@@ -832,21 +836,23 @@ function FocusedAdmin({
             ["Mortgage renewals", "1 issue", false],
             ["Private lending", "Researching", false],
           ].map(([title, detail, active]) => (
-            <button
+            <Button
+              aria-pressed={Boolean(active)}
               className={cn(
-                "w-full rounded-xl border p-3 text-left",
+                "h-auto w-full flex-col items-stretch rounded-xl border p-3 text-left whitespace-normal",
                 active
-                  ? "border-foreground bg-background shadow-sm"
+                  ? "border-foreground bg-background shadow-sm hover:bg-background dark:hover:bg-background"
                   : "border-transparent hover:bg-muted/60"
               )}
               key={String(title)}
               type="button"
+              variant="ghost"
             >
               <strong className="block text-sm">{title}</strong>
               <span className="mt-1 block text-xs text-muted-foreground">
                 {detail}
               </span>
-            </button>
+            </Button>
           ))}
         </div>
         <Button className="mt-5 w-full" variant="outline">
@@ -1088,16 +1094,18 @@ function CoveragePane({
       />
       <div className="space-y-2 p-3">
         {coverageFixture.map((entry) => (
-          <button
+          <Button
+            aria-pressed={entry.id === selectedId}
             className={cn(
-              "w-full rounded-2xl border p-3 text-left transition-colors",
+              "h-auto w-full flex-col items-stretch rounded-2xl border p-3 text-left whitespace-normal transition-colors",
               entry.id === selectedId
-                ? "border-foreground bg-background shadow-sm"
+                ? "border-foreground bg-background shadow-sm hover:bg-background dark:hover:bg-background"
                 : "border-transparent hover:bg-muted/60"
             )}
             key={entry.id}
             onClick={() => onSelect(entry.id)}
             type="button"
+            variant="ghost"
           >
             <div className="flex items-start justify-between gap-2">
               <strong className="text-sm">{entry.label}</strong>
@@ -1109,7 +1117,7 @@ function CoveragePane({
             <span className="mt-2 block text-xs font-medium">
               {entry.sources} sources
             </span>
-          </button>
+          </Button>
         ))}
       </div>
     </div>
@@ -1134,16 +1142,18 @@ function GapPane({
       />
       <div className="space-y-3 p-4">
         {gaps.map((gap) => (
-          <button
+          <Button
+            aria-pressed={gap.id === selectedId}
             className={cn(
-              "w-full rounded-2xl border p-4 text-left",
+              "h-auto w-full flex-col items-stretch rounded-2xl border p-4 text-left whitespace-normal",
               gap.id === selectedId
-                ? "border-foreground bg-muted/30"
+                ? "border-foreground bg-muted/30 hover:bg-muted/30 dark:hover:bg-muted/30"
                 : "border-border/70 hover:border-foreground/40"
             )}
             key={gap.id}
             onClick={() => onSelect(gap.id)}
             type="button"
+            variant="ghost"
           >
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary">{gap.category}</Badge>
@@ -1170,7 +1180,7 @@ function GapPane({
                 <dd>{gap.contribution}</dd>
               </div>
             </dl>
-          </button>
+          </Button>
         ))}
       </div>
     </div>
@@ -1193,16 +1203,18 @@ function QuestionPane({
       />
       <div className="space-y-2 p-3">
         {questionsFixture.map((question, index) => (
-          <button
+          <Button
+            aria-pressed={question.id === selectedId}
             className={cn(
-              "w-full rounded-2xl border p-3 text-left",
+              "h-auto w-full flex-col items-stretch rounded-2xl border p-3 text-left whitespace-normal",
               question.id === selectedId
-                ? "border-foreground bg-background shadow-sm"
+                ? "border-foreground bg-background shadow-sm hover:bg-background dark:hover:bg-background"
                 : "border-transparent hover:bg-muted/60"
             )}
             key={question.id}
             onClick={() => onSelect(question.id)}
             type="button"
+            variant="ghost"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="font-mono text-xs text-muted-foreground">
@@ -1215,7 +1227,7 @@ function QuestionPane({
               {question.required ? "Required" : "Optional"} ·{" "}
               {question.gapIds.join(", ")}
             </p>
-          </button>
+          </Button>
         ))}
       </div>
     </div>
@@ -1272,11 +1284,12 @@ function AtlasFounder({
             </p>
             <div className="mt-3 grid gap-1 sm:grid-cols-2 lg:grid-cols-1">
               {questionsFixture.map((question, index) => (
-                <button
+                <Button
+                  aria-pressed={activeQuestionIndex === index}
                   className={cn(
-                    "flex items-start gap-2 rounded-xl p-2 text-left text-xs leading-5",
+                    "flex h-auto min-h-11 items-start justify-start gap-2 rounded-xl p-2 text-left text-xs leading-5 whitespace-normal",
                     activeQuestionIndex === index
-                      ? "bg-foreground text-background"
+                      ? "bg-foreground text-background hover:bg-foreground hover:text-background dark:hover:bg-foreground dark:hover:text-background"
                       : "hover:bg-muted"
                   )}
                   key={question.id}
@@ -1285,6 +1298,7 @@ function AtlasFounder({
                     onQuestionSelect(question.id)
                   }}
                   type="button"
+                  variant="ghost"
                 >
                   {answers[question.id] ? (
                     <CircleCheck className="mt-0.5 size-4 shrink-0" />
@@ -1294,7 +1308,7 @@ function AtlasFounder({
                     </span>
                   )}
                   <span>{question.prompt}</span>
-                </button>
+                </Button>
               ))}
             </div>
           </aside>
@@ -1385,16 +1399,18 @@ function AtlasFounder({
           </p>
           <div className="mt-3 grid gap-1 sm:grid-cols-2 lg:grid-cols-1">
             {questionsFixture.map((question, index) => (
-              <button
+              <Button
+                aria-pressed={selectedQuestionId === question.id}
                 className={cn(
-                  "flex items-start gap-2 rounded-xl p-2 text-left text-xs leading-5",
+                  "flex h-auto min-h-11 items-start justify-start gap-2 rounded-xl p-2 text-left text-xs leading-5 whitespace-normal",
                   selectedQuestionId === question.id
-                    ? "bg-foreground text-background"
+                    ? "bg-foreground text-background hover:bg-foreground hover:text-background dark:hover:bg-foreground dark:hover:text-background"
                     : "hover:bg-muted"
                 )}
                 key={question.id}
                 onClick={() => onQuestionSelect(question.id)}
                 type="button"
+                variant="ghost"
               >
                 {answers[question.id] ? (
                   <CircleCheck className="mt-0.5 size-4 shrink-0" />
@@ -1404,7 +1420,7 @@ function AtlasFounder({
                   </span>
                 )}
                 <span>{question.prompt}</span>
-              </button>
+              </Button>
             ))}
           </div>
           <Button className="mt-4 w-full" variant="outline">
@@ -1540,19 +1556,20 @@ function CallAdmin({
             </div>
             <div className="space-y-4">
               {turns.map((turn) => (
-                <button
+                <Button
                   className={cn(
-                    "block max-w-[88%] rounded-2xl p-4 text-left text-sm leading-6",
+                    "block h-auto max-w-[88%] rounded-2xl p-4 text-left text-sm leading-6 whitespace-normal",
                     turn.role === "researcher" &&
-                      "mr-auto border border-border bg-muted/45",
+                      "mr-auto border border-border bg-muted/45 hover:bg-muted/45 dark:hover:bg-muted/45",
                     turn.role === "expert" &&
-                      "ml-auto bg-foreground text-background",
+                      "ml-auto bg-foreground text-background hover:bg-foreground hover:text-background dark:hover:bg-foreground dark:hover:text-background",
                     turn.role === "system" &&
-                      "mx-auto max-w-full border border-dashed border-border bg-background text-center text-muted-foreground"
+                      "mx-auto max-w-full border border-dashed border-border bg-background text-center text-muted-foreground hover:bg-background dark:hover:bg-background"
                   )}
                   key={turn.id}
                   onClick={() => turn.gapId && onGapSelect(turn.gapId)}
                   type="button"
+                  variant="ghost"
                 >
                   <span className="mb-2 flex items-center gap-2 text-xs font-semibold opacity-70">
                     {turn.role === "researcher" ? (
@@ -1577,7 +1594,7 @@ function CallAdmin({
                       }
                     </span>
                   ) : null}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -1861,13 +1878,15 @@ function PrototypeSwitcher({
         <strong className="block truncate text-xs">
           {current.short} — {current.name}
         </strong>
-        <button
+        <Button
           className="text-[11px] text-white/65 hover:text-white"
           onClick={() => onRoleChange(role === "admin" ? "founder" : "admin")}
+          size="sm-touch"
           type="button"
+          variant="ghost"
         >
           Viewing {role} · switch role
-        </button>
+        </Button>
       </div>
       <Button
         aria-label="Next prototype variant"

@@ -4,6 +4,7 @@ import type {
 } from "../../shared/founder-handoff"
 import type {
   CompleteExpertInterviewProcessingInput,
+  CreateExpertInterviewInput,
   ExpertInterviewBrief,
   ExpertInterviewPackage,
   ExpertInterviewQuestion,
@@ -1065,8 +1066,24 @@ export type PrimaryDeliverableResult =
       conflict: SemanticConflict
     }
 
+export type ExpertInterviewCreationResult = {
+  request: ContentRequest
+  expertInterview: {
+    package: ExpertInterviewPackage
+    brief: ContentContextItem
+    gaps: Array<ContentContextItem>
+    questions: Array<ContentContextItem>
+    instructions: ContentContextItem
+  }
+}
+
 export interface ContentRequestRepository {
   createManual(input: PersistManualRequestInput): Promise<ContentRequest>
+  createExpertInterview(
+    input: CreateExpertInterviewInput & {
+      origin: PersistManualRequestInput["origin"]
+    }
+  ): Promise<ExpertInterviewCreationResult>
   saveExpertInterviewPackage(
     input: SaveExpertInterviewPackageInput
   ): Promise<ExpertInterviewPackage>
@@ -1403,6 +1420,9 @@ export interface ContentRequestRepository {
 
 export interface ContentRequestService {
   createManual(input: CreateManualRequestInput): Promise<ContentRequest>
+  createExpertInterview(
+    input: CreateExpertInterviewInput
+  ): Promise<ExpertInterviewCreationResult>
   saveExpertInterviewPackage(
     input: SaveExpertInterviewPackageInput
   ): Promise<ExpertInterviewPackage>
@@ -1744,6 +1764,8 @@ export function createContentRequestService(
   return {
     createManual: (input) =>
       repository.createManual({ ...input, origin: creationOrigin }),
+    createExpertInterview: (input) =>
+      repository.createExpertInterview({ ...input, origin: creationOrigin }),
     saveExpertInterviewPackage: (input) =>
       repository.saveExpertInterviewPackage(input),
     getExpertInterview: (humanId) => repository.getExpertInterview(humanId),

@@ -173,6 +173,71 @@ describe("Scout ingestion workflow contract", () => {
     )
   })
 
+  it("does not let a stale Expert Interview URL suppress Standard scout ingestion", async () => {
+    const app = await backend()
+    const expert = await app.mutation(api.expertInterviews.create, {
+      title: "Expert perspective on renewal affordability",
+      origin: "manual",
+      source: { url: opportunity.sourceUrl },
+      brief: {
+        topic: "Mortgage renewal affordability",
+        summary: "Capture a practitioner perspective on renewal planning.",
+        audience: "Canadian mortgage borrowers",
+        framing: "insider_knowledge",
+        fairlendPosture: "Educational and evidence-led.",
+        founderContribution: "Explain real underwriting tradeoffs.",
+      },
+      gaps: [
+        {
+          id: "gap-renewal",
+          kind: "reality_on_the_ground",
+          title: "Practical renewal sequencing",
+          existingCoverage: "Published guidance explains renewal basics.",
+          whyItFallsShort: "It omits practitioner sequencing.",
+          expertOpportunity: "Document the real decision sequence.",
+          citations: [
+            {
+              label: "Renewal guide",
+              url: "https://example.test/renewal-guide",
+              supports: "The published baseline that omits sequencing.",
+            },
+          ],
+        },
+      ],
+      questions: [
+        {
+          id: "question-sequence",
+          question: "What should a borrower do first?",
+          motivation: "Capture the practical sequence.",
+          gapIds: ["gap-renewal"],
+        },
+      ],
+      correlationId: "stale-expert-source",
+    })
+    await app.run((ctx) =>
+      ctx.db.patch(expert.request.requestId, {
+        requestType: undefined,
+        normalizedSourceUrl: "https://example.com/thread/42",
+      })
+    )
+
+    const ingested = await app.mutation(api.scoutIngestions.apply, {
+      idempotencyKey: "scout-after-stale-expert",
+      markdown: report(),
+    })
+
+    expect(ingested).toMatchObject({
+      status: "applied",
+      created: 1,
+      updated: 0,
+      manualPreserved: 0,
+    })
+    expect(ingested.requestHumanIds[0]).not.toBe(expert.humanId)
+    await expect(app.query(api.contentRequests.list, {})).resolves.toHaveLength(
+      2
+    )
+  })
+
   it("anchors equivalent relative deadlines to first observation", async () => {
     vi.useFakeTimers()
     try {

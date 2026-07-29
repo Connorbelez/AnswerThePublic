@@ -245,7 +245,7 @@ export function FounderVoiceRecorder({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
+              size="sm-touch"
               onClick={() => void voice.retry(capture.captureId)}
             >
               Retry transcription
@@ -254,7 +254,7 @@ export function FounderVoiceRecorder({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
+              size="sm-touch"
               onClick={() => void voice.discard(capture.captureId)}
             >
               Discard recording

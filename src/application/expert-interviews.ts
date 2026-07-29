@@ -342,14 +342,17 @@ function requireText(value: string, code: string) {
     throw new Error("EXPERT_INTERVIEW_TEXT_TOO_LONG")
 }
 
-function requireHttpUrl(value: string) {
+function requireHttpUrl(
+  value: string,
+  code = "INVALID_EXPERT_INTERVIEW_CITATION_URL"
+) {
   if (value.length > MAX_EXPERT_INTERVIEW_TEXT_LENGTH)
     throw new Error("EXPERT_INTERVIEW_TEXT_TOO_LONG")
   try {
     const url = new URL(value)
     if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error()
   } catch {
-    throw new Error("INVALID_EXPERT_INTERVIEW_CITATION_URL")
+    throw new Error(code)
   }
 }
 
@@ -394,6 +397,15 @@ export function validateExpertInterviewPackage(
     throw new Error("EXPERT_INTERVIEW_TOO_MANY_ALIASES")
   for (const alias of input.aliases ?? [])
     requireText(alias, "INVALID_EXPERT_INTERVIEW_ALIAS")
+  for (const [field, value] of Object.entries(input.source ?? {})) {
+    if (value !== undefined)
+      requireText(
+        value,
+        `INVALID_EXPERT_INTERVIEW_SOURCE_${field.toUpperCase()}`
+      )
+  }
+  if (input.source?.url)
+    requireHttpUrl(input.source.url, "INVALID_EXPERT_INTERVIEW_SOURCE_URL")
   requireText(input.correlationId, "INVALID_EXPERT_INTERVIEW_CORRELATION_ID")
   if (input.operatorInstructions?.trim())
     requireText(
@@ -409,6 +421,8 @@ export function validateExpertInterviewPackage(
     requireText(gap.existingCoverage, "INVALID_EXPERT_INTERVIEW_GAP")
     requireText(gap.whyItFallsShort, "INVALID_EXPERT_INTERVIEW_GAP")
     requireText(gap.expertOpportunity, "INVALID_EXPERT_INTERVIEW_GAP")
+    if (gap.citations.length === 0)
+      throw new Error("EXPERT_INTERVIEW_CITATIONS_REQUIRED")
     if (gap.citations.length > MAX_EXPERT_INTERVIEW_CITATIONS_PER_GAP)
       throw new Error("EXPERT_INTERVIEW_TOO_MANY_CITATIONS")
     for (const citation of gap.citations) {
@@ -432,6 +446,9 @@ export function validateExpertInterviewPackage(
   if (
     new TextEncoder().encode(
       JSON.stringify({
+        title: input.title,
+        aliases: input.aliases,
+        source: input.source,
         brief: input.brief,
         gaps: input.gaps,
         questions: input.questions,
@@ -487,9 +504,8 @@ export async function createExpertInterview(
   rawInput: CreateExpertInterviewInput
 ) {
   const input = validateExpertInterviewPackage(rawInput)
-  const request = await service.createManual({
-    title: input.title,
-    aliases: input.aliases,
+  const created = await service.createExpertInterview({
+    ...input,
     source: {
       ...input.source,
       question: input.source?.question || input.brief.topic,
@@ -497,100 +513,10 @@ export async function createExpertInterview(
       name: input.source?.name || "Expert interview",
       channel: input.source?.channel || "expert_interview",
     },
-    correlationId: `${input.correlationId}:request`,
   })
-
-  if (request.priority !== "critical")
-    await service.update({
-      humanId: request.humanId,
-      priority: "critical",
-      correlationId: `${input.correlationId}:priority`,
-    })
-
-  const expertInterviewPackage = await service.saveExpertInterviewPackage({
-    humanId: request.humanId,
-    brief: input.brief,
-    gaps: input.gaps,
-    questions: input.questions,
-    operatorInstructions: input.operatorInstructions,
-    correlationId: `${input.correlationId}:package`,
-  })
-
-  const brief = await service.upsertContext({
-    humanId: request.humanId,
-    kind: "source_summary",
-    title: EXPERT_INTERVIEW_CONTEXT_TITLES.brief,
-    bulletPoints: briefBullets(input.brief),
-    citations: [],
-    correlationId: `${input.correlationId}:brief`,
-  })
-
-  const gaps: Array<ContentContextItem> = []
-  for (const [index, gap] of input.gaps.entries()) {
-    gaps.push(
-      await service.upsertContext({
-        humanId: request.humanId,
-        kind: "missing_research",
-        title: `${EXPERT_INTERVIEW_CONTEXT_TITLES.gapPrefix}${gap.id} · ${gap.title}`,
-        bulletPoints: [
-          `Gap ID: ${gap.id}`,
-          `Gap kind: ${gap.kind}`,
-          `Existing coverage: ${gap.existingCoverage}`,
-          `Why it falls short: ${gap.whyItFallsShort}`,
-          `Expert opportunity: ${gap.expertOpportunity}`,
-        ],
-        citations: gap.citations,
-        correlationId: `${input.correlationId}:gap:${index}`,
-      })
-    )
-  }
-
-  const questions: Array<ContentContextItem> = []
-  for (const [index, question] of input.questions.entries()) {
-    questions.push(
-      await service.upsertContext({
-        humanId: request.humanId,
-        kind: "talking_points",
-        title: `${EXPERT_INTERVIEW_CONTEXT_TITLES.questionPrefix}${question.id}`,
-        bulletPoints: [
-          `Question: ${question.question}`,
-          `Motivation: ${question.motivation}`,
-          `Knowledge gaps: ${question.gapIds.join(", ")}`,
-        ],
-        citations: [],
-        correlationId: `${input.correlationId}:question:${index}`,
-      })
-    )
-  }
-
-  const instructions = await service.upsertContext({
-    humanId: request.humanId,
-    kind: "research_requirements",
-    title: EXPERT_INTERVIEW_CONTEXT_TITLES.instructions,
-    bulletPoints: [
-      input.operatorInstructions?.trim()
-        ? `Operator-directed priority: ${input.operatorInstructions.trim()}`
-        : "Operator-directed priority: none supplied",
-      "Preserve each expert response as an attributable source.",
-      "Separate sourced facts from practitioner claims and editorial inference.",
-      "Do not flatten disagreements between respondents during synthesis.",
-      "Draft only after reviewing every question motivation and available response.",
-    ],
-    citations: [],
-    correlationId: `${input.correlationId}:instructions`,
-  })
-  const currentRequest = await service.getByHumanId(request.humanId)
-  if (!currentRequest) throw new Error("CONTENT_REQUEST_NOT_FOUND")
 
   return {
-    request: currentRequest,
-    expertInterview: {
-      package: expertInterviewPackage,
-      brief,
-      gaps,
-      questions,
-      instructions,
-    },
+    ...created,
     next: {
       assign: "request.assign",
       generateGuestAccess: "guest_access.create",
