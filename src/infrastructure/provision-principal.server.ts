@@ -9,10 +9,12 @@ export async function provisionPrincipalFromWorkos({
   accessToken,
   organizationId,
   verifiedEmail,
+  displayName,
 }: {
   accessToken: string
   organizationId: string | undefined
   verifiedEmail: string
+  displayName?: string
 }): Promise<"provisioned" | "access_denied"> {
   const workos = getWorkosServerConfig()
   if (organizationId !== workos.organizationId) {
@@ -35,6 +37,7 @@ export async function provisionPrincipalFromWorkos({
   try {
     await client.mutation(api.principals.syncCurrentProfile, {
       verifiedEmail,
+      displayName,
       provisioningKey,
     })
     return "provisioned"

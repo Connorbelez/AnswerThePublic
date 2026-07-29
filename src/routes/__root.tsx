@@ -6,6 +6,11 @@ import {
 } from "@tanstack/react-router"
 
 import { ApplicationProviders } from "@/components/application-providers"
+import { NavigationFeedback } from "@/components/navigation-feedback"
+import {
+  RouteErrorFallback,
+  RouteNotFoundFallback,
+} from "@/components/route-fallback"
 import appCss from "@/index.css?url"
 
 export const Route = createRootRoute({
@@ -30,12 +35,15 @@ export const Route = createRootRoute({
     ],
   }),
   component: RootComponent,
+  errorComponent: RouteErrorFallback,
+  notFoundComponent: RouteNotFoundFallback,
   shellComponent: RootDocument,
 })
 
 function RootComponent() {
   return (
     <ApplicationProviders>
+      <NavigationFeedback />
       <Outlet />
     </ApplicationProviders>
   )
@@ -48,6 +56,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <a className="skip-link" href="#main-content">
+          Skip to main content
+        </a>
         {children}
         <Scripts />
       </body>

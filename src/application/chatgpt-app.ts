@@ -16,7 +16,12 @@ import {
   safeErrorResponse,
   type ContentRequestServiceFactory,
 } from "@/application/content-request-http"
+import { canonicalJson } from "../../shared/canonical-json"
 import type { ContentRequestService } from "@/application/content-requests"
+import {
+  buildExpertInterviewResearchPrompt,
+  prepareExpertInterviewProcessing,
+} from "@/application/expert-interviews"
 
 export const consequentialChatGptOperations = [
   "request.expire",
@@ -31,11 +36,19 @@ export const consequentialChatGptOperations = [
   "conflict.resolve",
   "share.create",
   "share.revoke",
+  "guest_access.revoke",
 ] as const satisfies ReadonlyArray<AgentControlOperation>
 
 const additiveChatGptOperations = [
   "request.create",
   "request.follow_up",
+  "expert_interview.create",
+  "expert_interview.submissions",
+  "expert_interview.processing_input",
+  "expert_interview.complete_processing",
+  "person.create",
+  "guest_access.create",
+  "guest_access.renew",
   "deliverable.create",
   "deliverable.version",
   "target.create",
@@ -75,10 +88,12 @@ function toolInput(value: Record<string, unknown>) {
   return value.command as ToolCallInput
 }
 
+const jsonDataSchema = z.json()
+
 const outputSchema = z.strictObject({
   ok: z.boolean(),
-  operation: z.string().optional(),
-  data: z.unknown().optional(),
+  operation: z.enum(agentControlOperations).optional(),
+  data: jsonDataSchema.optional(),
   error: z
     .strictObject({
       code: z.string(),
@@ -88,7 +103,26 @@ const outputSchema = z.strictObject({
     .optional(),
 })
 
+function toJsonData(value: unknown): z.infer<typeof jsonDataSchema> {
+  const serialized = JSON.stringify(value)
+  return serialized === undefined ? null : JSON.parse(serialized)
+}
+
 type SimpleMcpServer = {
+  registerPrompt(
+    name: string,
+    config: {
+      title?: string
+      description?: string
+      argsSchema?: Record<string, z.ZodType>
+    },
+    callback: (input: Record<string, string | undefined>) => Promise<{
+      messages: Array<{
+        role: "user"
+        content: { type: "text"; text: string }
+      }>
+    }>
+  ): unknown
   registerTool(
     name: string,
     config: {
@@ -124,7 +158,7 @@ function resultContent(
 function errorContent(
   code: string,
   message: string,
-  operation?: string,
+  operation?: AgentControlOperation,
   status?: number
 ) {
   return resultContent(
@@ -156,19 +190,6 @@ function operationSummary(operation: string, data: unknown) {
       return `${operation} resolved ${(nestedRequest as Record<string, unknown>).humanId as string}.`
   }
   return `${operation} succeeded.`
-}
-
-function canonicalize(value: unknown): string {
-  if (Array.isArray(value))
-    return `[${value.map((item) => canonicalize(item)).join(",")}]`
-  if (typeof value === "object" && value !== null) {
-    const record = value as Record<string, unknown>
-    return `{${Object.keys(record)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonicalize(record[key])}`)
-      .join(",")}}`
-  }
-  return JSON.stringify(value)
 }
 
 function bytesToBase64Url(bytes: Uint8Array) {
@@ -240,7 +261,7 @@ async function credentialBinding(request: Request) {
 async function snapshotDigest(snapshot: unknown) {
   const digest = await crypto.subtle.digest(
     "SHA-256",
-    new TextEncoder().encode(canonicalize(snapshot))
+    new TextEncoder().encode(canonicalJson(snapshot))
   )
   return bytesToBase64Url(new Uint8Array(digest))
 }
@@ -275,7 +296,7 @@ async function mintConfirmationToken(
     credentialBinding: await credentialBinding(request),
     expiresAt: now + 5 * 60 * 1_000,
   }
-  const encoded = stringToBase64Url(canonicalize(payload))
+  const encoded = stringToBase64Url(canonicalJson(payload))
   return `${encoded}.${await hmac(encoded, secret)}`
 }
 
@@ -300,7 +321,7 @@ async function verifyConfirmationToken(
       typeof payload.snapshotDigest === "string" &&
       Number.isSafeInteger(payload.expectedAggregateVersion) &&
       payload.credentialBinding === (await credentialBinding(request)) &&
-      canonicalize(payload.arguments) === canonicalize(input.arguments)
+      canonicalJson(payload.arguments) === canonicalJson(input.arguments)
     return valid ? payload : null
   } catch {
     return null
@@ -617,6 +638,28 @@ async function previewConsequentialAction(
     }
   }
 
+  if (input.operation === "guest_access.revoke") {
+    const grants = await service.listGuestAccessGrants(scopeHumanId)
+    const grant = grants.find(
+      (candidate) => candidate.grantId === stringArgument(input, "grantId")
+    )
+    if (!grant) throw previewError("NOT_FOUND")
+    return {
+      summary: `Revoke the response link assigned to ${grant.person.displayName} for ${scopeHumanId}. Their retained workspace and submission history will remain available, but this link will stop working immediately.`,
+      snapshot: {
+        ...base,
+        grant: {
+          grantId: grant.grantId,
+          assignedPerson: grant.person,
+          state: grant.state,
+          expiresAt: grant.expiresAt,
+          progress: grant.progress,
+          submitted: grant.submitted,
+        },
+      },
+    }
+  }
+
   throw previewError("VALIDATION_FAILED")
 }
 
@@ -647,7 +690,7 @@ async function executeTool(
       command.arguments.expectedAggregateVersion = expectedAggregateVersion
     const data = await executeAgentControlCommand(service, command)
     return resultContent(
-      { ok: true, operation: input.operation, data },
+      { ok: true, operation: input.operation, data: toJsonData(data) },
       operationSummary(input.operation, data)
     )
   } catch (error) {
@@ -671,7 +714,10 @@ async function executeTool(
   }
 }
 
-async function mappedErrorContent(error: unknown, operation?: string) {
+async function mappedErrorContent(
+  error: unknown,
+  operation?: AgentControlOperation
+) {
   if (error instanceof AgentControlValidationError)
     return errorContent(
       "VALIDATION_FAILED",
@@ -715,6 +761,81 @@ function buildServer(
     version: "1.0.0",
     description: "Private FairLend Content Request workflow app",
   }) as unknown as SimpleMcpServer
+  server.registerPrompt(
+    "expert_interview_research",
+    {
+      title: "Research an Expert Interview",
+      description:
+        "Research indexed coverage, identify genuine practitioner knowledge gaps, and return a payload for expert_interview.create.",
+      argsSchema: {
+        topic: z.string().min(1),
+        audience: z.string().optional(),
+        geography: z.string().optional(),
+        framing: z
+          .enum([
+            "educational",
+            "how_to",
+            "insider_knowledge",
+            "fairlend_sales",
+          ])
+          .optional(),
+        operatorInstructions: z.string().optional(),
+      },
+    },
+    async (input) => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: buildExpertInterviewResearchPrompt(input as never),
+          },
+        },
+      ],
+    })
+  )
+  server.registerPrompt(
+    "expert_interview_synthesis",
+    {
+      title: "Process a Completed Expert Interview",
+      description:
+        "Load the request brief, question motivations, evidence gaps, and explicitly selected attributed Submissions, then return the grounded article-synthesis prompt.",
+      argsSchema: {
+        humanId: z.string().min(1),
+        submissionIds: z
+          .string()
+          .min(1)
+          .describe("Comma-separated immutable Submission IDs"),
+        synthesisInstructions: z.string().optional(),
+        idempotencyKey: z
+          .string()
+          .min(1)
+          .describe("Stable key reused only for an exact preparation retry"),
+      },
+    },
+    async (input) => {
+      const processing = await prepareExpertInterviewProcessing(service, {
+        humanId: input.humanId!,
+        submissionIds: input
+          .submissionIds!.split(",")
+          .map((id) => id.trim())
+          .filter(Boolean),
+        synthesisInstructions: input.synthesisInstructions,
+        correlationId: input.idempotencyKey!,
+      })
+      return {
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: processing.prompt,
+            },
+          },
+        ],
+      }
+    }
+  )
   server.registerTool(
     "content_requests_read",
     {
@@ -736,7 +857,7 @@ function buildServer(
     {
       title: "Create FairLend Content Request Records",
       description:
-        "Create additive Content Request, follow-up, deliverable-version, and target records with stable retry keys. Raw founder input remains unavailable.",
+        "Create additive Content Request records, including complete expert-interview packages, and persist processed expert-interview drafts with stable retry keys. Use the expert_interview_research MCP prompt or expert_interview.research_prompt operation before expert_interview.create. Raw founder input remains unavailable except through the scoped expert-interview processing-input operation.",
       inputSchema: operationEnvelopeSchema(additiveChatGptOperations, {
         mutation: true,
       }),
@@ -808,7 +929,11 @@ function buildServer(
           expiresAt: previewedAt + 5 * 60 * 1_000,
         }
         return resultContent(
-          { ok: true, operation: input.operation, data },
+          {
+            ok: true,
+            operation: input.operation,
+            data: toJsonData(data),
+          },
           `${preview.summary} Review this exact current-state snapshot and explicitly approve it.`
         )
       } catch (error) {

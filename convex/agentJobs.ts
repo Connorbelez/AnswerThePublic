@@ -11,6 +11,7 @@ import {
 } from "./_generated/server"
 import {
   requireActiveRequest,
+  requireEditor,
   requireFounderWorkspacePrincipal,
   requirePrincipal,
 } from "./lib/authorization"
@@ -22,6 +23,7 @@ import {
   MAX_DELIVERABLES_PER_REQUEST,
   MAX_VOICE_CAPTURES_PER_REQUEST,
 } from "./lib/requestLimits"
+import { completeAgentJobWithVersion } from "./lib/agentJobCompletion"
 
 const jobValidator = v.object({
   jobId: v.id("agentJobs"),
@@ -49,6 +51,11 @@ const jobValidator = v.object({
 
 const jobInputValidator = v.object({
   job: jobValidator,
+  processingModel: v.union(
+    v.literal("founder_input"),
+    v.literal("expert_submissions")
+  ),
+  expertSubmissionIds: v.array(v.string()),
   source: v.union(
     v.object({
       question: v.union(v.string(), v.null()),
@@ -59,13 +66,16 @@ const jobInputValidator = v.object({
     }),
     v.null()
   ),
-  founderInput: v.object({
-    versionId: v.id("founderInputVersions"),
-    text: v.string(),
-    heads: v.array(v.string()),
-    revision: v.number(),
-    occurredAt: v.number(),
-  }),
+  founderInput: v.union(
+    v.object({
+      versionId: v.id("founderInputVersions"),
+      text: v.string(),
+      heads: v.array(v.string()),
+      revision: v.number(),
+      occurredAt: v.number(),
+    }),
+    v.null()
+  ),
   context: v.array(
     v.object({
       kind: v.string(),
@@ -117,6 +127,21 @@ async function publicJob(ctx: QueryCtx | MutationCtx, job: Doc<"agentJobs">) {
   }
 }
 
+async function targetedClaimedJob(
+  ctx: QueryCtx | MutationCtx,
+  job: Doc<"agentJobs">,
+  suppliedLeaseToken: string
+) {
+  if (job.status !== "running" || job.leaseToken !== suppliedLeaseToken)
+    throw new ConvexError({ code: "LEASE_LOST" })
+  return {
+    ...(await publicJob(ctx, job)),
+    // This mutation returns only the opaque token the authorized caller just
+    // supplied. General job projections continue to redact every lease token.
+    leaseToken: suppliedLeaseToken,
+  }
+}
+
 async function requiredJob(
   ctx: QueryCtx | MutationCtx,
   jobId: Doc<"agentJobs">["_id"]
@@ -147,6 +172,91 @@ function requiredNonEmpty(value: string) {
   if (!normalized || normalized.length > 200)
     throw new ConvexError({ code: "VALIDATION_FAILED" })
   return normalized
+}
+
+async function claimJobForRequest(
+  ctx: MutationCtx,
+  principal: {
+    _id: Doc<"principals">["_id"]
+    credentialId: string
+    organizationId: string
+  },
+  request: Doc<"contentRequests">,
+  args: { leaseToken: string; leaseMs: number },
+  auditPrefix: string
+) {
+  const leaseToken = requiredNonEmpty(args.leaseToken)
+  const now = Date.now()
+  const leaseMs = Math.min(15 * 60_000, Math.max(30_000, args.leaseMs))
+  const existingTokenClaim = await ctx.db
+    .query("agentJobs")
+    .withIndex("by_organization_lease_token", (query) =>
+      query
+        .eq("organizationId", principal.organizationId)
+        .eq("leaseToken", leaseToken)
+    )
+    .unique()
+  if (existingTokenClaim && existingTokenClaim.requestId !== request._id)
+    throw new ConvexError({ code: "IDEMPOTENCY_KEY_REUSED" })
+  const job =
+    existingTokenClaim ??
+    (await ctx.db
+      .query("agentJobs")
+      .withIndex("by_request", (query) => query.eq("requestId", request._id))
+      .unique())
+  if (!job) return null
+  if (job.status === "completed") return publicJob(ctx, job)
+  if (
+    job.status === "running" &&
+    job.claimedByPrincipalId === principal._id &&
+    job.leaseToken === leaseToken &&
+    (job.leaseExpiresAt ?? 0) > now
+  )
+    return targetedClaimedJob(ctx, job, leaseToken)
+  if (job.attempts >= job.maxAttempts)
+    throw new ConvexError({ code: "RETRY_BUDGET_EXHAUSTED" })
+  const claimable =
+    job.status === "queued" ||
+    (job.status === "retry_wait" && (job.nextAttemptAt ?? 0) <= now) ||
+    (job.status === "running" && (job.leaseExpiresAt ?? 0) <= now)
+  if (!claimable) throw new ConvexError({ code: "LEASE_UNAVAILABLE" })
+
+  const reclaiming = job.status === "running"
+  const leaseGeneration = job.leaseGeneration + 1
+  const leaseExpiresAt = now + leaseMs
+  await ctx.db.patch(job._id, {
+    status: "running",
+    leaseToken,
+    leaseExpiresAt,
+    claimableAt: leaseExpiresAt,
+    reapableAt:
+      job.attempts + 1 >= job.maxAttempts ? leaseExpiresAt : undefined,
+    heartbeatAt: now,
+    claimedByPrincipalId: principal._id,
+    attempts: job.attempts + 1,
+    leaseGeneration,
+    startedAt: job.startedAt ?? now,
+    updatedAt: now,
+  })
+  await ctx.db.insert("agentJobLeaseEvents", {
+    organizationId: principal.organizationId,
+    jobId: job._id,
+    requestId: job.requestId,
+    actorPrincipalId: principal._id,
+    event: reclaiming ? "reclaimed" : "claimed",
+    leaseGeneration,
+    leaseExpiresAt,
+    occurredAt: now,
+  })
+  await auditJobEvent(
+    ctx,
+    job,
+    principal,
+    reclaiming ? "agent_job.reclaimed" : "agent_job.claimed",
+    `${auditPrefix}:${job._id}:${leaseGeneration}`,
+    now
+  )
+  return targetedClaimedJob(ctx, await requiredJob(ctx, job._id), leaseToken)
 }
 
 async function notifyOperators(
@@ -316,7 +426,7 @@ export const submitFounderInput = mutation({
       .query("contextItems")
       .withIndex("by_request_kind", (q) => q.eq("requestId", request._id))
       .collect()
-    await ctx.db.insert("founderSubmissions", {
+    const founderSubmissionId = await ctx.db.insert("founderSubmissions", {
       organizationId: principal.organizationId,
       requestId: request._id,
       documentId: document._id,
@@ -325,6 +435,38 @@ export const submitFounderInput = mutation({
       correlationId,
       submittedAt: now,
     })
+    if ((request.requestType ?? "standard") === "expert_interview") {
+      const interview = await ctx.db
+        .query("expertInterviews")
+        .withIndex("by_request", (index) => index.eq("requestId", request._id))
+        .unique()
+      if (!interview) throw new ConvexError({ code: "NOT_AN_EXPERT_INTERVIEW" })
+      await ctx.db.insert("founderExpertSubmissions", {
+        organizationId: principal.organizationId,
+        requestId: request._id,
+        requestHumanId: request.humanId,
+        founderPrincipalId: founderPrincipal._id,
+        founderVersionId: version._id,
+        canonicalSubmissionId: `founder:${founderSubmissionId}`,
+        respondentDisplayName:
+          founderPrincipal.displayName ??
+          founderPrincipal.email ??
+          founderPrincipal.subject,
+        respondentEmail:
+          founderPrincipal.email ?? `${founderPrincipal.subject}@local.invalid`,
+        workspaceRevision: version.revision,
+        batchText: version.text,
+        questions: interview.questions.map((question, position) => ({
+          questionId: question.id,
+          question: question.question,
+          motivation: question.motivation,
+          position,
+          version: interview.updatedAt,
+        })),
+        correlationId,
+        submittedAt: now,
+      })
+    }
     const jobId = await ctx.db.insert("agentJobs", {
       organizationId: principal.organizationId,
       requestId: request._id,
@@ -512,6 +654,54 @@ export const claim = mutation({
   },
 })
 
+export const claimExpertSynthesis = mutation({
+  args: {
+    humanId: v.string(),
+    leaseToken: v.string(),
+    leaseMs: v.number(),
+  },
+  returns: v.union(jobValidator, v.null()),
+  handler: async (ctx, args) => {
+    const principal = await requirePrincipal(ctx)
+    requireEditor(principal)
+    const request = await requestByHumanId(
+      ctx,
+      principal.organizationId,
+      args.humanId
+    )
+    requireActiveRequest(request)
+    if ((request.requestType ?? "standard") !== "expert_interview")
+      throw new ConvexError({ code: "NOT_AN_EXPERT_INTERVIEW" })
+    return claimJobForRequest(
+      ctx,
+      principal,
+      request,
+      args,
+      "expert-synthesis-lease"
+    )
+  },
+})
+
+export const claimForRequest = mutation({
+  args: {
+    humanId: v.string(),
+    leaseToken: v.string(),
+    leaseMs: v.number(),
+  },
+  returns: v.union(jobValidator, v.null()),
+  handler: async (ctx, args) => {
+    const principal = await requirePrincipal(ctx)
+    assertAgent(principal)
+    const request = await requestByHumanId(
+      ctx,
+      principal.organizationId,
+      args.humanId
+    )
+    requireActiveRequest(request)
+    return claimJobForRequest(ctx, principal, request, args, "targeted-lease")
+  },
+})
+
 export const heartbeat = mutation({
   args: {
     jobId: v.id("agentJobs"),
@@ -593,6 +783,10 @@ export const complete = mutation({
     )
       throw new ConvexError({ code: "LEASE_LOST" })
     const request = await requestAcceptingAgentWork(ctx, job)
+    if ((request.requestType ?? "standard") === "expert_interview")
+      throw new ConvexError({
+        code: "EXPERT_INTERVIEW_REQUIRES_SYNTHESIS_COMPLETION",
+      })
     const body = args.body.trim()
     if (!body) throw new ConvexError({ code: "VALIDATION_FAILED" })
     const correlationId = requiredNonEmpty(args.correlationId)
@@ -688,38 +882,16 @@ export const complete = mutation({
         correlationId,
         occurredAt: now,
       })
-    await ctx.db.patch(job._id, {
-      status: "completed",
-      claimableAt: undefined,
-      reapableAt: undefined,
-      resultVersionId: versionId,
-      leaseToken: undefined,
-      leaseExpiresAt: undefined,
-      completedAt: now,
-      updatedAt: now,
-    })
-    const afterVersion = request.aggregateVersion + 1
-    await ctx.db.patch(request._id, {
-      lifecycle:
-        request.lifecycle === "responded" ? "responded" : "ready_to_respond",
-      aggregateVersion: afterVersion,
-      updatedAt: now,
-    })
-    await ctx.db.insert("auditEvents", {
-      organizationId: principal.organizationId,
-      requestId: request._id,
-      requestHumanId: request.humanId,
-      actorPrincipalId: principal._id,
-      credentialId: principal.credentialId,
-      operation: "agent_job.completed",
+    await completeAgentJobWithVersion(ctx, {
+      job,
+      request,
+      principal,
+      leaseToken: requiredNonEmpty(args.leaseToken),
+      leaseGeneration: args.leaseGeneration,
+      versionId,
       correlationId,
-      occurredAt: now,
-      beforeVersion: request.aggregateVersion,
-      afterVersion,
+      now,
     })
-    if (request.lifecycle !== "responded")
-      await notifyOperators(ctx, request, "response_ready", now)
-    await refreshOperatorWorkspaceProjection(ctx, request._id)
     return publicJob(ctx, await requiredJob(ctx, job._id))
   },
 })
@@ -934,8 +1106,54 @@ export const getInput = query({
     const source = job.sourceSnapshotId
       ? await ctx.db.get(job.sourceSnapshotId)
       : null
+    const isExpertInterview =
+      (request.requestType ?? "standard") === "expert_interview"
+    const [
+      founderExpertSubmissions,
+      guestSubmissions,
+      legacyFounderSubmission,
+    ] = isExpertInterview
+      ? await Promise.all([
+          ctx.db
+            .query("founderExpertSubmissions")
+            .withIndex("by_request_submitted_at", (index) =>
+              index.eq("requestId", request._id)
+            )
+            .collect(),
+          ctx.db
+            .query("responseSubmissions")
+            .withIndex("by_request_submitted_at", (index) =>
+              index.eq("requestId", request._id)
+            )
+            .collect(),
+          ctx.db
+            .query("founderSubmissions")
+            .withIndex("by_request", (index) =>
+              index.eq("requestId", request._id)
+            )
+            .unique(),
+        ])
+      : [[], [], null]
+    const expertSubmissionIds = [
+      ...founderExpertSubmissions.map(
+        (submission) =>
+          submission.canonicalSubmissionId ?? `founder:${submission._id}`
+      ),
+      ...(legacyFounderSubmission &&
+      !founderExpertSubmissions.some(
+        ({ founderVersionId }) =>
+          founderVersionId === legacyFounderSubmission.founderVersionId
+      )
+        ? [`founder:${legacyFounderSubmission._id}`]
+        : []),
+      ...guestSubmissions.map((submission) => String(submission._id)),
+    ]
     return {
       job: await publicJob(ctx, job),
+      processingModel: isExpertInterview
+        ? ("expert_submissions" as const)
+        : ("founder_input" as const),
+      expertSubmissionIds,
       source: source
         ? {
             question: source.question ?? null,
@@ -945,13 +1163,15 @@ export const getInput = query({
             channel: source.channel ?? null,
           }
         : null,
-      founderInput: {
-        versionId: founderVersion._id,
-        text: founderVersion.text,
-        heads: founderVersion.heads,
-        revision: founderVersion.revision,
-        occurredAt: founderVersion.occurredAt,
-      },
+      founderInput: isExpertInterview
+        ? null
+        : {
+            versionId: founderVersion._id,
+            text: founderVersion.text,
+            heads: founderVersion.heads,
+            revision: founderVersion.revision,
+            occurredAt: founderVersion.occurredAt,
+          },
       context: job.contextSnapshot,
       request: { humanId: request.humanId, title: job.requestTitle },
     }

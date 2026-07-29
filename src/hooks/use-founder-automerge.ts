@@ -1,10 +1,12 @@
-import * as Automerge from "@automerge/automerge"
+import * as Automerge from "@automerge/automerge/slim"
+import automergeWasmUrl from "@automerge/automerge/automerge.wasm?url"
 import {
   Repo,
+  initializeWasm,
   interpretAsDocumentId,
   isValidAutomergeUrl,
   type DocHandle,
-} from "@automerge/automerge-repo"
+} from "@automerge/automerge-repo/slim"
 import { BroadcastChannelNetworkAdapter } from "@automerge/automerge-repo-network-broadcastchannel"
 import { IndexedDBStorageAdapter } from "@automerge/automerge-repo-storage-indexeddb"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -31,11 +33,14 @@ import {
 } from "@/lib/founder-automerge"
 
 export type FounderSyncStatus =
-  | "Saved"
-  | "Saving"
-  | "Offline"
-  | "Save pending"
-  | "Save blocked"
+  "Saved" | "Saving" | "Offline" | "Save pending" | "Save blocked"
+
+let automergeInitialization: Promise<void> | undefined
+
+function ensureAutomergeInitialized() {
+  automergeInitialization ??= initializeWasm(automergeWasmUrl)
+  return automergeInitialization
+}
 
 type FounderAutomergeTransport = {
   pull(documentId: string): Promise<FounderAutomergePull>
@@ -107,8 +112,8 @@ async function deterministicDocumentId(ownerKey: string, humanId: string) {
 }
 
 function sameHeads(left: Array<string>, right: Array<string>) {
-  const sortedLeft = [...left].sort()
-  const sortedRight = [...right].sort()
+  const sortedLeft = [...left].sort((a, b) => a.localeCompare(b))
+  const sortedRight = [...right].sort((a, b) => a.localeCompare(b))
   return (
     sortedLeft.length === sortedRight.length &&
     sortedLeft.every((head, index) => head === sortedRight[index])
@@ -144,6 +149,15 @@ function terminalSyncError(error: unknown) {
   ].includes(String(syncErrorCode(error)))
 }
 
+function transientNetworkSyncError(error: unknown) {
+  return (
+    error instanceof TypeError &&
+    /failed to fetch|network(?:error| request failed)|load failed/i.test(
+      error.message
+    )
+  )
+}
+
 class FounderAutomergeSession {
   readonly repo: Repo
   readonly handle: DocHandle<FounderAutomergeDocument>
@@ -173,6 +187,7 @@ class FounderAutomergeSession {
     initialDocumentId: string | null
     pullRemote(documentId: string): Promise<FounderAutomergePull>
   }) {
+    await ensureAutomergeInitialized()
     const namespace = ownerNamespace(ownerKey)
     const repo = new Repo({
       storage: new IndexedDBStorageAdapter(
@@ -451,10 +466,9 @@ export function useFounderAutomerge({
         await refreshHistory()
       } catch (error) {
         if (mountedRef.current) {
-          if (!window.navigator.onLine) setStatus("Offline")
-          else if (terminalSyncError(error)) setStatus("Save blocked")
-          else {
-            setStatus("Save pending")
+          const networkUnavailable =
+            !window.navigator.onLine || transientNetworkSyncError(error)
+          const scheduleRetry = () => {
             if (retryTimerRef.current !== null) {
               window.clearTimeout(retryTimerRef.current)
             }
@@ -464,6 +478,14 @@ export function useFounderAutomerge({
               retryTimerRef.current = null
               void syncNowRef.current()
             }, delay)
+          }
+          if (networkUnavailable) {
+            setStatus("Offline")
+            if (window.navigator.onLine) scheduleRetry()
+          } else if (terminalSyncError(error)) setStatus("Save blocked")
+          else {
+            setStatus("Save pending")
+            scheduleRetry()
           }
         }
       }

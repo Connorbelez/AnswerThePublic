@@ -1,6 +1,15 @@
 node_modules/
+dist/
+.e2e-dist/
+.wrangler/
+playwright-report/
+test-results/
+.vercel/
 coverage/
 .pnpm-store/
+convex/_generated/
+docs/application-audit/
+src/routeTree.gen.ts
 pnpm-lock.yaml
 package-lock.json
 pnpm-lock.yaml

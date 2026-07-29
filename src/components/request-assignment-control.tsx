@@ -9,13 +9,7 @@ import type {
 } from "@/application/content-requests"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Field,
-  FieldError,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from "@/components/ui/field"
+import { Field, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 
@@ -69,6 +63,9 @@ export function RequestAssignmentControl({
         }
       }}
     >
+      <p className="assignment-control__current" role="status">
+        Assigned to {request.assignee.subject}
+      </p>
       <Field>
         <FieldLabel htmlFor="assignee">Accountable assignee</FieldLabel>
         <NativeSelect
@@ -112,7 +109,11 @@ export function RequestAssignmentControl({
           placeholder="Why ownership is changing"
         />
       </Field>
-      {error ? <FieldError>{error}</FieldError> : null}
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
       <Button type="submit" disabled={saving}>
         {saving ? "Assigning…" : "Update assignment"}
       </Button>

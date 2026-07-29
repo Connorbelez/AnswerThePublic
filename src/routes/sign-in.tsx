@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { ArrowRight, LockKeyhole } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { ButtonAnchor } from "@/components/ui/button-link"
+import { ThemeToggle } from "@/components/theme-toggle"
 import {
   Card,
   CardContent,
@@ -15,12 +16,25 @@ type SignInSearch = {
   returnTo: string
 }
 
+function safeReturnTo(value: unknown) {
+  if (typeof value !== "string" || !value.startsWith("/")) {
+    return "/app"
+  }
+
+  try {
+    const base = new URL("https://fairlend.invalid")
+    const resolved = new URL(value, base)
+    return resolved.origin === base.origin
+      ? `${resolved.pathname}${resolved.search}${resolved.hash}`
+      : "/app"
+  } catch {
+    return "/app"
+  }
+}
+
 export const Route = createFileRoute("/sign-in")({
   validateSearch: (search: Record<string, unknown>): SignInSearch => ({
-    returnTo:
-      typeof search.returnTo === "string" && search.returnTo.startsWith("/")
-        ? search.returnTo
-        : "/app",
+    returnTo: safeReturnTo(search.returnTo),
   }),
   component: SignInPage,
 })
@@ -30,7 +44,8 @@ function SignInPage() {
   const signInUrl = `/api/auth/sign-in?returnPathname=${encodeURIComponent(returnTo)}`
 
   return (
-    <main className="auth-page">
+    <main className="auth-page" id="main-content">
+      <ThemeToggle className="auth-theme-toggle" />
       <section className="auth-brand" aria-label="FairLend Content Requests">
         <span className="wordmark">FairLend</span>
         <p>Content Requests</p>
@@ -55,15 +70,14 @@ function SignInPage() {
           </p>
         </CardContent>
         <CardFooter>
-          <Button
+          <ButtonAnchor
             size="lg"
             className="w-full justify-between"
-            render={<a href={signInUrl} />}
-            nativeButton={false}
+            href={signInUrl}
           >
             Continue with WorkOS
             <ArrowRight data-icon="inline-end" />
-          </Button>
+          </ButtonAnchor>
         </CardFooter>
       </Card>
     </main>

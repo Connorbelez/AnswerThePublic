@@ -7,11 +7,10 @@ import {
   promoteDeliverableVersion,
   setPrimaryDeliverable,
 } from "@/application/content-request-server-functions"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { MarkdownContent } from "@/components/markdown-content"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Item, ItemHeader } from "@/components/ui/item"
 
 export function DeliverablePanel({
   humanId,
@@ -37,18 +36,16 @@ export function DeliverablePanel({
           {error ?? (pending ? "Updating deliverables" : "")}
         </p>
         {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
         ) : null}
         {deliverables.map((deliverable) => (
-          <Item
+          <article
             key={deliverable.deliverableId}
-            variant="outline"
-            className="block"
-            render={<article />}
+            className="deliverable-card rounded-xl border p-4"
           >
-            <ItemHeader>
+            <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="font-medium">{deliverable.name}</h3>
                 <p className="text-sm text-muted-foreground">
@@ -56,7 +53,7 @@ export function DeliverablePanel({
                 </p>
               </div>
               {deliverable.isPrimary ? <Badge>Primary</Badge> : null}
-            </ItemHeader>
+            </div>
             <ol
               className="mt-3 grid gap-3"
               aria-label={`${deliverable.name} versions`}
@@ -69,7 +66,7 @@ export function DeliverablePanel({
                 return (
                   <li
                     key={version.versionId}
-                    className="rounded-lg bg-muted/40 p-3"
+                    className="deliverable-version rounded-lg bg-muted/40 p-3"
                   >
                     <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
                       <span>Version {version.ordinal}</span>
@@ -80,13 +77,16 @@ export function DeliverablePanel({
                         <Badge variant="outline">Candidate</Badge>
                       ) : null}
                     </div>
-                    <p className="text-sm whitespace-pre-wrap">
+                    <MarkdownContent
+                      className="deliverable-version__content"
+                      minimumHeadingLevel={4}
+                    >
                       {version.body}
-                    </p>
+                    </MarkdownContent>
                     {!promoted && !readOnly ? (
                       <Button
                         className="mt-3"
-                        size="sm-touch"
+                        size="sm"
                         variant="outline"
                         disabled={pending !== null}
                         aria-label={`Promote ${deliverable.name} version ${version.ordinal}`}
@@ -129,7 +129,7 @@ export function DeliverablePanel({
             {!deliverable.isPrimary && !readOnly ? (
               <Button
                 className="mt-3"
-                size="sm-touch"
+                size="sm"
                 variant="ghost"
                 disabled={pending !== null}
                 aria-label={`Make ${deliverable.name} primary`}
@@ -168,7 +168,7 @@ export function DeliverablePanel({
                 Make primary
               </Button>
             ) : null}
-          </Item>
+          </article>
         ))}
       </CardContent>
     </Card>

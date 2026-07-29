@@ -28,6 +28,18 @@ function usage() {
     "  get <CR-ID>",
     "  find <ID, title, or fuzzy query>",
     "  create --title <title> [--question <text>] [--body <text>] [--url <url>]",
+    "  expert-research-prompt --topic <topic> [--audience text] [--geography text] [--framing educational|how_to|insider_knowledge|fairlend_sales] [--instructions text]",
+    "  expert-create --file expert-interview.json --idempotency-key <stable-key>",
+    "  expert-submissions <CR-ID>",
+    "  expert-selection <CR-ID> --submission-id <id> --include|--exclude --idempotency-key <stable-key>",
+    "  expert-processing-input <CR-ID> --submissions <id,id> --idempotency-key <stable-key> [--instructions text]",
+    "  expert-processing-complete <CR-ID> --submissions <id,id> --processing-token <signed-snapshot> --payload-digest <sha256> --file draft.md --idempotency-key <stable-key> [--job-id <job-id> --lease-token <active-token> --lease-generation <number>] [--deliverable-id id] [--name text] [--summary text]",
+    "  people-search <query> [--limit 20]",
+    "  person-create <CR-ID> --name <name> --email <email> --idempotency-key <stable-key>",
+    "  guest-list <CR-ID>",
+    "  guest-create <CR-ID> --person-id <person-id> --idempotency-key <stable-key>",
+    "  guest-renew <grant-id> --idempotency-key <stable-key>",
+    "  guest-revoke <grant-id> --idempotency-key <stable-key>",
     "  ingest --file <report.md> --idempotency-key <stable-key>",
     "  jobs",
     "  job-claim --lease-token <token> [--lease-ms 300000]",
@@ -80,7 +92,15 @@ export async function runContentRequestsCli(
 
   let url = `${baseUrl}/api/v1/cli/content-requests`
   let init: RequestInit = { headers }
-  if (command === "control" || command === "bulk") {
+  if (
+    command === "control" ||
+    command === "bulk" ||
+    command.startsWith("expert-") ||
+    command.startsWith("guest-") ||
+    command.startsWith("guest-access-") ||
+    command.startsWith("person-") ||
+    command.startsWith("people-")
+  ) {
     const readFile =
       options.readFile ??
       (async (path: string) =>
@@ -89,8 +109,7 @@ export async function runContentRequestsCli(
     let body: unknown
     if (command === "bulk") {
       const parsed = JSON.parse(await readFile(requireFlag(args, "--file"))) as
-        | Array<unknown>
-        | { commands?: Array<unknown> }
+        Array<unknown> | { commands?: Array<unknown> }
       const envelope = Array.isArray(parsed) ? { commands: parsed } : parsed
       const baseKey = readFlag(args, "--idempotency-key")
       body = baseKey
@@ -102,6 +121,198 @@ export async function runContentRequestsCli(
             ),
           }
         : envelope
+    } else if (command === "expert-research-prompt") {
+      body = {
+        command: {
+          operation: "expert_interview.research_prompt",
+          arguments: {
+            topic: requireFlag(args, "--topic"),
+            audience: readFlag(args, "--audience"),
+            geography: readFlag(args, "--geography"),
+            framing: readFlag(args, "--framing"),
+            operatorInstructions: readFlag(args, "--instructions"),
+          },
+        },
+      }
+    } else if (command === "expert-create") {
+      const expertInput = JSON.parse(
+        await readFile(requireFlag(args, "--file"))
+      ) as Record<string, unknown>
+      body = {
+        command: {
+          operation: "expert_interview.create",
+          arguments: expertInput,
+          idempotencyKey: requireFlag(args, "--idempotency-key"),
+        },
+      }
+    } else if (command === "expert-submissions") {
+      const humanId = args[0]
+      if (!humanId)
+        throw new Error("expert-submissions requires a Content Request ID.")
+      body = {
+        command: {
+          operation: "expert_interview.submissions",
+          arguments: { humanId },
+        },
+      }
+    } else if (command === "expert-selection") {
+      const humanId = args[0]
+      if (!humanId)
+        throw new Error("expert-selection requires a Content Request ID.")
+      const included = args.includes("--include")
+        ? true
+        : args.includes("--exclude")
+          ? false
+          : null
+      if (
+        included === null ||
+        (args.includes("--include") && args.includes("--exclude"))
+      )
+        throw new Error("Use exactly one of --include or --exclude.")
+      body = {
+        command: {
+          operation: "expert_interview.submission_selection",
+          arguments: {
+            humanId,
+            submissionId: requireFlag(args, "--submission-id"),
+            included,
+          },
+          idempotencyKey: requireFlag(args, "--idempotency-key"),
+        },
+      }
+    } else if (command === "expert-processing-input") {
+      const humanId = args[0]
+      if (!humanId)
+        throw new Error(
+          "expert-processing-input requires a Content Request ID."
+        )
+      body = {
+        command: {
+          operation: "expert_interview.processing_input",
+          arguments: {
+            humanId,
+            submissionIds: requireFlag(args, "--submissions")
+              .split(",")
+              .map((id) => id.trim())
+              .filter(Boolean),
+            synthesisInstructions: readFlag(args, "--instructions"),
+          },
+          idempotencyKey: requireFlag(args, "--idempotency-key"),
+        },
+      }
+    } else if (command === "expert-processing-complete") {
+      const humanId = args[0]
+      if (!humanId)
+        throw new Error(
+          "expert-processing-complete requires a Content Request ID."
+        )
+      const jobId = readFlag(args, "--job-id")
+      const leaseToken = readFlag(args, "--lease-token")
+      const leaseGenerationInput = readFlag(args, "--lease-generation")
+      const leaseTuple = [jobId, leaseToken, leaseGenerationInput]
+      if (
+        leaseTuple.some((value) => value !== undefined) &&
+        !leaseTuple.every((value) => value !== undefined)
+      )
+        throw new Error(
+          "expert-processing-complete requires --job-id, --lease-token, and --lease-generation together."
+        )
+      body = {
+        command: {
+          operation: "expert_interview.complete_processing",
+          arguments: {
+            humanId,
+            processingToken: requireFlag(args, "--processing-token"),
+            payloadDigest: requireFlag(args, "--payload-digest"),
+            submissionIds: requireFlag(args, "--submissions")
+              .split(",")
+              .map((id) => id.trim())
+              .filter(Boolean),
+            body: await readFile(requireFlag(args, "--file")),
+            jobId,
+            leaseToken,
+            leaseGeneration:
+              leaseGenerationInput === undefined
+                ? undefined
+                : Number(leaseGenerationInput),
+            deliverableId: readFlag(args, "--deliverable-id"),
+            name: readFlag(args, "--name"),
+            changeSummary: readFlag(args, "--summary"),
+          },
+          idempotencyKey: requireFlag(args, "--idempotency-key"),
+        },
+      }
+    } else if (command === "people-search") {
+      const query = args[0]
+      if (!query) throw new Error("people-search requires a query.")
+      body = {
+        command: {
+          operation: "person.search",
+          arguments: {
+            query,
+            limit: readFlag(args, "--limit")
+              ? Number(readFlag(args, "--limit"))
+              : undefined,
+          },
+        },
+      }
+    } else if (command === "person-create") {
+      const humanId = args[0]
+      if (!humanId)
+        throw new Error("person-create requires a Content Request ID.")
+      body = {
+        command: {
+          operation: "person.create",
+          arguments: {
+            humanId,
+            displayName: requireFlag(args, "--name"),
+            email: requireFlag(args, "--email"),
+          },
+          idempotencyKey: requireFlag(args, "--idempotency-key"),
+        },
+      }
+    } else if (command === "guest-list" || command === "guest-access-list") {
+      const humanId = args[0]
+      if (!humanId) throw new Error("guest-list requires a Content Request ID.")
+      body = {
+        command: {
+          operation: "guest_access.list",
+          arguments: { humanId },
+        },
+      }
+    } else if (
+      command === "guest-create" ||
+      command === "guest-access-create"
+    ) {
+      const humanId = args[0]
+      if (!humanId)
+        throw new Error("guest-create requires a Content Request ID.")
+      body = {
+        command: {
+          operation: "guest_access.create",
+          arguments: {
+            humanId,
+            personId: requireFlag(args, "--person-id"),
+          },
+          idempotencyKey: requireFlag(args, "--idempotency-key"),
+        },
+      }
+    } else if (
+      command === "guest-renew" ||
+      command === "guest-access-renew" ||
+      command === "guest-revoke" ||
+      command === "guest-access-revoke"
+    ) {
+      const grantId = args[0]
+      if (!grantId) throw new Error(`${command} requires a grant ID.`)
+      const renew = command.endsWith("renew")
+      body = {
+        command: {
+          operation: renew ? "guest_access.renew" : "guest_access.revoke",
+          arguments: { grantId },
+          idempotencyKey: requireFlag(args, "--idempotency-key"),
+        },
+      }
     } else {
       const operation = args[0]
       if (!operation) throw new Error("control requires an operation.")

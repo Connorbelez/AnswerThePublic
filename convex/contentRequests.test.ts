@@ -46,6 +46,7 @@ describe("Content Request workflow contract", () => {
 
     expect(created).toMatchObject({
       title: "Explain a portable mortgage",
+      requestType: "standard",
       origin: "manual",
       priority: "critical",
       lifecycle: "pending",
@@ -56,6 +57,44 @@ describe("Content Request workflow contract", () => {
       backend.query(api.contentRequests.getByHumanId, {
         humanId: created.humanId,
       })
+    ).resolves.toEqual(created)
+  })
+
+  it("replays createManual audit records written before requestType joined the fingerprint", async () => {
+    const backend = await operatorBackend()
+    const input = {
+      title: "Legacy idempotent request",
+      origin: "manual" as const,
+      correlationId: "legacy-create-fingerprint",
+    }
+    const created = await backend.mutation(
+      api.contentRequests.createManual,
+      input
+    )
+    await backend.run(async (ctx) => {
+      const audit = await ctx.db
+        .query("auditEvents")
+        .withIndex("by_organization_actor_operation_correlation", (index) =>
+          index
+            .eq("organizationId", "org_fairlend")
+            .eq("actorPrincipalId", created.assignee.principalId)
+            .eq("operation", "content_request.created")
+            .eq("correlationId", input.correlationId)
+        )
+        .unique()
+      if (!audit) throw new Error("Missing creation audit")
+      await ctx.db.patch(audit._id, {
+        inputFingerprint: JSON.stringify({
+          title: input.title,
+          origin: input.origin,
+          aliases: [],
+          source: null,
+        }),
+      })
+    })
+
+    await expect(
+      backend.mutation(api.contentRequests.createManual, input)
     ).resolves.toEqual(created)
   })
 
@@ -421,6 +460,74 @@ describe("Content Request workflow contract", () => {
         correlationId: "notification-read-operator",
       })
     ).rejects.toMatchObject({ data: { code: "RESOURCE_ACCESS_DENIED" } })
+  })
+
+  it("projects the same suppression-safe notifications through list and paginated queries", async () => {
+    const backend = await operatorBackend()
+    const request = await backend.mutation(api.contentRequests.createManual, {
+      title: "Notification projection contract",
+      origin: "manual",
+      correlationId: "notification-projection-request",
+    })
+    const ids = await backend.run(async (ctx) => {
+      const activeWithDeepLink = await ctx.db.insert("notifications", {
+        organizationId: "org_fairlend",
+        requestId: request.requestId,
+        recipientPrincipalId: request.assignee.principalId,
+        type: "guest_submission",
+        deepLink: `/app/requests/${request.humanId}#guest-access-test`,
+        emailQueued: true,
+        emailStatus: "queued",
+        createdAt: 3,
+      })
+      const activeLegacy = await ctx.db.insert("notifications", {
+        organizationId: "org_fairlend",
+        requestId: request.requestId,
+        recipientPrincipalId: request.assignee.principalId,
+        type: "request_assigned",
+        emailQueued: false,
+        emailStatus: "failed",
+        createdAt: 2,
+      })
+      const suppressed = await ctx.db.insert("notifications", {
+        organizationId: "org_fairlend",
+        requestId: request.requestId,
+        recipientPrincipalId: request.assignee.principalId,
+        type: "guest_upload_failed",
+        emailQueued: true,
+        emailStatus: "queued",
+        createdAt: 1,
+        suppressedAt: 4,
+      })
+      return { activeWithDeepLink, activeLegacy, suppressed }
+    })
+
+    const listed = await backend.query(
+      api.contentRequests.listMyNotifications,
+      {}
+    )
+    const paginated = await backend.query(
+      api.contentRequests.listMyNotificationsPage,
+      { paginationOpts: { numItems: 50, cursor: null } }
+    )
+
+    expect(paginated.page).toEqual(listed)
+    expect(listed.map(({ notificationId }) => notificationId)).toEqual([
+      ids.activeWithDeepLink,
+      ids.activeLegacy,
+    ])
+    expect(
+      listed.find(
+        ({ notificationId }) => notificationId === ids.activeWithDeepLink
+      )?.deepLink
+    ).toBe(`/app/requests/${request.humanId}#guest-access-test`)
+    expect(
+      listed.find(({ notificationId }) => notificationId === ids.activeLegacy)
+        ?.deepLink
+    ).toBe(`/app/requests/${request.humanId}`)
+    expect(
+      listed.some(({ notificationId }) => notificationId === ids.suppressed)
+    ).toBe(false)
   })
 
   it("sorts explicit founder work ahead of newer automated work before limiting", async () => {
@@ -821,6 +928,77 @@ describe("Content Request workflow contract", () => {
     await expect(
       backend.query(internal.notifications.listRetryableEmailDeliveries, {})
     ).resolves.toContain(dueAfterExhausted)
+
+    const { fifthAttempt, failedDue, leaseExpiredDue } = await backend.run(
+      async (ctx) => {
+        const common = {
+          organizationId: finalDelivery.organizationId,
+          requestId: finalDelivery.requestId,
+          notificationId: finalDelivery.notificationId,
+          recipientPrincipalId: finalDelivery.recipientPrincipalId,
+          recipientEmail: finalDelivery.recipientEmail,
+          template: finalDelivery.template,
+          deepLink: finalDelivery.deepLink,
+        }
+        for (let index = 0; index < 25; index += 1) {
+          await ctx.db.insert("notificationEmailOutbox", {
+            ...common,
+            status: "queued",
+            attempts: 0,
+            nextAttemptAt: Date.now() - 1,
+            createdAt: 200 + index,
+            updatedAt: 200 + index,
+          })
+        }
+        const failedDue = await ctx.db.insert("notificationEmailOutbox", {
+          ...common,
+          status: "failed",
+          attempts: 2,
+          nextAttemptAt: Date.now() - 1,
+          createdAt: 300,
+          updatedAt: 300,
+        })
+        const leaseExpiredDue = await ctx.db.insert("notificationEmailOutbox", {
+          ...common,
+          status: "sending",
+          attempts: 2,
+          claimToken: "expired-balanced-claim",
+          leaseExpiresAt: Date.now() - 1,
+          createdAt: 301,
+          updatedAt: 301,
+        })
+        const fifthAttempt = await ctx.db.insert("notificationEmailOutbox", {
+          ...common,
+          status: "sending",
+          attempts: 5,
+          claimToken: "fifth-attempt-crash",
+          leaseExpiresAt: Date.now() - 1,
+          createdAt: 302,
+          updatedAt: 302,
+        })
+        return { fifthAttempt, failedDue, leaseExpiredDue }
+      }
+    )
+    const balancedRetryable = await backend.query(
+      internal.notifications.listRetryableEmailDeliveries,
+      {}
+    )
+    expect(balancedRetryable).toEqual(
+      expect.arrayContaining([failedDue, leaseExpiredDue, fifthAttempt])
+    )
+    await expect(
+      backend.mutation(internal.notifications.claimEmailDelivery, {
+        deliveryId: fifthAttempt,
+        claimToken: "fifth-attempt-reclaim",
+      })
+    ).resolves.toBeNull()
+    const fifthTerminal = await backend.run((ctx) => ctx.db.get(fifthAttempt))
+    expect(fifthTerminal).toMatchObject({
+      status: "exhausted",
+      lastErrorCode: "EMAIL_ATTEMPTS_EXHAUSTED",
+    })
+    expect(fifthTerminal?.claimToken).toBeUndefined()
+    expect(fifthTerminal?.leaseExpiresAt).toBeUndefined()
   })
 
   it("backfills assignment fields on records created before Ticket 03", async () => {

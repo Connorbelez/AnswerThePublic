@@ -63,7 +63,7 @@ function CardTitle({
   className,
   ...props
 }: React.ComponentProps<"div"> & {
-  as?: "div" | "h1" | "h2" | "h3"
+  as?: "div" | "h1" | "h2" | "h3" | "h4"
 }) {
   return (
     <Component

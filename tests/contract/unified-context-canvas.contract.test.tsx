@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { UnifiedContextCanvas } from "@/components/unified-context-canvas"
 import type {
@@ -19,6 +20,7 @@ const request = {
   requestId: "opaque-142",
   title: "Financing a laneway suite without breaking a low-rate mortgage",
   aliases: [],
+  requestType: "standard",
   origin: "automated_scout",
   priority: "high",
   lifecycle: "pending",
@@ -114,6 +116,8 @@ const context = [
 ] satisfies Array<ContentContextItem>
 
 describe("Variant G Unified Context Canvas", () => {
+  afterEach(cleanup)
+
   it("renders inactive founder work as visibly read-only", () => {
     const onTextChange = vi.fn()
     const view = render(
@@ -341,6 +345,44 @@ describe("Variant G Unified Context Canvas", () => {
     expect(
       screen.getAllByRole("textbox", { name: "Founder input" })
     ).toHaveLength(1)
+  })
+
+  it("renders original source markdown as structured, accessible content", () => {
+    render(
+      <UnifiedContextCanvas
+        request={{
+          ...request,
+          humanId: "CR-MARKDOWN-SOURCE",
+          source: {
+            ...request.source,
+            body: `### Paying off an Ontario mortgage
+
+- **Thread:** [What happens after paying off a mortgage?](https://community.example/mortgage)
+- **Question:** What administrative steps remain?`,
+          },
+        }}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+      />
+    )
+
+    const sourceCard = screen.getByRole("article", { name: "Original source" })
+    expect(
+      within(sourceCard).getByRole("heading", {
+        level: 3,
+        name: "Paying off an Ontario mortgage",
+      })
+    ).toBeTruthy()
+    expect(within(sourceCard).getByText("Thread:").tagName).toBe("STRONG")
+    expect(
+      within(sourceCard)
+        .getByRole("link", {
+          name: "What happens after paying off a mortgage?",
+        })
+        .getAttribute("rel")
+    ).toBe("noopener noreferrer")
+    expect(sourceCard.textContent).not.toContain("###")
+    expect(sourceCard.textContent).not.toContain("**")
   })
 
   it("preserves URL-only sources, distinct same-kind items, and preference changes", async () => {
@@ -612,6 +654,110 @@ describe("Variant G Unified Context Canvas", () => {
         .hasAttribute("disabled")
     ).toBe(true)
     expect(restore).not.toHaveBeenCalled()
+  })
+
+  it("uses the entire idle voice surface as the accessible record control", () => {
+    const start = vi.fn()
+    const view = render(
+      <UnifiedContextCanvas
+        request={request}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+        draftController={{
+          text: "",
+          status: "Saved",
+          canUndo: false,
+          canRedo: false,
+          history: null,
+          archiveEntries: [],
+          archiveDone: true,
+          onTextChange: vi.fn(),
+          onUndo: vi.fn(),
+          onRedo: vi.fn(),
+          onLoadOlderHistory: vi.fn(),
+          onRestoreArchivedVersion: vi.fn(),
+          voice: {
+            supported: true,
+            state: "idle",
+            elapsedMs: 0,
+            errorCode: null,
+            queuedCount: 0,
+            captures: [],
+            start,
+            pause: vi.fn(),
+            resume: vi.fn(),
+            stop: vi.fn(),
+            retry: vi.fn(),
+            discard: vi.fn(),
+            discardPending: vi.fn(),
+          },
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Record input" }))
+    const editor = screen.getByTestId("founder-editor")
+    const input = view.container.querySelector(".unified-editor__input")
+    const recordSurface = screen.getByRole("button", {
+      name: "Press to record",
+    })
+
+    expect(editor.getAttribute("data-input-mode")).toBe("record")
+    expect(recordSurface.parentElement).toBe(input)
+    expect(recordSurface.textContent).toContain("Press to record")
+    expect(recordSurface.textContent).toContain("Tap anywhere in this area")
+    expect(recordSurface.querySelector("button")).toBeNull()
+    fireEvent.click(recordSurface)
+    expect(start).toHaveBeenCalledOnce()
+  })
+
+  it("keeps active recording actions explicit and keyboard-sized", () => {
+    const pause = vi.fn()
+    const stop = vi.fn()
+    render(
+      <UnifiedContextCanvas
+        request={request}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+        draftController={{
+          text: "A typed point remains safe",
+          status: "Saved",
+          canUndo: false,
+          canRedo: false,
+          history: null,
+          archiveEntries: [],
+          archiveDone: true,
+          onTextChange: vi.fn(),
+          onUndo: vi.fn(),
+          onRedo: vi.fn(),
+          onLoadOlderHistory: vi.fn(),
+          onRestoreArchivedVersion: vi.fn(),
+          voice: {
+            supported: true,
+            state: "recording",
+            elapsedMs: 65_000,
+            errorCode: null,
+            queuedCount: 0,
+            captures: [],
+            start: vi.fn(),
+            pause,
+            resume: vi.fn(),
+            stop,
+            retry: vi.fn(),
+            discard: vi.fn(),
+            discardPending: vi.fn(),
+          },
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Record input" }))
+    expect(screen.getByText("Recording", { exact: true })).toBeTruthy()
+    expect(screen.getByLabelText("01:05 elapsed")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Pause recording" }))
+    fireEvent.click(screen.getByRole("button", { name: "Stop and save" }))
+    expect(pause).toHaveBeenCalledOnce()
+    expect(stop).toHaveBeenCalledOnce()
   })
 
   it("blocks founder submission while local voice work is pending", () => {

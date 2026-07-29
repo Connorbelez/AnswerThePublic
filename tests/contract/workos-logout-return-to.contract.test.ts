@@ -26,8 +26,7 @@ describe("WorkOS logout returnTo", () => {
     getRequestUrl.mockImplementation(() => {
       throw new Error("no request")
     })
-    process.env.WORKOS_REDIRECT_URI =
-      "http://localhost:3000/api/auth/callback"
+    process.env.WORKOS_REDIRECT_URI = "http://localhost:3000/api/auth/callback"
     const { resolveWorkosLogoutReturnTo } =
       await import("@/infrastructure/workos-logout-return-to.server")
 

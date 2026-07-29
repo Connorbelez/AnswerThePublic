@@ -23,6 +23,58 @@ export const requestPriorityValidator = v.union(
   v.literal("low")
 )
 
+export const contentRequestTypeValidator = v.union(
+  v.literal("standard"),
+  v.literal("expert_interview")
+)
+
+export const expertInterviewFramingValidator = v.union(
+  v.literal("educational"),
+  v.literal("how_to"),
+  v.literal("insider_knowledge"),
+  v.literal("fairlend_sales")
+)
+
+export const expertInterviewCitationValidator = v.object({
+  label: v.string(),
+  url: v.string(),
+  supports: v.string(),
+})
+
+export const expertInterviewGapValidator = v.object({
+  id: v.string(),
+  kind: v.union(
+    v.literal("confusing_coverage"),
+    v.literal("local_specific"),
+    v.literal("reality_on_the_ground"),
+    v.literal("practitioner_best_practice"),
+    v.literal("fragmented_how_to"),
+    v.literal("missing_evidence"),
+    v.literal("other")
+  ),
+  title: v.string(),
+  existingCoverage: v.string(),
+  whyItFallsShort: v.string(),
+  expertOpportunity: v.string(),
+  citations: v.array(expertInterviewCitationValidator),
+})
+
+export const expertInterviewQuestionValidator = v.object({
+  id: v.string(),
+  question: v.string(),
+  motivation: v.string(),
+  gapIds: v.array(v.string()),
+})
+
+export const expertInterviewBriefValidator = v.object({
+  topic: v.string(),
+  summary: v.string(),
+  audience: v.string(),
+  framing: expertInterviewFramingValidator,
+  fairlendPosture: v.string(),
+  founderContribution: v.string(),
+})
+
 export const requestLifecycleValidator = v.union(
   v.literal("pending"),
   v.literal("in_progress"),
@@ -41,6 +93,96 @@ export const requestRetentionValidator = v.union(
   v.literal("archived")
 )
 
+export const guestAccessOperationGrantResultValidator = v.object({
+  grantId: v.id("guestAccessGrants"),
+  requestHumanId: v.string(),
+  person: v.object({
+    personId: v.id("people"),
+    displayName: v.string(),
+    email: v.string(),
+    principalId: v.union(v.id("principals"), v.null()),
+    isFounder: v.boolean(),
+  }),
+  state: v.union(
+    v.literal("generated"),
+    v.literal("opened"),
+    v.literal("in_progress"),
+    v.literal("submitted"),
+    v.literal("expired"),
+    v.literal("revoked")
+  ),
+  tokenVersion: v.number(),
+  expiresAt: v.number(),
+  createdAt: v.number(),
+  firstOpenedAt: v.union(v.number(), v.null()),
+  latestActivityAt: v.number(),
+  progress: v.object({ completed: v.number(), total: v.number() }),
+  submitted: v.boolean(),
+  events: v.array(
+    v.object({
+      kind: v.union(
+        v.literal("generated"),
+        v.literal("opened"),
+        v.literal("first_progress"),
+        v.literal("submitted"),
+        v.literal("expired"),
+        v.literal("revoked"),
+        v.literal("renewed"),
+        v.literal("reopened"),
+        v.literal("taken_over")
+      ),
+      occurredAt: v.number(),
+      actor: v.union(
+        v.literal("guest"),
+        v.literal("administrator"),
+        v.literal("system")
+      ),
+      actorName: v.string(),
+      tokenVersion: v.union(v.number(), v.null()),
+    })
+  ),
+})
+
+export const founderHandoffFormatValidator = v.union(
+  v.literal("original_response"),
+  v.literal("blog_article"),
+  v.literal("linkedin_post"),
+  v.literal("x_thread"),
+  v.literal("youtube_short"),
+  v.literal("instagram_post"),
+  v.literal("infographic")
+)
+
+export const founderHandoffStageValidator = v.union(
+  v.literal("delivered"),
+  v.literal("opened"),
+  v.literal("draft_in_progress"),
+  v.literal("founder_complete"),
+  v.literal("agent_drafting"),
+  v.literal("ready"),
+  v.literal("attention_required")
+)
+
+export const founderHandoffStatusValidator = v.object({
+  handoffId: v.id("founderHandoffs"),
+  recipient: v.object({
+    principalId: v.id("principals"),
+    subject: v.string(),
+    role: workspaceRoleValidator,
+  }),
+  selectedFormats: v.array(founderHandoffFormatValidator),
+  note: v.union(v.string(), v.null()),
+  stage: founderHandoffStageValidator,
+  deliveredAt: v.number(),
+  openedAt: v.union(v.number(), v.null()),
+  emailStatus: v.union(
+    v.literal("queued"),
+    v.literal("sent"),
+    v.literal("failed"),
+    v.null()
+  ),
+})
+
 export default defineSchema({
   principals: defineTable({
     subject: v.string(),
@@ -50,10 +192,48 @@ export default defineSchema({
       v.union(v.literal("human"), v.literal("agent"), v.literal("system"))
     ),
     email: v.optional(v.string()),
+    displayName: v.optional(v.string()),
     updatedAt: v.number(),
   })
     .index("by_organization_subject", ["organizationId", "subject"])
     .index("by_organization_role", ["organizationId", "role"]),
+  people: defineTable({
+    organizationId: v.string(),
+    displayName: v.string(),
+    normalizedDisplayName: v.string(),
+    email: v.string(),
+    normalizedEmail: v.string(),
+    searchText: v.string(),
+    principalId: v.optional(v.id("principals")),
+    isFounder: v.boolean(),
+    createdByPrincipalId: v.optional(v.id("principals")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization_email", ["organizationId", "normalizedEmail"])
+    .index("by_organization_created_at", ["organizationId", "createdAt"])
+    .index("by_organization_founder_created_at", [
+      "organizationId",
+      "isFounder",
+      "createdAt",
+    ])
+    .index("by_principal", ["principalId"])
+    .searchIndex("search_directory", {
+      searchField: "searchText",
+      filterFields: ["organizationId"],
+    }),
+  personOperations: defineTable({
+    organizationId: v.string(),
+    actorPrincipalId: v.id("principals"),
+    correlationId: v.string(),
+    inputFingerprint: v.string(),
+    personId: v.id("people"),
+    createdAt: v.number(),
+  }).index("by_organization_actor_correlation", [
+    "organizationId",
+    "actorPrincipalId",
+    "correlationId",
+  ]),
   contentRequests: defineTable({
     humanId: v.string(),
     organizationId: v.string(),
@@ -62,6 +242,7 @@ export default defineSchema({
     searchText: v.string(),
     queueSortKey: v.optional(v.string()),
     aliases: v.array(v.string()),
+    requestType: v.optional(contentRequestTypeValidator),
     origin: requestOriginValidator,
     priority: requestPriorityValidator,
     lifecycle: requestLifecycleValidator,
@@ -132,6 +313,17 @@ export default defineSchema({
       searchField: "searchText",
       filterFields: ["organizationId"],
     }),
+  expertInterviews: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    brief: expertInterviewBriefValidator,
+    gaps: v.array(expertInterviewGapValidator),
+    questions: v.array(expertInterviewQuestionValidator),
+    operatorInstructions: v.optional(v.string()),
+    createdByPrincipalId: v.id("principals"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_request", ["requestId"]),
   sourceSnapshots: defineTable({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),
@@ -348,6 +540,31 @@ export default defineSchema({
     correlationId: v.string(),
     submittedAt: v.number(),
   }).index("by_request", ["requestId"]),
+  founderExpertSubmissions: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    requestHumanId: v.string(),
+    founderPrincipalId: v.id("principals"),
+    founderVersionId: v.id("founderInputVersions"),
+    canonicalSubmissionId: v.optional(v.string()),
+    respondentDisplayName: v.string(),
+    respondentEmail: v.string(),
+    workspaceRevision: v.number(),
+    batchText: v.string(),
+    questions: v.array(
+      v.object({
+        questionId: v.string(),
+        question: v.string(),
+        motivation: v.string(),
+        position: v.number(),
+        version: v.number(),
+      })
+    ),
+    correlationId: v.string(),
+    submittedAt: v.number(),
+  })
+    .index("by_request_submitted_at", ["requestId", "submittedAt"])
+    .index("by_founder_version", ["founderVersionId"]),
   agentJobs: defineTable({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),
@@ -553,6 +770,29 @@ export default defineSchema({
     .index("by_request", ["requestId"])
     .index("by_request_retention", ["requestId", "retention"])
     .index("by_deliverable", ["deliverableId"]),
+  founderHandoffs: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    recipientPrincipalId: v.id("principals"),
+    selectedFormats: v.array(founderHandoffFormatValidator),
+    note: v.optional(v.string()),
+    state: v.union(v.literal("active"), v.literal("ended")),
+    notificationId: v.optional(v.id("notifications")),
+    createdByPrincipalId: v.id("principals"),
+    correlationId: v.string(),
+    deliveredAt: v.number(),
+    openedAt: v.optional(v.number()),
+    endedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_request_state", ["requestId", "state"])
+    .index("by_request_created_at", ["requestId", "createdAt"])
+    .index("by_organization_creator_correlation", [
+      "organizationId",
+      "createdByPrincipalId",
+      "correlationId",
+    ]),
   operatorWorkspaceItems: defineTable({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),
@@ -575,6 +815,7 @@ export default defineSchema({
     lifecycle: requestLifecycleValidator,
     disposition: requestDispositionValidator,
     assigneePrincipalId: v.id("principals"),
+    founderHandoff: v.optional(founderHandoffStatusValidator),
     agentJobStatus: v.optional(
       v.union(
         v.literal("queued"),
@@ -803,6 +1044,439 @@ export default defineSchema({
     "actorPrincipalId",
     "correlationId",
   ]),
+  guestAccessGrants: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    assignedPersonId: v.id("people"),
+    currentTokenHash: v.string(),
+    tokenVersion: v.number(),
+    expiresAt: v.number(),
+    state: v.union(
+      v.literal("generated"),
+      v.literal("opened"),
+      v.literal("in_progress"),
+      v.literal("submitted"),
+      v.literal("revoked")
+    ),
+    createdByPrincipalId: v.id("principals"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    latestActivityAt: v.number(),
+    firstOpenedAt: v.optional(v.number()),
+    firstProgressAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_token_hash", ["currentTokenHash"])
+    .index("by_request_created_at", ["requestId", "createdAt"])
+    .index("by_person_created_at", ["assignedPersonId", "createdAt"])
+    .index("by_state_expiry", ["state", "expiresAt"]),
+  guestAccessLifecycleOperations: defineTable({
+    organizationId: v.string(),
+    actorPrincipalId: v.id("principals"),
+    grantId: v.id("guestAccessGrants"),
+    operation: v.union(v.literal("revoke"), v.literal("renew")),
+    correlationId: v.string(),
+    inputFingerprint: v.string(),
+    resultTokenVersion: v.number(),
+    resultExpiresAt: v.number(),
+    resultGrant: v.optional(guestAccessOperationGrantResultValidator),
+    createdAt: v.number(),
+  }).index("by_organization_actor_correlation", [
+    "organizationId",
+    "actorPrincipalId",
+    "correlationId",
+  ]),
+  guestAccessEvents: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    grantId: v.id("guestAccessGrants"),
+    kind: v.union(
+      v.literal("expired"),
+      v.literal("revoked"),
+      v.literal("renewed")
+    ),
+    actorPrincipalId: v.optional(v.id("principals")),
+    credentialId: v.optional(v.string()),
+    tokenVersion: v.number(),
+    correlationId: v.string(),
+    occurredAt: v.number(),
+  }).index("by_grant_occurred_at", ["grantId", "occurredAt"]),
+  responseWorkspaces: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    grantId: v.id("guestAccessGrants"),
+    answerMode: v.union(v.literal("batch"), v.literal("one_by_one")),
+    batchText: v.string(),
+    questionAnswers: v.array(
+      v.object({ questionId: v.string(), text: v.string() })
+    ),
+    retiredQuestionAnswers: v.optional(
+      v.array(
+        v.object({
+          questionId: v.string(),
+          text: v.string(),
+          retiredAt: v.number(),
+        })
+      )
+    ),
+    revision: v.number(),
+    leaseHolderHash: v.optional(v.string()),
+    leaseGeneration: v.optional(v.number()),
+    leaseExpiresAt: v.optional(v.number()),
+    lockedAt: v.optional(v.number()),
+    latestSubmissionId: v.optional(v.id("responseSubmissions")),
+    pendingRequiredOperationIds: v.optional(v.array(v.string())),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_grant", ["grantId"])
+    .index("by_request_updated_at", ["requestId", "updatedAt"]),
+  responseWorkspaceOperations: defineTable({
+    workspaceId: v.id("responseWorkspaces"),
+    operationId: v.string(),
+    inputFingerprint: v.string(),
+    resultRevision: v.number(),
+    resultJson: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_workspace_operation", ["workspaceId", "operationId"]),
+  responseWorkspaceLeaseOperations: defineTable({
+    workspaceId: v.id("responseWorkspaces"),
+    operationId: v.string(),
+    kind: v.union(
+      v.literal("acquire"),
+      v.literal("heartbeat"),
+      v.literal("takeover")
+    ),
+    inputFingerprint: v.string(),
+    resultStatus: v.union(v.literal("editing"), v.literal("conflict")),
+    resultGeneration: v.number(),
+    resultExpiresAt: v.optional(v.number()),
+    createdAt: v.number(),
+  }).index("by_workspace_operation", ["workspaceId", "operationId"]),
+  responseWorkspaceEvents: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    grantId: v.id("guestAccessGrants"),
+    workspaceId: v.id("responseWorkspaces"),
+    kind: v.union(
+      v.literal("lease_acquired"),
+      v.literal("lease_taken_over"),
+      v.literal("first_progress"),
+      v.literal("submitted"),
+      v.literal("feedback_added"),
+      v.literal("reopened")
+    ),
+    leaseGeneration: v.number(),
+    operationId: v.string(),
+    actorGrantId: v.optional(v.id("guestAccessGrants")),
+    actorPrincipalId: v.optional(v.id("principals")),
+    credentialId: v.optional(v.string()),
+    submissionId: v.optional(v.id("responseSubmissions")),
+    feedbackId: v.optional(v.id("responseFeedback")),
+    occurredAt: v.number(),
+  }).index("by_grant_occurred_at", ["grantId", "occurredAt"]),
+  responseSubmissions: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    requestHumanId: v.string(),
+    grantId: v.id("guestAccessGrants"),
+    workspaceId: v.id("responseWorkspaces"),
+    assignedPersonId: v.id("people"),
+    respondentDisplayName: v.string(),
+    respondentEmail: v.string(),
+    workspaceRevision: v.number(),
+    answerMode: v.union(v.literal("batch"), v.literal("one_by_one")),
+    selectedAnswerMode: v.optional(
+      v.union(v.literal("batch"), v.literal("one_by_one"))
+    ),
+    selectionMethod: v.optional(
+      v.union(
+        v.literal("single_mode"),
+        v.literal("respondent_choice"),
+        v.literal("legacy_workspace_mode")
+      )
+    ),
+    batchText: v.string(),
+    questionAnswers: v.array(
+      v.object({ questionId: v.string(), text: v.string() })
+    ),
+    questions: v.array(
+      v.object({
+        questionId: v.string(),
+        question: v.string(),
+        motivation: v.string(),
+        position: v.number(),
+        version: v.number(),
+      })
+    ),
+    assetSnapshots: v.optional(
+      v.array(
+        v.object({
+          assetId: v.id("responseAssets"),
+          version: v.number(),
+          transcriptVersion: v.number(),
+          kind: v.union(v.literal("audio"), v.literal("attachment")),
+          scope: v.union(
+            v.object({ kind: v.literal("batch") }),
+            v.object({
+              kind: v.literal("question"),
+              questionId: v.string(),
+            })
+          ),
+        })
+      )
+    ),
+    submittedAt: v.number(),
+  })
+    .index("by_workspace_submitted_at", ["workspaceId", "submittedAt"])
+    .index("by_request_submitted_at", ["requestId", "submittedAt"]),
+  expertSynthesisSelectionDecisions: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    submissionId: v.string(),
+    included: v.boolean(),
+    actorPrincipalId: v.id("principals"),
+    actorDisplayName: v.string(),
+    credentialId: v.string(),
+    correlationId: v.string(),
+    inputFingerprint: v.string(),
+    decidedAt: v.number(),
+  })
+    .index("by_request_decided_at", ["requestId", "decidedAt"])
+    .index("by_submission_decided_at", ["submissionId", "decidedAt"])
+    .index("by_organization_actor_correlation", [
+      "organizationId",
+      "actorPrincipalId",
+      "correlationId",
+    ]),
+  expertSynthesisProcessingSnapshots: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    requestHumanId: v.string(),
+    submissionIds: v.array(v.string()),
+    contextVersionIds: v.array(v.id("contextItemVersions")),
+    expertInterviewUpdatedAt: v.number(),
+    synthesisInstructions: v.optional(v.string()),
+    canonicalBundle: v.string(),
+    payloadDigest: v.string(),
+    actorPrincipalId: v.id("principals"),
+    credentialId: v.string(),
+    correlationId: v.optional(v.string()),
+    inputFingerprint: v.optional(v.string()),
+    issuedAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_request_issued_at", ["requestId", "issuedAt"])
+    .index("by_request_digest", ["requestId", "payloadDigest"])
+    .index("by_organization_actor_correlation", [
+      "organizationId",
+      "actorPrincipalId",
+      "correlationId",
+    ]),
+  expertSynthesisProvenance: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    deliverableId: v.id("deliverables"),
+    versionId: v.id("deliverableVersions"),
+    processingSnapshotId: v.id("expertSynthesisProcessingSnapshots"),
+    submissionIds: v.array(v.string()),
+    contextVersionIds: v.array(v.id("contextItemVersions")),
+    payloadDigest: v.string(),
+    canonicalBundle: v.string(),
+    completionDeliverable: v.object({
+      deliverableId: v.id("deliverables"),
+      requestHumanId: v.string(),
+      kind: v.string(),
+      name: v.string(),
+      isPrimary: v.boolean(),
+      currentCandidateVersionId: v.union(v.id("deliverableVersions"), v.null()),
+      promotedVersionId: v.union(v.id("deliverableVersions"), v.null()),
+      versions: v.array(
+        v.object({
+          versionId: v.id("deliverableVersions"),
+          bodyDigest: v.string(),
+          ordinal: v.number(),
+          createdByPrincipalId: v.id("principals"),
+          sourceJobId: v.union(v.id("agentJobs"), v.null()),
+          changeSummary: v.union(v.string(), v.null()),
+          createdAt: v.number(),
+        })
+      ),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    }),
+    actorPrincipalId: v.id("principals"),
+    credentialId: v.string(),
+    correlationId: v.string(),
+    inputFingerprint: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_version", ["versionId"])
+    .index("by_request_created_at", ["requestId", "createdAt"])
+    .index("by_organization_actor_correlation", [
+      "organizationId",
+      "actorPrincipalId",
+      "correlationId",
+    ]),
+  responseFeedback: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    grantId: v.id("guestAccessGrants"),
+    workspaceId: v.id("responseWorkspaces"),
+    scope: v.union(
+      v.object({ kind: v.literal("workspace") }),
+      v.object({
+        kind: v.literal("question"),
+        questionId: v.string(),
+      }),
+      v.object({
+        kind: v.literal("asset"),
+        assetId: v.id("responseAssets"),
+      })
+    ),
+    body: v.string(),
+    authorPrincipalId: v.id("principals"),
+    authorDisplayName: v.string(),
+    credentialId: v.string(),
+    createdAt: v.number(),
+  }).index("by_workspace_created_at", ["workspaceId", "createdAt"]),
+  responseAssets: defineTable({
+    organizationId: v.string(),
+    requestId: v.id("contentRequests"),
+    grantId: v.id("guestAccessGrants"),
+    workspaceId: v.id("responseWorkspaces"),
+    clientAssetId: v.string(),
+    kind: v.union(v.literal("audio"), v.literal("attachment")),
+    scope: v.union(
+      v.object({ kind: v.literal("batch") }),
+      v.object({
+        kind: v.literal("question"),
+        questionId: v.string(),
+      })
+    ),
+    fileName: v.string(),
+    mimeType: v.string(),
+    sizeBytes: v.number(),
+    storageId: v.optional(v.id("_storage")),
+    uploadState: v.union(
+      v.literal("uploading"),
+      v.literal("uploaded"),
+      v.literal("failed"),
+      v.literal("discarded")
+    ),
+    transcriptionState: v.union(
+      v.literal("not_applicable"),
+      v.literal("queued"),
+      v.literal("transcribing"),
+      v.literal("transcribed"),
+      v.literal("failed"),
+      v.literal("discarded")
+    ),
+    transcript: v.optional(v.string()),
+    transcriptVersion: v.number(),
+    failureCode: v.optional(v.string()),
+    transcriptionAttempt: v.number(),
+    transcriptionLeaseExpiresAt: v.optional(v.number()),
+    retryHistory: v.array(
+      v.object({
+        stage: v.union(v.literal("upload"), v.literal("transcription")),
+        attempt: v.number(),
+        outcome: v.union(
+          v.literal("started"),
+          v.literal("succeeded"),
+          v.literal("failed")
+        ),
+        code: v.optional(v.string()),
+        at: v.number(),
+      })
+    ),
+    version: v.number(),
+    submittedAt: v.optional(v.number()),
+    discardedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspace_created_at", ["workspaceId", "createdAt"])
+    .index("by_grant_created_at", ["grantId", "createdAt"])
+    .index("by_grant_client_asset", ["grantId", "clientAssetId"])
+    .index("by_storage", ["storageId"]),
+  responseAssetUploadSessions: defineTable({
+    workspaceId: v.id("responseWorkspaces"),
+    assetId: v.id("responseAssets"),
+    leaseGeneration: v.optional(v.number()),
+    leaseHolderHash: v.optional(v.string()),
+    operationId: v.string(),
+    inputFingerprint: v.string(),
+    uploadUrl: v.optional(v.string()),
+    state: v.union(
+      v.literal("issued"),
+      v.literal("finalized"),
+      v.literal("failed")
+    ),
+    storageId: v.optional(v.id("_storage")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_asset_operation", ["assetId", "operationId"])
+    .index("by_storage", ["storageId"]),
+  responseAssetOperations: defineTable({
+    workspaceId: v.id("responseWorkspaces"),
+    assetId: v.id("responseAssets"),
+    operationId: v.string(),
+    kind: v.union(v.literal("retry_transcription"), v.literal("discard")),
+    inputFingerprint: v.string(),
+    resultVersion: v.number(),
+    createdAt: v.number(),
+  }).index("by_workspace_operation", ["workspaceId", "operationId"]),
+  storageObjectClaims: defineTable({
+    storageId: v.id("_storage"),
+    ownerKind: v.union(v.literal("guest_evidence"), v.literal("founder_voice")),
+    ownerId: v.string(),
+    claimedAt: v.number(),
+    deletedAt: v.optional(v.number()),
+  }).index("by_storage", ["storageId"]),
+  responseLifecycleOperations: defineTable({
+    workspaceId: v.id("responseWorkspaces"),
+    operationId: v.string(),
+    kind: v.union(
+      v.literal("submit"),
+      v.literal("feedback"),
+      v.literal("reopen")
+    ),
+    inputFingerprint: v.string(),
+    resultRevision: v.number(),
+    submissionId: v.optional(v.id("responseSubmissions")),
+    feedbackId: v.optional(v.id("responseFeedback")),
+    createdAt: v.number(),
+  }).index("by_workspace_operation", ["workspaceId", "operationId"]),
+  guestAccessOperations: defineTable({
+    organizationId: v.string(),
+    actorPrincipalId: v.id("principals"),
+    correlationId: v.string(),
+    inputFingerprint: v.string(),
+    grantId: v.id("guestAccessGrants"),
+    resultGrant: v.optional(guestAccessOperationGrantResultValidator),
+    createdAt: v.number(),
+  }).index("by_organization_actor_correlation", [
+    "organizationId",
+    "actorPrincipalId",
+    "correlationId",
+  ]),
+  guestAccessAttempts: defineTable({
+    tokenFingerprint: v.string(),
+    networkSourceHash: v.string(),
+    hourBucket: v.number(),
+    count: v.number(),
+    firstAttemptedAt: v.number(),
+    lastAttemptedAt: v.number(),
+  })
+    .index("by_fingerprint_source_hour", [
+      "tokenFingerprint",
+      "networkSourceHash",
+      "hourBucket",
+    ])
+    .index("by_fingerprint_hour", ["tokenFingerprint", "hourBucket"])
+    .index("by_source_hour", ["networkSourceHash", "hourBucket"]),
   founderInputVersionRestoreOperations: defineTable({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),
@@ -854,6 +1528,7 @@ export default defineSchema({
   })
     .index("by_document_created_at", ["documentId", "createdAt"])
     .index("by_request_created_at", ["requestId", "createdAt"])
+    .index("by_storage", ["storageId"])
     .index("by_organization_founder_client", [
       "organizationId",
       "founderPrincipalId",
@@ -925,7 +1600,8 @@ export default defineSchema({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),
     requestHumanId: v.string(),
-    actorPrincipalId: v.id("principals"),
+    actorPrincipalId: v.optional(v.id("principals")),
+    actorGrantId: v.optional(v.id("guestAccessGrants")),
     credentialId: v.string(),
     operation: v.string(),
     correlationId: v.string(),
@@ -973,12 +1649,21 @@ export default defineSchema({
     recipientPrincipalId: v.id("principals"),
     type: v.union(
       v.literal("request_assigned"),
+      v.literal("founder_handoff"),
       v.literal("critical_escalation"),
       v.literal("deadline_approaching"),
       v.literal("response_ready"),
       v.literal("drafting_failed"),
-      v.literal("delivery_reopened")
+      v.literal("delivery_reopened"),
+      v.literal("guest_submission"),
+      v.literal("guest_expiry_approaching"),
+      v.literal("guest_upload_failed")
     ),
+    dedupeKey: v.optional(v.string()),
+    grantId: v.optional(v.id("guestAccessGrants")),
+    assetId: v.optional(v.id("responseAssets")),
+    submissionId: v.optional(v.id("responseSubmissions")),
+    deepLink: v.optional(v.string()),
     emailQueued: v.boolean(),
     emailStatus: v.union(
       v.literal("queued"),
@@ -987,9 +1672,18 @@ export default defineSchema({
     ),
     createdAt: v.number(),
     readAt: v.optional(v.number()),
+    suppressedAt: v.optional(v.number()),
   })
     .index("by_recipient_created_at", ["recipientPrincipalId", "createdAt"])
-    .index("by_request_created_at", ["requestId", "createdAt"]),
+    .index("by_recipient_suppressed_created_at", [
+      "recipientPrincipalId",
+      "suppressedAt",
+      "createdAt",
+    ])
+    .index("by_request_created_at", ["requestId", "createdAt"])
+    .index("by_grant_type", ["grantId", "type"])
+    .index("by_asset_type", ["assetId", "type"])
+    .index("by_recipient_dedupe_key", ["recipientPrincipalId", "dedupeKey"]),
   notificationEmailOutbox: defineTable({
     organizationId: v.string(),
     requestId: v.id("contentRequests"),
@@ -1008,6 +1702,7 @@ export default defineSchema({
     attempts: v.number(),
     leaseExpiresAt: v.optional(v.number()),
     claimToken: v.optional(v.string()),
+    sendCommittedAt: v.optional(v.number()),
     nextAttemptAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),

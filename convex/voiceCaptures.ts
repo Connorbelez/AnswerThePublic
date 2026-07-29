@@ -19,6 +19,7 @@ import {
   MAX_VOICE_CAPTURES_PER_REQUEST,
   VOICE_CAPTURE_OVERFLOW_SENTINEL,
 } from "./lib/requestLimits"
+import { claimStorageObject } from "./lib/storageOwnership"
 
 const captureValidator = v.object({
   captureId: v.id("founderVoiceCaptures"),
@@ -187,6 +188,12 @@ export const finalizeUpload = mutation({
       createdAt: now,
       updatedAt: now,
     })
+    await claimStorageObject(
+      ctx,
+      args.storageId,
+      "founder_voice",
+      String(captureId)
+    )
     const reconstructedActiveCaptureCount = requestCaptures.filter(
       (capture) => !capture.discardedAt
     ).length

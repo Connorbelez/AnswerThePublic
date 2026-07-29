@@ -1,9 +1,7 @@
 import { ConvexHttpClient } from "convex/browser"
 
 import { api } from "../../convex/_generated/api"
-import type {
-  PrincipalRepository,
-} from "@/application/workspace-session"
+import type { PrincipalRepository } from "@/application/workspace-session"
 
 type TokenProvider = () => Promise<string | null>
 

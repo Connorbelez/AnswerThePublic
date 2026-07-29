@@ -84,3 +84,30 @@ export function requireActiveRequest(
     throw new ConvexError({ code: "EXPIRED_REQUEST" })
   }
 }
+
+export async function guestGrantParentAccess(
+  ctx: Pick<QueryCtx | MutationCtx, "db">,
+  grant: Pick<Doc<"guestAccessGrants">, "organizationId" | "requestId">
+) {
+  const request = await ctx.db.get(grant.requestId)
+  if (!request || request.organizationId !== grant.organizationId)
+    return { status: "invalid" as const, request: null }
+  if (request.retention !== "active")
+    return { status: "archived" as const, request }
+  if (request.disposition !== "active")
+    return { status: "expired" as const, request }
+  return { status: "active" as const, request }
+}
+
+export async function requireActiveGuestGrantRequest(
+  ctx: Pick<QueryCtx | MutationCtx, "db">,
+  grant: Pick<Doc<"guestAccessGrants">, "organizationId" | "requestId">
+) {
+  const access = await guestGrantParentAccess(ctx, grant)
+  if (access.status === "invalid") throw new ConvexError({ code: "NOT_FOUND" })
+  if (access.status === "archived")
+    throw new ConvexError({ code: "ARCHIVED_REQUEST" })
+  if (access.status === "expired")
+    throw new ConvexError({ code: "EXPIRED_REQUEST" })
+  return access.request
+}

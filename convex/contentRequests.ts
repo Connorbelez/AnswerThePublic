@@ -17,8 +17,13 @@ import {
 import { contentRequestCreationDefaults } from "./lib/contentRequestDefaults"
 import { enqueueNotification } from "./lib/notificationOutbox"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
+import {
+  endCurrentFounderHandoff,
+  markCurrentFounderHandoffOpened,
+} from "./lib/founderHandoff"
 import { requestQueueSortKey } from "./lib/requestOrdering"
 import {
+  contentRequestTypeValidator,
   requestDispositionValidator,
   requestLifecycleValidator,
   requestOriginValidator,
@@ -56,6 +61,7 @@ export const contentRequestValidator = v.object({
   humanId: v.string(),
   title: v.string(),
   aliases: v.array(v.string()),
+  requestType: contentRequestTypeValidator,
   origin: requestOriginValidator,
   priority: requestPriorityValidator,
   timingLabel: v.union(v.string(), v.null()),
@@ -113,7 +119,8 @@ const auditEventValidator = v.object({
   operation: v.string(),
   correlationId: v.string(),
   requestHumanId: v.string(),
-  actorPrincipalId: v.id("principals"),
+  actorPrincipalId: v.union(v.id("principals"), v.null()),
+  actorGrantId: v.union(v.id("guestAccessGrants"), v.null()),
   credentialId: v.string(),
   occurredAt: v.number(),
   beforeVersion: v.union(v.number(), v.null()),
@@ -137,11 +144,15 @@ const notificationValidator = v.object({
   requestHumanId: v.string(),
   type: v.union(
     v.literal("request_assigned"),
+    v.literal("founder_handoff"),
     v.literal("critical_escalation"),
     v.literal("deadline_approaching"),
     v.literal("response_ready"),
     v.literal("drafting_failed"),
-    v.literal("delivery_reopened")
+    v.literal("delivery_reopened"),
+    v.literal("guest_submission"),
+    v.literal("guest_expiry_approaching"),
+    v.literal("guest_upload_failed")
   ),
   emailQueued: v.boolean(),
   emailStatus: v.union(
@@ -155,6 +166,47 @@ const notificationValidator = v.object({
 })
 
 type RequestContext = QueryCtx | MutationCtx
+
+function activeNotificationsForRecipient(
+  ctx: QueryCtx,
+  recipientPrincipalId: Id<"principals">
+) {
+  return ctx.db
+    .query("notifications")
+    .withIndex("by_recipient_suppressed_created_at", (index) =>
+      index
+        .eq("recipientPrincipalId", recipientPrincipalId)
+        .eq("suppressedAt", undefined)
+    )
+    .order("desc")
+}
+
+async function projectNotification(
+  ctx: QueryCtx,
+  notification: Doc<"notifications">
+) {
+  const request = await ctx.db.get(notification.requestId)
+  if (!request) throw new ConvexError({ code: "NOT_FOUND" })
+  return {
+    notificationId: notification._id,
+    requestHumanId: request.humanId,
+    type: notification.type,
+    emailQueued: notification.emailQueued,
+    emailStatus: notification.emailStatus,
+    createdAt: notification.createdAt,
+    readAt: notification.readAt ?? null,
+    deepLink: notification.deepLink ?? `/app/requests/${request.humanId}`,
+  }
+}
+
+function projectNotifications(
+  ctx: QueryCtx,
+  notifications: Array<Doc<"notifications">>
+) {
+  return Promise.all(
+    notifications.map((notification) => projectNotification(ctx, notification))
+  )
+}
 
 function normalizeText(value: string) {
   return value.trim().toLocaleLowerCase("en-CA").replace(/\s+/g, " ")
@@ -218,6 +270,7 @@ export async function toPublicRequest(
     humanId: request.humanId,
     title: request.title,
     aliases: request.aliases,
+    requestType: request.requestType ?? "standard",
     origin: request.origin,
     priority: request.priority,
     timingLabel: request.timingLabel ?? null,
@@ -325,10 +378,25 @@ export const createManual = mutation({
     const aliases = (args.aliases ?? [])
       .map((alias) => cleanOptionalText(alias))
       .filter((alias): alias is string => Boolean(alias))
+    const legacyInputFingerprint = JSON.stringify({
+      title,
+      origin: args.origin,
+      aliases,
+      source: args.source
+        ? {
+            question: args.source.question,
+            body: args.source.body,
+            url: args.source.url,
+            name: args.source.name,
+            channel: args.source.channel,
+          }
+        : null,
+    })
     const inputFingerprint = JSON.stringify({
       title,
       origin: args.origin,
       aliases,
+      requestType: "standard",
       source: args.source
         ? {
             question: args.source.question,
@@ -359,7 +427,10 @@ export const createManual = mutation({
     )
     const priorEvent = priorEvents.find(Boolean)
     if (priorEvent) {
-      if (priorEvent.inputFingerprint !== inputFingerprint) {
+      if (
+        priorEvent.inputFingerprint !== inputFingerprint &&
+        priorEvent.inputFingerprint !== legacyInputFingerprint
+      ) {
         throw new ConvexError({ code: "IDEMPOTENCY_KEY_REUSED" })
       }
       const priorRequest = await ctx.db.get(priorEvent.requestId)
@@ -432,6 +503,7 @@ export const createManual = mutation({
         normalizedTitle: normalizeText(title),
         searchText: searchTextFor(title, aliases, args.source),
         aliases,
+        requestType: "standard",
         origin: args.origin,
         priority: "critical",
         autoExpirationDueAt: undefined,
@@ -483,6 +555,7 @@ export const createManual = mutation({
       searchText: searchTextFor(title, aliases, args.source),
       queueSortKey: requestQueueSortKey(args.origin, "critical", now),
       aliases,
+      requestType: "standard",
       origin: args.origin,
       priority: "critical",
       normalizedSourceUrl,
@@ -967,6 +1040,7 @@ export const assign = internalMutation({
       throw new ConvexError({ code: "WATCHER_NOT_FOUND" })
     }
     const now = Date.now()
+    await endCurrentFounderHandoff(ctx, request._id, assignee._id, now)
     const afterVersion = request.aggregateVersion + 1
     await ctx.db.patch(request._id, {
       assigneePrincipalId: assignee._id,
@@ -1052,7 +1126,16 @@ export const open = mutation({
           .eq("correlationId", correlationId)
       )
       .first()
-    if (existingOpen) return toPublicRequest(ctx, request)
+    if (existingOpen) {
+      const opened = await markCurrentFounderHandoffOpened(
+        ctx,
+        request,
+        actor._id,
+        Date.now()
+      )
+      if (opened) await refreshOperatorWorkspaceProjection(ctx, request._id)
+      return toPublicRequest(ctx, request)
+    }
     const now = Date.now()
     const afterVersion = request.aggregateVersion + 1
     await ctx.db.patch(request._id, {
@@ -1073,6 +1156,8 @@ export const open = mutation({
       beforeVersion: request.aggregateVersion,
       afterVersion,
     })
+    await markCurrentFounderHandoffOpened(ctx, request, actor._id, now)
+    await refreshOperatorWorkspaceProjection(ctx, request._id)
     const updated = await ctx.db.get(request._id)
     if (!updated) throw new ConvexError({ code: "WRITE_FAILED" })
     return toPublicRequest(ctx, updated)
@@ -1119,28 +1204,9 @@ export const listMyNotifications = query({
   returns: v.array(notificationValidator),
   handler: async (ctx) => {
     const principal = await requirePrincipal(ctx)
-    const notifications = await ctx.db
-      .query("notifications")
-      .withIndex("by_recipient_created_at", (index) =>
-        index.eq("recipientPrincipalId", principal._id)
-      )
-      .order("desc")
-      .take(50)
-    return Promise.all(
-      notifications.map(async (notification) => {
-        const request = await ctx.db.get(notification.requestId)
-        if (!request) throw new ConvexError({ code: "NOT_FOUND" })
-        return {
-          notificationId: notification._id,
-          requestHumanId: request.humanId,
-          type: notification.type,
-          emailQueued: notification.emailQueued,
-          emailStatus: notification.emailStatus,
-          createdAt: notification.createdAt,
-          readAt: notification.readAt ?? null,
-          deepLink: `/app/requests/${request.humanId}`,
-        }
-      })
+    return projectNotifications(
+      ctx,
+      await activeNotificationsForRecipient(ctx, principal._id).take(50)
     )
   },
 })
@@ -1154,32 +1220,14 @@ export const listMyNotificationsPage = query({
   }),
   handler: async (ctx, args) => {
     const principal = await requirePrincipal(ctx)
-    const notifications = await ctx.db
-      .query("notifications")
-      .withIndex("by_recipient_created_at", (index) =>
-        index.eq("recipientPrincipalId", principal._id)
-      )
-      .order("desc")
-      .paginate(args.paginationOpts)
+    const notifications = await activeNotificationsForRecipient(
+      ctx,
+      principal._id
+    ).paginate(args.paginationOpts)
     return {
       isDone: notifications.isDone,
       continueCursor: notifications.continueCursor,
-      page: await Promise.all(
-        notifications.page.map(async (notification) => {
-          const request = await ctx.db.get(notification.requestId)
-          if (!request) throw new ConvexError({ code: "NOT_FOUND" })
-          return {
-            notificationId: notification._id,
-            requestHumanId: request.humanId,
-            type: notification.type,
-            emailQueued: notification.emailQueued,
-            emailStatus: notification.emailStatus,
-            createdAt: notification.createdAt,
-            readAt: notification.readAt ?? null,
-            deepLink: `/app/requests/${request.humanId}`,
-          }
-        })
-      ),
+      page: await projectNotifications(ctx, notifications.page),
     }
   },
 })
@@ -1274,7 +1322,8 @@ export const listAuditEvents = query({
       operation: event.operation,
       correlationId: event.correlationId,
       requestHumanId: event.requestHumanId,
-      actorPrincipalId: event.actorPrincipalId,
+      actorPrincipalId: event.actorPrincipalId ?? null,
+      actorGrantId: event.actorGrantId ?? null,
       credentialId: event.credentialId,
       occurredAt: event.occurredAt,
       beforeVersion: event.beforeVersion ?? null,
@@ -1317,7 +1366,8 @@ export const listAuditEventsPage = query({
         operation: event.operation,
         correlationId: event.correlationId,
         requestHumanId: event.requestHumanId,
-        actorPrincipalId: event.actorPrincipalId,
+        actorPrincipalId: event.actorPrincipalId ?? null,
+        actorGrantId: event.actorGrantId ?? null,
         credentialId: event.credentialId,
         occurredAt: event.occurredAt,
         beforeVersion: event.beforeVersion ?? null,

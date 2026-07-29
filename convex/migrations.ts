@@ -13,6 +13,38 @@ import {
   MAX_VOICE_CAPTURES_PER_REQUEST,
   VOICE_CAPTURE_OVERFLOW_SENTINEL,
 } from "./lib/requestLimits"
+import {
+  founderHandoffFormats,
+  type FounderHandoffFormat,
+} from "../shared/founder-handoff"
+
+function inferredFounderHandoffFormats(
+  deliverables: Array<Doc<"deliverables">>,
+  targets: Array<Doc<"deliveryTargets">>
+) {
+  const activeDeliverables = deliverables.filter(
+    (deliverable) => (deliverable.retention ?? "active") === "active"
+  )
+  const primary = activeDeliverables.find(
+    (deliverable) => deliverable.isPrimary
+  )
+  if (!primary) return null
+  const hasRequiredOriginalTarget = targets.some(
+    (target) =>
+      target.retention === "active" &&
+      target.isOriginal &&
+      target.isRequired &&
+      target.deliverableId === primary._id
+  )
+  if (!hasRequiredOriginalTarget) return null
+  const available = new Set(
+    activeDeliverables.map((deliverable) => deliverable.kind)
+  )
+  const formats = founderHandoffFormats.filter(
+    (format) => format === "original_response" || available.has(format)
+  ) as Array<FounderHandoffFormat>
+  return primary.promotedVersionId || formats.length > 1 ? formats : null
+}
 
 function agentJobClaimability(
   job: Pick<
@@ -79,6 +111,34 @@ export const backfillAssignmentFields = internalMutation({
         { cursor: page.continueCursor }
       )
     }
+    return { migrated, done: page.isDone }
+  },
+})
+
+/**
+ * Expand-only request classification migration. Legacy rows are Standard
+ * Requests; Expert Interviews are set explicitly when their package is saved.
+ */
+export const backfillContentRequestTypes = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  returns: v.object({ migrated: v.number(), done: v.boolean() }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("contentRequests").paginate({
+      cursor: args.cursor ?? null,
+      numItems: 50,
+    })
+    let migrated = 0
+    for (const request of page.page) {
+      if (request.requestType) continue
+      await ctx.db.patch(request._id, { requestType: "standard" })
+      migrated += 1
+    }
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.backfillContentRequestTypes,
+        { cursor: page.continueCursor }
+      )
     return { migrated, done: page.isDone }
   },
 })
@@ -358,6 +418,95 @@ export const backfillOperatorWorkspace = internalMutation({
 })
 
 /**
+ * Reconstructs only promotions whose durable pre-handoff artifacts prove the
+ * operation completed: a promoted primary response and its required original
+ * target. The selected derivative formats come from active deliverables.
+ *
+ * Historical handoffs intentionally do not enqueue notifications. The
+ * migration is resumable and idempotent; an active handoff is never replaced.
+ */
+export const backfillFounderHandoffs = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  returns: v.object({ migrated: v.number(), done: v.boolean() }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("contentRequests").paginate({
+      cursor: args.cursor ?? null,
+      numItems: 50,
+    })
+    let migrated = 0
+    for (const request of page.page) {
+      const recipientId =
+        request.assigneePrincipalId ?? request.createdByPrincipalId
+      const [recipient, existing, deliverables, targets, latestAssignment] =
+        await Promise.all([
+          ctx.db.get(recipientId),
+          ctx.db
+            .query("founderHandoffs")
+            .withIndex("by_request_state", (index) =>
+              index.eq("requestId", request._id).eq("state", "active")
+            )
+            .unique(),
+          ctx.db
+            .query("deliverables")
+            .withIndex("by_request", (index) =>
+              index.eq("requestId", request._id)
+            )
+            .collect(),
+          ctx.db
+            .query("deliveryTargets")
+            .withIndex("by_request", (index) =>
+              index.eq("requestId", request._id)
+            )
+            .collect(),
+          ctx.db
+            .query("assignmentEvents")
+            .withIndex("by_request_occurred_at", (index) =>
+              index.eq("requestId", request._id)
+            )
+            .order("desc")
+            .first(),
+        ])
+      if (existing || recipient?.role !== "founder") continue
+      const selectedFormats = inferredFounderHandoffFormats(
+        deliverables,
+        targets
+      )
+      if (!selectedFormats) continue
+      const relevantUpdatedAt = [
+        request.createdAt,
+        latestAssignment?.occurredAt ?? 0,
+        ...deliverables.map((deliverable) => deliverable.updatedAt),
+        ...targets.map((target) => target.updatedAt),
+      ]
+      const deliveredAt = Math.max(...relevantUpdatedAt)
+      const createdByPrincipalId =
+        latestAssignment?.actorPrincipalId ?? request.createdByPrincipalId
+      await ctx.db.insert("founderHandoffs", {
+        organizationId: request.organizationId,
+        requestId: request._id,
+        recipientPrincipalId: recipient._id,
+        selectedFormats,
+        state: "active",
+        createdByPrincipalId,
+        correlationId: `migration:founder-handoff:${request._id}`,
+        deliveredAt,
+        createdAt: deliveredAt,
+        updatedAt: deliveredAt,
+      })
+      await refreshOperatorWorkspaceProjection(ctx, request._id)
+      migrated += 1
+    }
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.backfillFounderHandoffs,
+        { cursor: page.continueCursor }
+      )
+    return { migrated, done: page.isDone }
+  },
+})
+
+/**
  * Introduced with indexed job claiming. This keeps the hot claim path bounded
  * while making every pre-existing non-terminal job visible to that index.
  * Safe to rerun because jobs with the correct claimability timestamp are
@@ -521,6 +670,8 @@ export const validateV1Invariants = internalQuery({
     })
     const issues: Array<{ humanId: string; code: string }> = []
     for (const request of page.page) {
+      if (!request.requestType)
+        issues.push({ humanId: request.humanId, code: "request_type" })
       if (
         !request.assigneePrincipalId ||
         request.watcherPrincipalIds === undefined ||
@@ -530,7 +681,7 @@ export const validateV1Invariants = internalQuery({
       if (request.activeVoiceCaptureCount === undefined)
         issues.push({ humanId: request.humanId, code: "voice_capture_count" })
 
-      const [deliverables, targets, projection, jobs, source] =
+      const [deliverables, targets, projection, jobs, source, recipient] =
         await Promise.all([
           ctx.db
             .query("deliverables")
@@ -559,6 +710,9 @@ export const validateV1Invariants = internalQuery({
           request.sourceSnapshotId
             ? ctx.db.get(request.sourceSnapshotId)
             : Promise.resolve(null),
+          ctx.db.get(
+            request.assigneePrincipalId ?? request.createdByPrincipalId
+          ),
         ])
       const expectedNormalizedSourceUrl = source?.url
         ? normalizeSourceUrl(source.url)
@@ -602,6 +756,19 @@ export const validateV1Invariants = internalQuery({
         issues.push({ humanId: request.humanId, code: "original_target" })
       if (!projection)
         issues.push({ humanId: request.humanId, code: "operator_projection" })
+      if (
+        recipient?.role === "founder" &&
+        inferredFounderHandoffFormats(deliverables, targets)
+      ) {
+        const handoff = await ctx.db
+          .query("founderHandoffs")
+          .withIndex("by_request_state", (index) =>
+            index.eq("requestId", request._id).eq("state", "active")
+          )
+          .unique()
+        if (!handoff)
+          issues.push({ humanId: request.humanId, code: "founder_handoff" })
+      }
 
       for (const job of jobs) {
         const { claimableAt, reapableAt } = agentJobClaimability(job)

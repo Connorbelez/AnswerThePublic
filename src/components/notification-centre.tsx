@@ -6,7 +6,7 @@ import { Bell } from "lucide-react"
 import type { ContentNotification } from "@/application/content-requests"
 import { markMyNotificationRead } from "@/application/content-request-server-functions"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import {
   Popover,
   PopoverContent,
@@ -14,20 +14,19 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import {
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemTitle,
-} from "@/components/ui/item"
+import { useHydrated } from "@/hooks/use-hydrated"
 
 const notificationLabels = {
   request_assigned: "A request was assigned to you",
+  founder_handoff: "A request was promoted to you",
   critical_escalation: "Critical request needs attention",
   deadline_approaching: "A deadline is approaching",
   response_ready: "A response is ready",
   drafting_failed: "Drafting needs attention",
   delivery_reopened: "A delivery was reopened",
+  guest_submission: "An expert response was submitted",
+  guest_expiry_approaching: "An expert response link expires soon",
+  guest_upload_failed: "An expert upload needs attention",
 } satisfies Record<ContentNotification["type"], string>
 
 export function NotificationCentre({
@@ -36,6 +35,7 @@ export function NotificationCentre({
   notifications: Array<ContentNotification>
 }) {
   const markRead = useServerFn(markMyNotificationRead)
+  const hydrated = useHydrated()
   const [locallyRead, setLocallyRead] = useState<Set<string>>(() => new Set())
   const unread = notifications.filter(
     (notification) =>
@@ -55,14 +55,10 @@ export function NotificationCentre({
   return (
     <Popover>
       <PopoverTrigger
-        render={
-          <Button
-            className="relative"
-            variant="ghost"
-            size="icon-touch"
-            aria-label="Notifications"
-          />
-        }
+        aria-label="Notifications"
+        className={buttonVariants({ variant: "ghost", size: "icon" })}
+        disabled={!hydrated}
+        type="button"
       >
         <Bell />
         {unread.length > 0 ? (
@@ -78,27 +74,22 @@ export function NotificationCentre({
         ) : (
           <div className="notification-list">
             {notifications.map((notification) => (
-              <Item
+              <Link
                 key={notification.notificationId}
-                size="sm"
-                variant={unread.includes(notification) ? "muted" : "default"}
-                render={
-                  <Link
-                    to="/app/requests/$requestId"
-                    params={{ requestId: notification.requestHumanId }}
-                    onClick={() =>
-                      readNotification(notification.notificationId)
-                    }
-                  />
+                to="/app/requests/$requestId"
+                params={{ requestId: notification.requestHumanId }}
+                hash={
+                  notification.deepLink.includes("#")
+                    ? notification.deepLink.slice(
+                        notification.deepLink.indexOf("#") + 1
+                      )
+                    : undefined
                 }
+                onClick={() => readNotification(notification.notificationId)}
               >
-                <ItemContent>
-                  <ItemTitle>{notificationLabels[notification.type]}</ItemTitle>
-                  <ItemDescription>
-                    {notification.requestHumanId}
-                  </ItemDescription>
-                </ItemContent>
-              </Item>
+                <strong>{notificationLabels[notification.type]}</strong>
+                <span>{notification.requestHumanId}</span>
+              </Link>
             ))}
           </div>
         )}

@@ -113,6 +113,35 @@ describe("founder submission and agent drafting jobs", () => {
     process.env.FAIRLEND_WORKOS_ORGANIZATION_ID = "org_fairlend"
   })
 
+  it("claims a standard drafting job by its request identity", async () => {
+    const { agent, request, job } = await submittedWorkspace()
+
+    const claimed = await agent.mutation(api.agentJobs.claimForRequest, {
+      humanId: request.humanId,
+      leaseToken: "targeted-standard-lease",
+      leaseMs: 30_000,
+    })
+
+    expect(claimed).toMatchObject({
+      jobId: job.jobId,
+      requestHumanId: request.humanId,
+      status: "running",
+      leaseToken: "targeted-standard-lease",
+      leaseGeneration: 1,
+    })
+    await expect(
+      agent.mutation(api.agentJobs.claimForRequest, {
+        humanId: request.humanId,
+        leaseToken: "targeted-standard-lease",
+        leaseMs: 30_000,
+      })
+    ).resolves.toMatchObject({
+      jobId: job.jobId,
+      leaseToken: "targeted-standard-lease",
+      leaseGeneration: 1,
+    })
+  })
+
   it("submits once, reclaims an expired lease, and completes one promoted response", async () => {
     const { workspace, founder, agent, agentTwo, request, job } =
       await submittedWorkspace()

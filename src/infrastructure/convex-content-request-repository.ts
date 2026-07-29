@@ -67,6 +67,109 @@ export function createConvexContentRequestRepository({
     async createManual(input: PersistManualRequestInput) {
       return (await client()).mutation(api.contentRequests.createManual, input)
     },
+    async saveExpertInterviewPackage(input) {
+      return (await client()).mutation(api.expertInterviews.savePackage, input)
+    },
+    async getExpertInterview(humanId) {
+      return (await client()).query(api.expertInterviews.getByHumanId, {
+        humanId,
+      })
+    },
+    async listExpertInterviewSubmissions(humanId) {
+      return (await client()).mutation(api.expertSynthesis.listSubmissions, {
+        humanId,
+      })
+    },
+    async listExpertInterviewContextVersionIds(humanId) {
+      return (await client()).query(api.expertSynthesis.listContextVersionIds, {
+        humanId,
+      })
+    },
+    async createExpertSynthesisProcessingSnapshot(input) {
+      return (await client()).mutation(
+        api.expertSynthesis.createProcessingSnapshot,
+        input
+      )
+    },
+    async verifyExpertSynthesisProcessingSnapshot(input) {
+      return (await client()).query(
+        api.expertSynthesis.verifyProcessingSnapshot,
+        input
+      )
+    },
+    async commitExpertSynthesis(input) {
+      return (await client()).mutation(api.expertSynthesis.completeProcessing, {
+        ...input,
+        jobId: input.jobId as Id<"agentJobs"> | undefined,
+        deliverableId: input.deliverableId as Id<"deliverables"> | undefined,
+      })
+    },
+    async setExpertInterviewSubmissionInclusion(input) {
+      return (await client()).mutation(
+        api.expertSynthesis.setSubmissionInclusion,
+        input
+      )
+    },
+    async searchPeople(query, limit) {
+      return (await client()).query(api.people.search, { query, limit })
+    },
+    async createPerson(input) {
+      return (await client()).mutation(api.people.create, input)
+    },
+    async listGuestAccessGrants(humanId) {
+      return (await client()).mutation(api.guestAccess.list, { humanId })
+    },
+    async createGuestAccessGrant(input) {
+      return (await client()).mutation(api.guestAccess.create, {
+        ...input,
+        personId: input.personId as Id<"people">,
+      })
+    },
+    async revokeGuestAccessGrant(input) {
+      return (await client()).mutation(api.guestAccess.revoke, {
+        ...input,
+        grantId: input.grantId as Id<"guestAccessGrants">,
+      })
+    },
+    async renewGuestAccessGrant(input) {
+      return (await client()).mutation(api.guestAccess.renew, {
+        ...input,
+        grantId: input.grantId as Id<"guestAccessGrants">,
+      })
+    },
+    async inspectGuestResponseWorkspace(grantId) {
+      const id = grantId as Id<"guestAccessGrants">
+      const convex = await client()
+      const [response, evidence] = await Promise.all([
+        convex.query(api.guestAccess.inspectResponseWorkspace, { grantId: id }),
+        convex.query(api.guestEvidence.inspectForAdmin, { grantId: id }),
+      ])
+      return response && evidence
+        ? { ...response, assets: evidence.assets }
+        : response
+    },
+    async addGuestResponseAssetFeedback(input) {
+      return (await client()).mutation(api.guestEvidence.addAssetFeedback, {
+        ...input,
+        grantId: input.grantId as Id<"guestAccessGrants">,
+        assetId: input.assetId as Id<"responseAssets">,
+      })
+    },
+    async addGuestResponseFeedback(input) {
+      return (await client()).mutation(api.guestAccess.addResponseFeedback, {
+        ...input,
+        grantId: input.grantId as Id<"guestAccessGrants">,
+      })
+    },
+    async reopenGuestResponseWorkspace(input) {
+      return (await client()).mutation(
+        api.guestAccess.reopenResponseWorkspace,
+        {
+          ...input,
+          grantId: input.grantId as Id<"guestAccessGrants">,
+        }
+      )
+    },
     async getByHumanId(humanId) {
       return (await client()).query(api.contentRequests.getByHumanId, {
         humanId,
@@ -102,13 +205,21 @@ export function createConvexContentRequestRepository({
         disposition: input?.disposition,
         retention: input?.retention,
         assigneePrincipalId: input?.assigneePrincipalId as
-          | Id<"principals">
-          | undefined,
+          Id<"principals"> | undefined,
         deliveryChannel: input?.deliveryChannel,
         paginationOpts: {
           numItems: Math.min(Math.max(input?.limit ?? 50, 1), 100),
           cursor: input?.cursor ?? null,
         },
+      })
+    },
+    async getCurrentFounderHandoff(humanId) {
+      return (await client()).query(api.founderHandoffs.getCurrent, { humanId })
+    },
+    async finalizeFounderHandoff(input) {
+      return (await client()).mutation(api.founderHandoffs.finalize, {
+        ...input,
+        recipientPrincipalId: input.recipientPrincipalId as Id<"principals">,
       })
     },
     async resolve(query) {
@@ -402,6 +513,20 @@ export function createConvexContentRequestRepository({
         leaseMs,
       })
     },
+    async claimAgentJobForRequest(humanId, leaseToken, leaseMs) {
+      return (await client()).mutation(api.agentJobs.claimForRequest, {
+        humanId,
+        leaseToken,
+        leaseMs,
+      })
+    },
+    async claimExpertSynthesisJob(humanId, leaseToken, leaseMs) {
+      return (await client()).mutation(api.agentJobs.claimExpertSynthesis, {
+        humanId,
+        leaseToken,
+        leaseMs,
+      })
+    },
     async heartbeatAgentJob(jobId, leaseToken, leaseMs, leaseGeneration) {
       return (await client()).mutation(api.agentJobs.heartbeat, {
         jobId: jobId as Id<"agentJobs">,
@@ -534,8 +659,7 @@ export function createConvexContentRequestRepository({
         targetId: input.targetId as Id<"deliveryTargets">,
         versionId: input.versionId as Id<"deliverableVersions">,
         integrationSuccessId: input.integrationSuccessId as
-          | Id<"integrationDeliverySuccesses">
-          | undefined,
+          Id<"integrationDeliverySuccesses"> | undefined,
       })
     },
     async reopenDeliveryTarget(input) {

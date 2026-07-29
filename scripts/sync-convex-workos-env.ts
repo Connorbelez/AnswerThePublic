@@ -17,9 +17,7 @@ export function requirePersonalDevDeployment(deployment: string | undefined) {
   return normalized
 }
 
-export function requiredLocalWorkosEnvironment(
-  environment: NodeJS.ProcessEnv
-) {
+export function requiredLocalWorkosEnvironment(environment: NodeJS.ProcessEnv) {
   return Object.fromEntries(
     convexWorkosEnvironmentMappings.map(([convexName, localName]) => {
       const value = environment[localName]?.trim()

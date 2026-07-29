@@ -68,6 +68,7 @@ async function toolList(methods: Record<string, unknown> = {}) {
       tools: Array<{
         name: string
         inputSchema: Record<string, unknown>
+        outputSchema: Record<string, unknown>
         annotations: Record<string, boolean>
       }>
     }
@@ -125,6 +126,16 @@ async function callTool(
   return (await response.json()) as ToolResultBody
 }
 
+async function sha256(value: string) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value)
+  )
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0")
+  ).join("")
+}
+
 describe("private ChatGPT App contract", () => {
   it("partitions the complete shared registry and publishes exact per-operation schemas", async () => {
     const exposed = Object.values(chatGptExecutionToolOperations).flat()
@@ -159,6 +170,12 @@ describe("private ChatGPT App contract", () => {
     expect(JSON.stringify(argumentsSchema)).toContain(
       "Stable Content Request ID"
     )
+    for (const tool of tools) {
+      const serializedOutput = JSON.stringify(tool.outputSchema)
+      expect(serializedOutput).toContain('"data"')
+      expect(serializedOutput).not.toContain('"data":{}')
+      expect(serializedOutput).toMatch(/anyOf|oneOf|type/)
+    }
   })
 
   it("publishes accurate safety and idempotency annotations", async () => {
@@ -195,6 +212,372 @@ describe("private ChatGPT App contract", () => {
         "job.fail",
       ])
     )
+  })
+
+  it("executes Expert Interview processing input and completion through MCP with the complete frozen prompt", async () => {
+    const submission = {
+      submissionId: "submission-a",
+      source: "guest",
+      requestHumanId: "CR-0241",
+      respondent: {
+        personId: "person-a",
+        displayName: "Alex Expert",
+        email: "alex@example.test",
+      },
+      workspaceRevision: 2,
+      answerMode: "one_by_one",
+      batchText: "",
+      questionAnswers: [
+        { questionId: "q-1", text: "Call the closing lawyer first." },
+      ],
+      questions: [
+        {
+          questionId: "q-1",
+          question: "Who do you call first?",
+          motivation: "Expose the recovery sequence.",
+          position: 0,
+          version: 7,
+        },
+      ],
+      assets: [],
+      progress: { completed: 1, total: 1 },
+      sourceSummary: "1 of 1 answers complete",
+      inclusion: {
+        state: "included",
+        decidedBy: {
+          principalId: "principal-1",
+          displayName: "Operator",
+        },
+        decidedAt: 10,
+      },
+      submittedAt: 9,
+    }
+    const canonicalBundle = JSON.stringify({
+      version: 1,
+      request: {
+        requestId: "request-1",
+        humanId: "CR-0241",
+        title: "Delayed closing recovery",
+        requestType: "expert_interview",
+      },
+      expertInterview: {
+        expertInterviewId: "interview-1",
+        requestHumanId: "CR-0241",
+        brief: {
+          topic: "Delayed closings",
+          summary: "Frozen Interview Brief summary.",
+          audience: "Ontario borrowers",
+          framing: "insider_knowledge",
+          fairlendPosture: "Educational.",
+          founderContribution: "Recovery sequences.",
+        },
+        gaps: [
+          {
+            id: "gap-1",
+            kind: "reality_on_the_ground",
+            title: "Frozen Knowledge Gap",
+            existingCoverage: "Normal process.",
+            whyItFallsShort: "No escalation sequence.",
+            expertOpportunity: "Compare first calls.",
+            citations: [],
+          },
+        ],
+        questions: [
+          {
+            id: "q-1",
+            question: "Who do you call first?",
+            motivation: "Expose the recovery sequence.",
+            gapIds: ["gap-1"],
+          },
+        ],
+        operatorInstructions: "Preserve disagreement.",
+        createdAt: 1,
+        updatedAt: 7,
+      },
+      contextVersions: [
+        {
+          contextId: "brief-1",
+          contextVersionId: "brief-version-1",
+          ordinal: 1,
+          kind: "source_summary",
+          title: "Expert interview brief",
+          bulletPoints: ["Frozen brief context."],
+          citations: [],
+          createdAt: 1,
+        },
+        {
+          contextId: "question-1",
+          contextVersionId: "question-version-1",
+          ordinal: 1,
+          kind: "talking_points",
+          title: "Interview question · q-1",
+          bulletPoints: ["Frozen context question evidence."],
+          citations: [],
+          createdAt: 1,
+        },
+      ],
+      selectedSubmissions: [submission],
+      selectionDecisions: [
+        {
+          decisionId: "decision-submission-a",
+          submissionId: "submission-a",
+          state: "included",
+          decidedBy: {
+            principalId: "principal-1",
+            displayName: "Operator",
+          },
+          decidedAt: 10,
+        },
+      ],
+      existingDeliverables: [
+        {
+          deliverableId: "deliverable-existing",
+          requestHumanId: "CR-0241",
+          kind: "blog_article",
+          name: "Existing draft",
+          isPrimary: false,
+          currentCandidateVersionId: "version-existing",
+          promotedVersionId: null,
+          versions: [
+            {
+              versionId: "version-existing",
+              body: "Frozen existing draft body.",
+              ordinal: 1,
+              createdByPrincipalId: "principal-1",
+              sourceJobId: null,
+              changeSummary: null,
+              createdAt: 1,
+            },
+          ],
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+      priorityInstructions: ["Preserve disagreement."],
+    })
+    const payloadDigest = await sha256(canonicalBundle)
+    const snapshot = {
+      snapshotId: "snapshot-1",
+      processingToken: "signed-processing-token",
+      submissionIds: ["submission-a"],
+      contextVersionIds: ["brief-version-1", "question-version-1"],
+      payloadDigest,
+      canonicalBundle,
+      issuedAt: 1,
+      expiresAt: 9_999_999_999_999,
+    }
+    const getByHumanId = vi.fn().mockResolvedValue({
+      requestId: "request-1",
+      humanId: "CR-0241",
+      title: "Delayed closing recovery",
+      requestType: "expert_interview",
+      priority: "critical",
+      lifecycle: "founder_complete",
+      disposition: "active",
+      retention: "active",
+      aggregateVersion: 4,
+      updatedAt: 7,
+    })
+    const createExpertSynthesisProcessingSnapshot = vi
+      .fn()
+      .mockResolvedValue(snapshot)
+    const commitExpertSynthesis = vi.fn().mockResolvedValue({
+      deliverable: {
+        deliverableId: "deliverable-new",
+        requestHumanId: "CR-0241",
+        kind: "blog_article",
+        name: "Expert interview article draft",
+        isPrimary: false,
+        currentCandidateVersionId: "version-new",
+        promotedVersionId: null,
+        versions: [],
+        createdAt: 20,
+        updatedAt: 20,
+      },
+      provenance: {
+        provenanceId: "provenance-1",
+        deliverableId: "deliverable-new",
+        versionId: "version-new",
+        processingSnapshotId: "snapshot-1",
+        submissionIds: ["submission-a"],
+        contextVersionIds: ["brief-version-1", "question-version-1"],
+        payloadDigest,
+        canonicalBundle,
+      },
+    })
+    const methods = {
+      getByHumanId,
+      createExpertSynthesisProcessingSnapshot,
+      commitExpertSynthesis,
+    }
+
+    const processing = await callTool(
+      "content_requests_create",
+      {
+        operation: "expert_interview.processing_input",
+        arguments: {
+          humanId: "CR-0241",
+          submissionIds: ["submission-a"],
+        },
+        idempotencyKey: "mcp-expert-processing",
+      },
+      methods
+    )
+    expect(processing.result.structuredContent).toMatchObject({
+      ok: true,
+      operation: "expert_interview.processing_input",
+      data: {
+        payloadDigest,
+        processingSnapshot: {
+          canonicalBundle,
+          processingToken: "signed-processing-token",
+        },
+      },
+    })
+
+    const promptResponse = await handler(methods).POST({
+      request: rpc("prompts/get", {
+        name: "expert_interview_synthesis",
+        arguments: {
+          humanId: "CR-0241",
+          submissionIds: "submission-a",
+          idempotencyKey: "prepare-native-prompt",
+        },
+      }),
+    })
+    expect(promptResponse.status).toBe(200)
+    const promptBody = (await promptResponse.json()) as {
+      result: { messages: Array<{ content: { text: string } }> }
+    }
+    const prompt = promptBody.result.messages[0]!.content.text
+    expect(prompt).toContain("Frozen Interview Brief summary.")
+    expect(prompt).toContain("Frozen Knowledge Gap")
+    expect(prompt).toContain("Frozen context question evidence.")
+    expect(prompt).toContain("Frozen existing draft body.")
+
+    const completion = await callTool(
+      "content_requests_create",
+      {
+        operation: "expert_interview.complete_processing",
+        arguments: {
+          humanId: "CR-0241",
+          processingToken: snapshot.processingToken,
+          payloadDigest,
+          submissionIds: ["submission-a"],
+          body: "# MCP attributed synthesis",
+        },
+        idempotencyKey: "mcp-expert-completion",
+      },
+      methods
+    )
+    expect(completion.result.structuredContent).toMatchObject({
+      ok: true,
+      operation: "expert_interview.complete_processing",
+      data: {
+        attribution: {
+          submissionIds: ["submission-a"],
+          payloadDigest,
+          provenanceId: "provenance-1",
+        },
+      },
+    })
+    expect(commitExpertSynthesis).toHaveBeenCalledWith(
+      expect.objectContaining({
+        humanId: "CR-0241",
+        submissionIds: ["submission-a"],
+        processingToken: "signed-processing-token",
+        payloadDigest,
+        body: "# MCP attributed synthesis",
+        correlationId: "mcp-expert-completion",
+      })
+    )
+
+    const partialLease = await callTool(
+      "content_requests_create",
+      {
+        operation: "expert_interview.complete_processing",
+        arguments: {
+          humanId: "CR-0241",
+          processingToken: snapshot.processingToken,
+          payloadDigest,
+          submissionIds: ["submission-a"],
+          body: "# Must reject a partial lease",
+          jobId: "job-founder-1",
+        },
+        idempotencyKey: "mcp-partial-founder-lease",
+      },
+      methods
+    )
+    expect(partialLease.result).toMatchObject({
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: expect.stringContaining(
+            "Invalid arguments for tool content_requests_create"
+          ),
+        },
+      ],
+    })
+    expect(commitExpertSynthesis).toHaveBeenCalledTimes(1)
+  })
+
+  it("previews and confirms Guest Access revocation through the consequential boundary", async () => {
+    const getByHumanId = vi.fn().mockResolvedValue({
+      humanId: "CR-0241",
+      title: "Bridge financing interview",
+      priority: "critical",
+      lifecycle: "in_progress",
+      disposition: "active",
+      retention: "active",
+      aggregateVersion: 4,
+      updatedAt: 1_799_999_999_000,
+    })
+    const listGuestAccessGrants = vi.fn().mockResolvedValue([
+      {
+        grantId: "grant-1",
+        person: {
+          personId: "person-1",
+          displayName: "Sally Expert",
+          email: "sally@example.ca",
+        },
+        state: "in_progress",
+        expiresAt: 1_800_100_000_000,
+        progress: { completed: 1, total: 2 },
+        submitted: false,
+      },
+    ])
+    const revokeGuestAccessGrant = vi
+      .fn()
+      .mockResolvedValue({ grantId: "grant-1", state: "revoked" })
+    const methods = {
+      getByHumanId,
+      listGuestAccessGrants,
+      revokeGuestAccessGrant,
+    }
+    const command = {
+      operation: "guest_access.revoke",
+      arguments: { grantId: "grant-1" },
+      idempotencyKey: "revoke-grant-1",
+      scopeHumanId: "CR-0241",
+    }
+    const preview = await callTool("content_requests_preview", command, methods)
+    expect(preview.result.isError).toBe(false)
+    expect(preview.result.content[0]?.text).toContain("Sally Expert")
+    const confirmationToken = (
+      preview.result.structuredContent.data as { confirmationToken: string }
+    ).confirmationToken
+    const confirmed = await callTool(
+      "content_requests_confirm",
+      { ...command, confirmationToken },
+      methods
+    )
+    expect(confirmed.result.isError).toBe(false)
+    expect(revokeGuestAccessGrant).toHaveBeenCalledWith({
+      grantId: "grant-1",
+      correlationId: "revoke-grant-1",
+      expectedAggregateVersion: 4,
+    })
   })
 
   it("binds confirmation challenges to the exact action, credential, and expiry", async () => {

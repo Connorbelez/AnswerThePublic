@@ -390,3 +390,4 @@ describe("founder offline synchronization and version history", () => {
     ).resolves.toEqual(restored)
   })
 })
+import "@automerge/automerge"

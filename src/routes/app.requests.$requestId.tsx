@@ -1,26 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef } from "react"
 import {
-  Link,
-  createFileRoute,
-  getRouteApi,
-  notFound,
-} from "@tanstack/react-router"
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
+import { createFileRoute, getRouteApi, notFound } from "@tanstack/react-router"
 import { useServerFn } from "@tanstack/react-start"
-import { ArrowLeft, ExternalLink } from "lucide-react"
 
 import {
-  createFounderVoiceUploadUrl,
-  discardFounderVoiceCapture,
-  finalizeFounderVoiceCapture,
   getContentRequest,
+  getExpertInterview,
+  inspectGuestResponseWorkspace,
   getContentRequestRelations,
   getContentRequestContext,
   getContextDeckPreferences,
   getFounderInput,
-  getFounderVersionHistory,
+  searchPeople,
+  listGuestAccessGrants,
+  listExpertInterviewSubmissions,
   listAssignablePrincipals,
-  listFounderArchivedVersions,
-  listFounderVoiceCaptures,
   listDeliverables,
   listArchivedDeliveryTargets,
   listDeliveryTargets,
@@ -28,40 +29,37 @@ import {
   listPublicShares,
   listOperatorWorkspace,
   openContentRequest,
-  markFounderVoiceTranscriptMerged,
-  pullFounderAutomergeChanges,
-  redoFounderInput,
-  restoreFounderArchivedVersion,
-  retryFounderVoiceCapture,
   saveContextDeckPreferences,
-  submitFounderAutomergeChanges,
-  submitFounderInput,
-  undoFounderInput,
-  assertFounderInputSynced,
 } from "@/application/content-request-server-functions"
-import { loadWorkspaceSession } from "@/application/load-workspace-session"
 import { RequestAssignmentControl } from "@/components/request-assignment-control"
 import { RequestDispositionControls } from "@/components/request-disposition-controls"
 import { SemanticConflictPanel } from "@/components/semantic-conflict-panel"
 import { DeliverablePanel } from "@/components/deliverable-panel"
 import { DeliveryTargetChecklist } from "@/components/delivery-target-checklist"
-import { UnifiedContextCanvas } from "@/components/unified-context-canvas"
 import { PublicShareManager } from "@/components/public-share-manager"
+import { ExpertInterviewBriefView } from "@/components/expert-interview-brief"
+import { ExpertSynthesisServerPanel } from "@/components/expert-synthesis-panel"
+import { GuestAccessGrantPanel } from "@/components/guest-access-grant-panel"
+import { GuestResponseAdminServerPanel } from "@/components/guest-response-admin-panel"
+import { OpportunityAssessment, TriageInbox } from "@/components/triage-inbox"
+import { OpportunityDecisionPanel } from "@/components/opportunity-decision-panel"
 import type { ContextDeckPreferences } from "@/application/content-requests"
-import { useFounderAutomerge } from "@/hooks/use-founder-automerge"
-import { useFounderVoiceInput } from "@/hooks/use-founder-voice-input"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
-  requestOriginLabel,
-  requestPriorityLabel,
-} from "@/lib/content-request-labels"
+  contentFormatDefinitions,
+  type ContentFormat,
+} from "@/application/promote-opportunity"
+import { extractOpportunityBrief } from "@/lib/opportunity-brief"
+
+const FounderRequestCanvas = lazy(() =>
+  import("@/components/founder-request-canvas").then((module) => ({
+    default: module.FounderRequestCanvas,
+  }))
+)
 
 export const Route = createFileRoute("/app/requests/$requestId")({
-  loader: async ({ params }) => {
-    const session = await loadWorkspaceSession()
+  ssr: "data-only",
+  loader: async ({ params, context }) => {
+    const session = context.workspaceSession
     const [
       request,
       principals,
@@ -75,6 +73,9 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       operatorWorkspace,
       relations,
       publicShares,
+      expertInterview,
+      peopleResult,
+      guestAccessGrants,
     ] = await Promise.all([
       getContentRequest({ data: { humanId: params.requestId } }),
       listAssignablePrincipals(),
@@ -82,53 +83,66 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       getContextDeckPreferences({
         data: {
           humanId: params.requestId,
-          founderWorkspace:
-            session.status === "authenticated" &&
-            session.session.workspaceView === "elie",
+          founderWorkspace: session.workspaceView === "elie",
         },
       }),
-      session.status === "authenticated" &&
-      session.session.workspaceView === "elie"
+      session.workspaceView === "elie"
         ? getFounderInput({ data: { humanId: params.requestId } })
         : Promise.resolve(null),
-      session.status === "authenticated" &&
-      session.session.workspaceView !== "elie"
+      session.workspaceView !== "elie"
         ? listOpenSemanticConflicts({ data: { humanId: params.requestId } })
         : Promise.resolve([]),
-      session.status === "authenticated" &&
-      session.session.workspaceView !== "elie"
+      session.workspaceView !== "elie"
         ? listDeliverables({ data: { humanId: params.requestId } })
         : Promise.resolve([]),
-      session.status === "authenticated" &&
-      session.session.workspaceView !== "elie"
+      session.workspaceView !== "elie"
         ? listDeliveryTargets({ data: { humanId: params.requestId } })
         : Promise.resolve([]),
-      session.status === "authenticated" &&
-      session.session.workspaceView !== "elie"
+      session.workspaceView !== "elie"
         ? listArchivedDeliveryTargets({
             data: { humanId: params.requestId, cursor: null },
           })
         : Promise.resolve({ page: [], nextCursor: null }),
-      session.status === "authenticated" &&
-      session.session.workspaceView !== "elie"
+      session.workspaceView !== "elie"
         ? listOperatorWorkspace({
             data: { search: params.requestId, limit: 1 },
           })
         : Promise.resolve(null),
-      session.status === "authenticated" &&
-      session.session.workspaceView !== "elie"
+      session.workspaceView !== "elie"
         ? getContentRequestRelations({ data: { humanId: params.requestId } })
         : Promise.resolve({
             parent: null,
             children: [],
             childrenTruncated: false,
           }),
-      session.status === "authenticated" &&
-      session.session.workspaceView !== "elie"
+      session.workspaceView !== "elie"
         ? listPublicShares({ data: { humanId: params.requestId } })
+        : Promise.resolve([]),
+      getExpertInterview({ data: { humanId: params.requestId } }),
+      session.workspaceView !== "elie"
+        ? searchPeople({ data: { query: "", limit: 50 } })
+        : Promise.resolve({ people: [], defaultPersonId: null }),
+      session.workspaceView !== "elie"
+        ? listGuestAccessGrants({ data: { humanId: params.requestId } })
         : Promise.resolve([]),
     ])
     if (!request) throw notFound()
+    const expertSynthesisSubmissions =
+      session.workspaceView !== "elie" && expertInterview
+        ? await listExpertInterviewSubmissions({
+            data: { humanId: params.requestId },
+          })
+        : []
+    const guestResponseWorkspaces =
+      session.workspaceView !== "elie"
+        ? (
+            await Promise.all(
+              guestAccessGrants.map(({ grantId }) =>
+                inspectGuestResponseWorkspace({ data: { grantId } })
+              )
+            )
+          ).filter((view) => view !== null)
+        : []
     return {
       request,
       principals,
@@ -139,9 +153,15 @@ export const Route = createFileRoute("/app/requests/$requestId")({
       deliverables,
       deliveryTargets: [...deliveryTargets, ...archivedDeliveryTargets.page],
       archivedDeliveryTargetCursor: archivedDeliveryTargets.nextCursor,
-      operatorItem: operatorWorkspace?.page[0] ?? null,
+      operatorItems: operatorWorkspace?.page ?? [],
       relations,
       publicShares,
+      expertInterview,
+      people: peopleResult.people,
+      defaultPersonId: peopleResult.defaultPersonId,
+      guestAccessGrants,
+      guestResponseWorkspaces,
+      expertSynthesisSubmissions,
     }
   },
   component: ContentRequestPage,
@@ -180,15 +200,86 @@ function ContentRequestPage() {
     deliverables,
     deliveryTargets,
     archivedDeliveryTargetCursor,
-    operatorItem,
+    operatorItems,
     relations,
     publicShares,
+    expertInterview,
+    people,
+    defaultPersonId,
+    guestAccessGrants,
+    guestResponseWorkspaces,
+    expertSynthesisSubmissions,
   } = Route.useLoaderData()
   const session = appRoute.useLoaderData()
   const requestIsActive =
     request.retention === "active" && request.disposition === "active"
   const requestIsMutable =
     requestIsActive && ["pending", "in_progress"].includes(request.lifecycle)
+  const brief = useMemo(
+    () => extractOpportunityBrief(request.source?.body),
+    [request.source?.body]
+  )
+  const queueItems = useMemo(() => {
+    if (
+      operatorItems.some((item) => item.request.humanId === request.humanId)
+    ) {
+      return operatorItems
+    }
+    return [
+      {
+        request,
+        queue: "needs_operator" as const,
+        agentJobStatus: null,
+        founderHandoff: null,
+        requiredDeliveryConfirmed: 0,
+        requiredDeliveryTotal: 0,
+        openConflictCount: semanticConflicts.length,
+        attentionReasonCount: semanticConflicts.length,
+        attentionReasons: semanticConflicts.map(
+          () => "A concurrent edit requires review."
+        ),
+        deliveryChannels: [],
+        nextActionChangedAt: request.updatedAt,
+      },
+      ...operatorItems,
+    ]
+  }, [operatorItems, request, semanticConflicts])
+  const operatorItem = queueItems.find(
+    (item) => item.request.humanId === request.humanId
+  )
+  const suggestedFormats = useMemo(() => {
+    const known = new Set(
+      contentFormatDefinitions.map((definition) => definition.id)
+    )
+    const selected = new Set<ContentFormat>(["original_response"])
+    for (const deliverable of deliverables) {
+      if (known.has(deliverable.kind as ContentFormat)) {
+        selected.add(deliverable.kind as ContentFormat)
+      }
+    }
+    if (request.origin === "automated_scout") {
+      selected.add("blog_article")
+      selected.add("linkedin_post")
+    }
+    return contentFormatDefinitions
+      .map((definition) => definition.id)
+      .filter((format) => selected.has(format))
+  }, [deliverables, request.origin])
+  const [formatSelection, setFormatSelection] = useState<{
+    humanId: string
+    formats: Array<ContentFormat>
+  }>({ humanId: request.humanId, formats: suggestedFormats })
+  const formats =
+    formatSelection.humanId === request.humanId
+      ? formatSelection.formats
+      : suggestedFormats
+  const setFormats = (nextFormats: Array<ContentFormat>) => {
+    setFormatSelection({ humanId: request.humanId, formats: nextFormats })
+  }
+  const founder =
+    (request.assignee.role === "founder" ? request.assignee : null) ??
+    principals.find((principal) => principal.role === "founder") ??
+    null
   const recordOpen = useServerFn(openContentRequest)
   const persistContextDeckPreferences = useServerFn(saveContextDeckPreferences)
   const handleContextDeckPreferences = useCallback(
@@ -279,314 +370,174 @@ function ContentRequestPage() {
   }, [recordOpen, request.humanId])
   if (session.workspaceView === "elie") {
     return (
-      <FounderRequestCanvas
-        key={request.humanId}
-        request={request}
-        contextItems={contextItems}
-        preferenceOwnerKey={`${session.organizationId}:${session.principalId}`}
-        initialDraft={founderInput?.text ?? ""}
-        initialDocumentId={founderInput?.automergeDocumentId ?? null}
-        initialPreferences={contextDeckPreferences}
-        requestActive={requestIsActive}
-        founderInputMutable={requestIsMutable}
-        onPreferencesChange={
-          requestIsActive ? handleContextDeckPreferences : undefined
+      <Suspense
+        fallback={
+          <main
+            className="founder-canvas-pending"
+            id="main-content"
+            aria-busy="true"
+          >
+            <h1>{request.title}</h1>
+            <p role="status">Preparing the collaborative editor…</p>
+          </main>
         }
-      />
+      >
+        <FounderRequestCanvas
+          key={request.humanId}
+          request={request}
+          contextItems={contextItems}
+          preferenceOwnerKey={`${session.organizationId}:${session.principalId}`}
+          initialDraft={founderInput?.text ?? ""}
+          initialDocumentId={founderInput?.automergeDocumentId ?? null}
+          initialPreferences={contextDeckPreferences}
+          requestActive={requestIsActive}
+          founderInputMutable={requestIsMutable}
+          onPreferencesChange={
+            requestIsActive ? handleContextDeckPreferences : undefined
+          }
+        />
+      </Suspense>
     )
   }
   return (
-    <main className="workspace workspace--narrow request-detail">
-      <Button variant="ghost" render={<Link to="/app" />}>
-        <ArrowLeft data-icon="inline-start" />
-        Content requests
-      </Button>
-      <div className="request-detail__header">
-        <div className="request-card__meta">
-          <Badge
-            variant={
-              request.priority === "critical" ? "destructive" : "secondary"
-            }
-          >
-            {requestPriorityLabel(request.priority)}
-          </Badge>
-          <span>{request.humanId}</span>
-          <span>{requestOriginLabel(request.origin)} request</span>
-          <span>Assigned to {request.assignee.subject}</span>
-          <span>
-            {request.lifecycle
-              .replaceAll("_", " ")
-              .replace(/^./, (value) => value.toUpperCase())}
-          </span>
-          {request.hasFounderDraft ? <span>Founder draft saved</span> : null}
-        </div>
-        <h1>{request.title}</h1>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle as="h2">Original request</CardTitle>
-        </CardHeader>
-        <CardContent className="source-material">
-          {request.source?.question ? (
-            <blockquote>{request.source.question}</blockquote>
-          ) : null}
-          {request.source?.body ? <p>{request.source.body}</p> : null}
-          {!request.source ? <p>No source material was supplied.</p> : null}
-          {request.source?.url ? (
-            <Button
-              variant="outline"
-              render={
-                <a href={request.source.url} target="_blank" rel="noreferrer" />
-              }
-            >
-              Open source <ExternalLink data-icon="inline-end" />
-            </Button>
-          ) : null}
-        </CardContent>
-      </Card>
-      {operatorItem?.attentionReasons.length ? (
-        <Alert variant="destructive">
-          <AlertTitle>Attention required</AlertTitle>
-          <AlertDescription>
-            <ul className="grid gap-2 pl-5">
-              {operatorItem.attentionReasons.map((reason) => (
-                <li key={reason}>{reason}</li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {!requestIsActive ? (
-        <Alert>
-          <AlertTitle>Read-only request</AlertTitle>
-          <AlertDescription>
-            This request is{" "}
-            {request.retention === "archived" ? "archived" : "expired"}. Restore
-            it to change assignment, deliverables, delivery targets, or resolve
-            conflicts.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      <SemanticConflictPanel
-        conflicts={semanticConflicts}
-        principals={principals}
-        deliverables={deliverables}
-        readOnly={!requestIsActive}
-      />
-      <RequestDispositionControls request={request} relations={relations} />
-      <DeliverablePanel
-        humanId={request.humanId}
-        deliverables={deliverables}
-        readOnly={!requestIsActive}
-      />
-      <DeliveryTargetChecklist
-        humanId={request.humanId}
-        targets={deliveryTargets}
-        initialArchivedCursor={archivedDeliveryTargetCursor}
-        deliverables={deliverables}
-        principals={principals}
-        readOnly={!requestIsActive}
-      />
-      <PublicShareManager
-        humanId={request.humanId}
-        contextItems={contextItems}
-        deliverables={deliverables}
-        shares={publicShares}
-      />
-      {requestIsActive ? (
-        <Card>
-          <CardHeader>
-            <CardTitle as="h2">Assignment</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RequestAssignmentControl
-              key={`${request.humanId}:${request.aggregateVersion}`}
-              request={request}
-              principals={principals}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
-    </main>
-  )
-}
-
-function FounderRequestCanvas({
-  request,
-  contextItems,
-  preferenceOwnerKey,
-  initialDraft,
-  initialDocumentId,
-  initialPreferences,
-  onPreferencesChange,
-  requestActive,
-  founderInputMutable,
-}: {
-  request: ReturnType<typeof Route.useLoaderData>["request"]
-  contextItems: ReturnType<typeof Route.useLoaderData>["contextItems"]
-  preferenceOwnerKey: string
-  initialDraft: string
-  initialDocumentId: string | null
-  initialPreferences: ContextDeckPreferences | null
-  onPreferencesChange?: (
-    preferences: ContextDeckPreferences,
-    correlationId: string
-  ) => Promise<void>
-  requestActive: boolean
-  founderInputMutable: boolean
-}) {
-  const pull = useServerFn(pullFounderAutomergeChanges)
-  const submit = useServerFn(submitFounderAutomergeChanges)
-  const loadHistory = useServerFn(getFounderVersionHistory)
-  const undo = useServerFn(undoFounderInput)
-  const redo = useServerFn(redoFounderInput)
-  const loadArchive = useServerFn(listFounderArchivedVersions)
-  const restoreArchived = useServerFn(restoreFounderArchivedVersion)
-  const assertSynced = useServerFn(assertFounderInputSynced)
-  const createVoiceUpload = useServerFn(createFounderVoiceUploadUrl)
-  const finalizeVoice = useServerFn(finalizeFounderVoiceCapture)
-  const loadVoiceCaptures = useServerFn(listFounderVoiceCaptures)
-  const retryVoiceCapture = useServerFn(retryFounderVoiceCapture)
-  const markVoiceMerged = useServerFn(markFounderVoiceTranscriptMerged)
-  const discardVoiceCapture = useServerFn(discardFounderVoiceCapture)
-  const submitFounder = useServerFn(submitFounderInput)
-  const transport = useMemo(
-    () => ({
-      pull: (documentId: string) =>
-        pull({ data: { humanId: request.humanId, documentId } }),
-      submit: (input: {
-        documentId: string
-        changes: Array<{ hash: string; data: string }>
-        heads: Array<string>
-        text: string
-        correlationId: string
-      }) => submit({ data: { humanId: request.humanId, ...input } }),
-      history: () => loadHistory({ data: { humanId: request.humanId } }),
-      archive: (cursor: string | null) =>
-        loadArchive({ data: { humanId: request.humanId, cursor } }),
-      restoreArchived: (versionId: string, correlationId: string) =>
-        restoreArchived({
-          data: { humanId: request.humanId, versionId, correlationId },
-        }),
-      undo: (correlationId: string) =>
-        undo({
-          data: { humanId: request.humanId, correlationId },
-        }),
-      redo: (correlationId: string) =>
-        redo({
-          data: { humanId: request.humanId, correlationId },
-        }),
-      assertSynced: (heads: Array<string>) =>
-        assertSynced({ data: { humanId: request.humanId, heads } }),
-    }),
-    [
-      assertSynced,
-      loadArchive,
-      loadHistory,
-      pull,
-      redo,
-      request.humanId,
-      restoreArchived,
-      submit,
-      undo,
-    ]
-  )
-  const founderDocument = useFounderAutomerge({
-    humanId: request.humanId,
-    ownerKey: preferenceOwnerKey,
-    initialText: initialDraft,
-    initialDocumentId,
-    transport,
-    enabled: founderInputMutable,
-  })
-  const voiceTransport = useMemo(
-    () => ({
-      createUploadUrl: () =>
-        createVoiceUpload({ data: { humanId: request.humanId } }),
-      finalize: (input: {
-        clientCaptureId: string
-        storageId: string
-        mimeType: string
-        sizeBytes: number
-        durationMs: number
-        recordedAt: number
-        correlationId: string
-      }) => finalizeVoice({ data: { humanId: request.humanId, ...input } }),
-      list: () => loadVoiceCaptures({ data: { humanId: request.humanId } }),
-      retry: (captureId: string) =>
-        retryVoiceCapture({
-          data: { humanId: request.humanId, captureId },
-        }),
-      markMerged: (captureId: string) =>
-        markVoiceMerged({
-          data: { humanId: request.humanId, captureId },
-        }),
-      discard: (captureId: string) =>
-        discardVoiceCapture({
-          data: { humanId: request.humanId, captureId },
-        }),
-    }),
-    [
-      createVoiceUpload,
-      discardVoiceCapture,
-      finalizeVoice,
-      loadVoiceCaptures,
-      markVoiceMerged,
-      request.humanId,
-      retryVoiceCapture,
-    ]
-  )
-  const voiceInput = useFounderVoiceInput({
-    requestHumanId: request.humanId,
-    ownerKey: preferenceOwnerKey,
-    transport: voiceTransport,
-    appendTranscript: founderDocument.appendVoiceTranscript,
-    ensureDurablySynced: founderDocument.ensureDurablySynced,
-    enabled: founderInputMutable,
-  })
-
-  return (
-    <UnifiedContextCanvas
-      request={request}
-      requestActive={requestActive}
-      contextItems={contextItems}
-      preferenceOwnerKey={preferenceOwnerKey}
-      initialDraft={initialDraft}
-      initialPreferences={initialPreferences}
-      onPreferencesChange={onPreferencesChange}
-      onSubmitFounderInput={
-        founderInputMutable
-          ? async () => {
-              const heads = await founderDocument.prepareSubmission()
-              if (!heads)
-                throw new Error("Founder input is not durably synced.")
-              await submitFounder({
-                data: {
-                  humanId: request.humanId,
-                  heads,
-                  correlationId: crypto.randomUUID(),
-                },
-              })
-              window.location.assign("/app")
-            }
-          : undefined
+    <TriageInbox
+      queueItems={queueItems}
+      activeHumanId={request.humanId}
+      selectedFormatCount={formats.length}
+      decision={
+        <OpportunityDecisionPanel
+          key={`desktop:${request.humanId}`}
+          humanId={request.humanId}
+          recipient={founder}
+          formats={formats}
+          onFormatsChange={setFormats}
+          risk={brief.risk}
+          readOnly={!requestIsActive}
+          founderHandoff={operatorItem?.founderHandoff ?? null}
+        />
       }
-      draftController={{
-        text: founderDocument.text,
-        status: founderDocument.status,
-        canUndo: founderDocument.history?.canUndo ?? false,
-        canRedo: founderDocument.history?.canRedo ?? false,
-        history: founderDocument.history,
-        archiveEntries: founderDocument.archiveEntries,
-        archiveDone: founderDocument.archiveDone,
-        readOnly: !founderInputMutable,
-        onTextChange: founderDocument.setText,
-        onUndo: founderDocument.undo,
-        onRedo: founderDocument.redo,
-        onLoadOlderHistory: founderDocument.loadOlderHistory,
-        onRestoreArchivedVersion: founderDocument.restoreArchivedVersion,
-        voice: founderInputMutable ? voiceInput : undefined,
-      }}
+      mobileDecision={
+        <OpportunityDecisionPanel
+          key={`mobile:${request.humanId}`}
+          humanId={request.humanId}
+          recipient={founder}
+          formats={formats}
+          onFormatsChange={setFormats}
+          risk={brief.risk}
+          readOnly={!requestIsActive}
+          compact
+          founderHandoff={operatorItem?.founderHandoff ?? null}
+        />
+      }
+      mobileActionDecision={
+        <OpportunityDecisionPanel
+          key={`mobile-action:${request.humanId}`}
+          humanId={request.humanId}
+          recipient={founder}
+          formats={formats}
+          onFormatsChange={setFormats}
+          risk={brief.risk}
+          readOnly={!requestIsActive}
+          compact
+          actionBar
+          founderHandoff={operatorItem?.founderHandoff ?? null}
+        />
+      }
+      assessment={
+        <OpportunityAssessment request={request} brief={brief}>
+          {operatorItem?.attentionReasons.length ? (
+            <section className="triage-attention" role="alert">
+              <h2>Attention required</h2>
+              <ul>
+                {operatorItem.attentionReasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {!requestIsActive ? (
+            <section className="triage-attention" role="status">
+              <h2>Read-only opportunity</h2>
+              <p>
+                This request is{" "}
+                {request.retention === "archived" ? "archived" : "expired"}.
+                Restore it from record options before changing its route or
+                outputs.
+              </p>
+            </section>
+          ) : null}
+
+          {expertInterview ? (
+            <ExpertInterviewBriefView expertInterview={expertInterview} />
+          ) : null}
+
+          <GuestAccessGrantPanel
+            humanId={request.humanId}
+            people={people}
+            defaultPersonId={defaultPersonId}
+            grants={guestAccessGrants}
+            disabled={!requestIsActive}
+          />
+          <GuestResponseAdminServerPanel
+            disabled={!requestIsActive}
+            views={guestResponseWorkspaces}
+          />
+          {expertInterview ? (
+            <ExpertSynthesisServerPanel
+              deliverables={deliverables}
+              disabled={!requestIsActive}
+              humanId={request.humanId}
+              submissions={expertSynthesisSubmissions}
+            />
+          ) : null}
+
+          <details className="triage-advanced">
+            <summary>Record options &amp; delivery</summary>
+            <div className="triage-advanced__content">
+              <SemanticConflictPanel
+                conflicts={semanticConflicts}
+                principals={principals}
+                deliverables={deliverables}
+                readOnly={!requestIsActive}
+              />
+              <RequestDispositionControls
+                request={request}
+                relations={relations}
+              />
+              <DeliverablePanel
+                humanId={request.humanId}
+                deliverables={deliverables}
+                readOnly={!requestIsActive}
+              />
+              <DeliveryTargetChecklist
+                humanId={request.humanId}
+                targets={deliveryTargets}
+                initialArchivedCursor={archivedDeliveryTargetCursor}
+                deliverables={deliverables}
+                principals={principals}
+                readOnly={!requestIsActive}
+              />
+              <PublicShareManager
+                humanId={request.humanId}
+                contextItems={contextItems}
+                deliverables={deliverables}
+                shares={publicShares}
+              />
+              {requestIsActive ? (
+                <div className="triage-advanced__assignment">
+                  <h3>Reassign or add watchers</h3>
+                  <RequestAssignmentControl
+                    key={`${request.humanId}:${request.aggregateVersion}`}
+                    request={request}
+                    principals={principals}
+                  />
+                </div>
+              ) : null}
+            </div>
+          </details>
+        </OpportunityAssessment>
+      }
     />
   )
 }

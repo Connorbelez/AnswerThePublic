@@ -18,11 +18,9 @@ describe("WorkOS Convex auth configuration", () => {
 
     expect(authConfig.providers).toContainEqual({
       type: "customJwt",
-      issuer:
-        "https://api.workos.com/user_management/client_fairlend",
+      issuer: "https://api.workos.com/user_management/client_fairlend",
       algorithm: "RS256",
       jwks: "https://api.workos.com/sso/jwks/client_fairlend",
     })
   })
-
 })

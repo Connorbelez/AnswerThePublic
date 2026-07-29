@@ -22,8 +22,6 @@ describe("provisioning access denial handling", () => {
         data: { code: "PRINCIPAL_PROVISIONING_DENIED" },
       })
     ).toBe(false)
-    expect(isExpectedProvisioningAccessDenial(new Error("network"))).toBe(
-      false
-    )
+    expect(isExpectedProvisioningAccessDenial(new Error("network"))).toBe(false)
   })
 })

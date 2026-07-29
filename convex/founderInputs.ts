@@ -2,6 +2,9 @@ import { ConvexError, v } from "convex/values"
 import { paginationOptsValidator } from "convex/server"
 import { Timeline } from "convex-timeline"
 import { hash } from "fast-sha256"
+// Convex resolves Automerge's root export to a browser ESM-WASM wrapper that
+// its server-side module analyzer cannot initialize. Use the slim entry and
+// initialize the package's supported base64 payload lazily inside the runtime.
 import * as Automerge from "@automerge/automerge/slim"
 import { automergeWasmBase64 } from "@automerge/automerge/automerge.wasm.base64"
 
@@ -56,12 +59,6 @@ const archivedVersionValidator = v.object({
 })
 
 const timeline = new Timeline(components.timeline, { maxNodesPerScope: 50 })
-let automergeReady: Promise<void> | null = null
-
-function ensureAutomergeReady() {
-  automergeReady ??= Automerge.initializeBase64Wasm(automergeWasmBase64)
-  return automergeReady
-}
 
 type CanonicalFounderDocument = {
   requestHumanId: string
@@ -78,6 +75,17 @@ type TimelineDocument = {
   actorSubject: string
   correlationId: string
   occurredAt: number
+}
+
+let automergeInitialization: Promise<void> | undefined
+
+function ensureAutomergeInitialized() {
+  if (Automerge.isWasmInitialized()) {
+    return Promise.resolve()
+  }
+  automergeInitialization ??=
+    Automerge.initializeBase64Wasm(automergeWasmBase64)
+  return automergeInitialization
 }
 
 function timelineMetadata(document: unknown) {
@@ -128,8 +136,8 @@ async function canonicalFounderDocument(
   humanId: string,
   encodedChanges: Array<string>
 ) {
+  await ensureAutomergeInitialized()
   try {
-    await ensureAutomergeReady()
     const [document] = Automerge.applyChanges(
       Automerge.init<CanonicalFounderDocument>(),
       encodedChanges.map(base64Bytes)
@@ -175,7 +183,9 @@ async function canonicalFounderDocument(
     }
     return {
       text: materializedText,
-      heads: [...Automerge.getHeads(document)].sort(),
+      heads: [...Automerge.getHeads(document)].sort((a, b) =>
+        a.localeCompare(b)
+      ),
     }
   } catch {
     throw new ConvexError({
@@ -486,7 +496,9 @@ export const submitAutomergeChanges = mutation({
     if (!correlationId || args.changes.length > 500) {
       throw new ConvexError({ code: "VALIDATION_FAILED" })
     }
-    const uniqueHeads = [...new Set(args.heads)].sort()
+    const uniqueHeads = [...new Set(args.heads)].sort((a, b) =>
+      a.localeCompare(b)
+    )
     if (uniqueHeads.length > 100 || uniqueHeads.some((head) => !head.trim())) {
       throw new ConvexError({ code: "VALIDATION_FAILED", field: "heads" })
     }

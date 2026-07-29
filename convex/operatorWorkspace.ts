@@ -8,6 +8,7 @@ import { contentRequestValidator, toPublicRequest } from "./contentRequests"
 import { requireEditor, requirePrincipal } from "./lib/authorization"
 import { refreshOperatorWorkspaceProjection } from "./lib/operatorWorkspaceProjection"
 import {
+  founderHandoffStatusValidator,
   requestDispositionValidator,
   requestLifecycleValidator,
   requestOriginValidator,
@@ -34,6 +35,7 @@ const jobStatusValidator = v.union(
 const itemValidator = v.object({
   request: contentRequestValidator,
   queue: queueValidator,
+  founderHandoff: v.union(founderHandoffStatusValidator, v.null()),
   agentJobStatus: jobStatusValidator,
   requiredDeliveryConfirmed: v.number(),
   requiredDeliveryTotal: v.number(),
@@ -219,6 +221,7 @@ async function toItem(
   return {
     request: await toPublicRequest(ctx, request),
     queue: projection.queue,
+    founderHandoff: projection.founderHandoff ?? null,
     agentJobStatus: projection.agentJobStatus ?? null,
     requiredDeliveryConfirmed: projection.requiredDeliveryConfirmed,
     requiredDeliveryTotal: projection.requiredDeliveryTotal,

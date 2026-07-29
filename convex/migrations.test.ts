@@ -62,6 +62,7 @@ describe("V1 migration deployment gate", () => {
         queueSortKey: undefined,
         activeVoiceCaptureCount: undefined,
         normalizedSourceUrl: undefined,
+        requestType: undefined,
       })
       const documentId = await ctx.db.insert("founderInputDocuments", {
         organizationId: "org_fairlend",
@@ -112,6 +113,7 @@ describe("V1 migration deployment gate", () => {
       "operator_projection",
       "original_target",
       "primary_deliverable",
+      "request_type",
       "voice_capture_count",
     ])
 
@@ -128,6 +130,7 @@ describe("V1 migration deployment gate", () => {
       {}
     )
     await backend.mutation(internal.migrations.backfillOperatorWorkspace, {})
+    await backend.mutation(internal.migrations.backfillContentRequestTypes, {})
 
     await expect(
       backend.query(internal.migrations.validateV1Invariants, {})
@@ -225,5 +228,70 @@ describe("V1 migration deployment gate", () => {
         },
       ],
     })
+  })
+
+  it("idempotently reconstructs completed founder promotions and refreshes their projection", async () => {
+    const workspace = convexTest(schema, modules)
+    const operator = workspace.withIdentity(operatorIdentity)
+    const founder = workspace.withIdentity({
+      ...operatorIdentity,
+      subject: "migration-founder",
+      role: "founder",
+      jti: "migration-founder-session",
+    })
+    await operator.mutation(api.principals.syncCurrent)
+    const founderPrincipal = await founder.mutation(api.principals.syncCurrent)
+    const created = await operator.mutation(api.contentRequests.createManual, {
+      title: "Previously promoted founder request",
+      origin: "manual",
+      correlationId: "create-legacy-promotion",
+    })
+    await operator.mutation(internal.contentRequests.assign, {
+      humanId: created.humanId,
+      assigneePrincipalId: founderPrincipal.principalId,
+      correlationId: "assign-legacy-promotion",
+    })
+    const [primary] = await operator.query(api.deliverables.list, {
+      humanId: created.humanId,
+    })
+    if (!primary) throw new Error("Primary deliverable missing")
+    await operator.mutation(api.deliverables.createVersion, {
+      deliverableId: primary.deliverableId,
+      body: "Prepared response",
+      correlationId: "version-legacy-promotion",
+    })
+    await operator.mutation(api.deliverables.createDerivative, {
+      humanId: created.humanId,
+      kind: "blog_article",
+      name: "Blog article",
+      correlationId: "derivative-legacy-promotion",
+    })
+
+    await expect(
+      operator.query(internal.migrations.validateV1Invariants, {})
+    ).resolves.toMatchObject({
+      issues: [{ humanId: created.humanId, code: "founder_handoff" }],
+    })
+
+    await expect(
+      operator.mutation(internal.migrations.backfillFounderHandoffs, {})
+    ).resolves.toEqual({ migrated: 1, done: true })
+    await expect(
+      operator.mutation(internal.migrations.backfillFounderHandoffs, {})
+    ).resolves.toEqual({ migrated: 0, done: true })
+
+    await expect(
+      operator.query(api.founderHandoffs.getCurrent, {
+        humanId: created.humanId,
+      })
+    ).resolves.toMatchObject({
+      recipient: { principalId: founderPrincipal.principalId },
+      selectedFormats: ["original_response", "blog_article"],
+      stage: "ready",
+      emailStatus: null,
+    })
+    await expect(
+      operator.query(internal.migrations.validateV1Invariants, {})
+    ).resolves.toMatchObject({ issues: [] })
   })
 })

@@ -48,7 +48,7 @@ describe("Deliverable panel contract", () => {
             versions: [
               {
                 versionId: "version-2",
-                body: "Candidate",
+                body: "### Candidate response\n\n**Ready for review.**",
                 ordinal: 2,
                 createdByPrincipalId: "operator",
                 sourceJobId: null,
@@ -78,11 +78,14 @@ describe("Deliverable panel contract", () => {
     const promote = screen.getByRole("button", {
       name: "Promote Primary response version 2",
     })
-    const makePrimary = screen.getByRole("button", {
-      name: "Make LinkedIn post primary",
-    })
-    expect(promote.className).toContain("h-11")
-    expect(makePrimary.className).toContain("h-11")
+    expect(
+      screen.getByRole("heading", { level: 4, name: "Candidate response" })
+    ).toBeTruthy()
+    expect(screen.getByText("Ready for review.").tagName).toBe("STRONG")
+    expect(document.body.textContent).not.toContain("###")
+    expect(
+      screen.getByRole("button", { name: "Make LinkedIn post primary" })
+    ).toBeTruthy()
     fireEvent.click(promote)
     await waitFor(() =>
       expect(screen.getByRole("alert").textContent).toContain(

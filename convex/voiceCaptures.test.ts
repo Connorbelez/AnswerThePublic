@@ -425,10 +425,13 @@ describe("founder voice capture aggregate", () => {
         transcript: "First legacy transcript",
       })
     })
+    const secondStorageId = await workspace.run((ctx) =>
+      ctx.storage.store(audio)
+    )
     const second = await founder.mutation(api.voiceCaptures.finalizeUpload, {
       humanId: request.humanId,
       clientCaptureId: "capture-during-count-backfill",
-      storageId,
+      storageId: secondStorageId,
       mimeType: "audio/webm",
       sizeBytes: audio.size,
       durationMs: 1_000,

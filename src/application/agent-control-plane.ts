@@ -1,4 +1,11 @@
 import type { ContentRequestService } from "@/application/content-requests"
+import {
+  buildExpertInterviewResearchPrompt,
+  completeExpertInterviewProcessingWithLease,
+  createExpertInterview,
+  prepareExpertInterviewProcessing,
+  validateExpertInterviewPackage,
+} from "@/application/expert-interviews"
 
 export type AgentControlCommand = {
   operation: string
@@ -23,6 +30,18 @@ const operations = [
   "request.restore_archived",
   "request.follow_up",
   "request.relations",
+  "expert_interview.research_prompt",
+  "expert_interview.create",
+  "expert_interview.submissions",
+  "expert_interview.submission_selection",
+  "expert_interview.processing_input",
+  "expert_interview.complete_processing",
+  "person.search",
+  "person.create",
+  "guest_access.list",
+  "guest_access.create",
+  "guest_access.revoke",
+  "guest_access.renew",
   "principal.list",
   "notification.list",
   "notification.read",
@@ -72,6 +91,15 @@ const mutations = new Set<AgentControlOperation>([
   "request.archive",
   "request.restore_archived",
   "request.follow_up",
+  "expert_interview.create",
+  "expert_interview.submissions",
+  "expert_interview.submission_selection",
+  "expert_interview.processing_input",
+  "expert_interview.complete_processing",
+  "person.create",
+  "guest_access.create",
+  "guest_access.revoke",
+  "guest_access.renew",
   "notification.read",
   "context.upsert",
   "context.preferences.save",
@@ -100,6 +128,7 @@ const paginatedOperations = new Set<AgentControlOperation>([
   "target.list",
   "conflict.list",
   "share.list",
+  "guest_access.list",
 ])
 const datastorePaginatedOperations = new Set<AgentControlOperation>([
   "request.list",
@@ -280,8 +309,105 @@ export function validateAgentControlCommand(command: AgentControlCommand) {
     case "deliverable.list":
     case "target.list":
     case "share.list":
+    case "guest_access.list":
     case "conflict.list":
       text(a, "humanId")
+      break
+    case "guest_access.create":
+      text(a, "humanId")
+      text(a, "personId")
+      break
+    case "guest_access.revoke":
+    case "guest_access.renew":
+      text(a, "grantId")
+      break
+    case "person.search":
+      optionalText(a, "query")
+      if (a.limit !== undefined)
+        finiteNumber(a, "limit", { integer: true, minimum: 1 })
+      break
+    case "person.create":
+      text(a, "humanId")
+      text(a, "displayName")
+      text(a, "email")
+      break
+    case "expert_interview.research_prompt":
+      text(a, "topic")
+      for (const field of [
+        "audience",
+        "geography",
+        "framing",
+        "operatorInstructions",
+      ])
+        optionalText(a, field)
+      break
+    case "expert_interview.create": {
+      text(a, "title")
+      if (a.aliases !== undefined) stringArray(a, "aliases")
+      const brief = requiredRecord(a, "brief")
+      for (const field of [
+        "topic",
+        "summary",
+        "audience",
+        "framing",
+        "fairlendPosture",
+        "founderContribution",
+      ])
+        text(brief, field)
+      const gaps = a.gaps
+      if (!Array.isArray(gaps) || gaps.length === 0) fail("gaps")
+      const questions = a.questions
+      if (!Array.isArray(questions) || questions.length === 0) fail("questions")
+      optionalText(a, "operatorInstructions")
+      validateSource(a)
+      try {
+        validateExpertInterviewPackage(a as never)
+      } catch {
+        fail("expertInterview")
+      }
+      break
+    }
+    case "expert_interview.processing_input":
+      text(a, "humanId")
+      stringArray(a, "submissionIds")
+      if (!(a.submissionIds as Array<string>).length) fail("submissionIds")
+      if ((a.submissionIds as Array<string>).length > 100) fail("submissionIds")
+      optionalText(a, "synthesisInstructions")
+      break
+    case "expert_interview.submissions":
+      text(a, "humanId")
+      break
+    case "expert_interview.submission_selection":
+      text(a, "humanId")
+      text(a, "submissionId")
+      boolean(a, "included")
+      break
+    case "expert_interview.complete_processing":
+      text(a, "humanId")
+      text(a, "processingToken")
+      text(a, "payloadDigest")
+      if (!/^[0-9a-f]{64}$/.test(a.payloadDigest as string))
+        fail("payloadDigest")
+      stringArray(a, "submissionIds")
+      if (!(a.submissionIds as Array<string>).length) fail("submissionIds")
+      if ((a.submissionIds as Array<string>).length > 100) fail("submissionIds")
+      text(a, "body")
+      optionalText(a, "jobId")
+      optionalText(a, "leaseToken")
+      if (a.leaseGeneration !== undefined)
+        finiteNumber(a, "leaseGeneration", { integer: true, minimum: 1 })
+      if (
+        [a.jobId, a.leaseToken, a.leaseGeneration].some(
+          (value) => value !== undefined
+        ) &&
+        [a.jobId, a.leaseToken, a.leaseGeneration].some(
+          (value) => value === undefined
+        )
+      )
+        fail("jobLease")
+      optionalText(a, "deliverableId")
+      optionalText(a, "name")
+      optionalText(a, "changeSummary")
       break
     case "request.create":
       text(a, "title")
@@ -373,6 +499,7 @@ export function validateAgentControlCommand(command: AgentControlCommand) {
       break
     }
     case "job.claim":
+      optionalText(a, "humanId")
       text(a, "leaseToken")
       finiteNumber(a, "leaseMs", { integer: true, minimum: 1 })
       break
@@ -657,6 +784,51 @@ export async function executeAgentControlCommand(
     case "request.relations":
       result = await service.getRelations(text(a, "humanId"))
       break
+    case "expert_interview.research_prompt":
+      result = {
+        prompt: buildExpertInterviewResearchPrompt(a as never),
+        nextOperation: "expert_interview.create",
+      }
+      break
+    case "expert_interview.create":
+      result = await createExpertInterview(service, a as never)
+      break
+    case "expert_interview.submissions":
+      result = await service.listExpertInterviewSubmissions(text(a, "humanId"))
+      break
+    case "expert_interview.submission_selection":
+      result = await service.setExpertInterviewSubmissionInclusion(a as never)
+      break
+    case "expert_interview.processing_input":
+      result = await prepareExpertInterviewProcessing(service, a as never)
+      break
+    case "expert_interview.complete_processing":
+      result = await completeExpertInterviewProcessingWithLease(
+        service,
+        a as never
+      )
+      break
+    case "person.search":
+      result = await service.searchPeople(
+        typeof a.query === "string" ? a.query : "",
+        typeof a.limit === "number" ? a.limit : undefined
+      )
+      break
+    case "person.create":
+      result = await service.createPerson(a as never)
+      break
+    case "guest_access.list":
+      result = await service.listGuestAccessGrants(text(a, "humanId"))
+      break
+    case "guest_access.create":
+      result = await service.createGuestAccessGrant(a as never)
+      break
+    case "guest_access.revoke":
+      result = await service.revokeGuestAccessGrant(a as never)
+      break
+    case "guest_access.renew":
+      result = await service.renewGuestAccessGrant(a as never)
+      break
     case "principal.list":
       result = await service.listAssignablePrincipals()
       break
@@ -702,10 +874,17 @@ export async function executeAgentControlCommand(
       )
       break
     case "job.claim":
-      result = await service.claimAgentJob(
-        text(a, "leaseToken"),
-        finiteNumber(a, "leaseMs")
-      )
+      result =
+        typeof a.humanId === "string"
+          ? await service.claimAgentJobForRequest(
+              text(a, "humanId"),
+              text(a, "leaseToken"),
+              finiteNumber(a, "leaseMs")
+            )
+          : await service.claimAgentJob(
+              text(a, "leaseToken"),
+              finiteNumber(a, "leaseMs")
+            )
       break
     case "job.input":
       result = await service.getAgentJobInput(text(a, "jobId"))

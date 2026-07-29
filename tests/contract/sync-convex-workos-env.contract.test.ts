@@ -10,8 +10,9 @@ describe("Convex/WorkOS dev environment synchronization", () => {
     expect(() => requirePersonalDevDeployment("prod:deployment")).toThrow(
       /Refusing to synchronize WorkOS/
     )
-    expect(requirePersonalDevDeployment("dev:sensible-cheetah-210 # project"))
-      .toBe("dev:sensible-cheetah-210")
+    expect(
+      requirePersonalDevDeployment("dev:sensible-cheetah-210 # project")
+    ).toBe("dev:sensible-cheetah-210")
   })
 
   it("maps one managed WorkOS environment to the Convex auth variables", () => {
