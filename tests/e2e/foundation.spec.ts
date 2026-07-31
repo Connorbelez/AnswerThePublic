@@ -2310,6 +2310,20 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
     name: "Founder input",
   })
   await expect(founderInput).toBeVisible()
+  await founderInput.focus()
+  await expect(editor).toHaveAttribute("data-detent", "peek")
+  await expect(
+    founderPage.getByRole("button", { name: "Expand editor" })
+  ).toBeVisible()
+  const focusedDrawerBounds = await drawer.boundingBox()
+  expect(focusedDrawerBounds).not.toBeNull()
+  expect(
+    Math.abs(
+      viewport!.height -
+        focusedDrawerBounds!.y -
+        (viewport!.height - drawerBounds!.y)
+    )
+  ).toBeLessThanOrEqual(1)
   const flowPositions = await founderPage.evaluate(() => ({
     app: getComputedStyle(document.querySelector(".app-header")!).position,
     request: getComputedStyle(

@@ -361,7 +361,7 @@ describe("Variant G Unified Context Canvas", () => {
     ).toHaveLength(1)
   })
 
-  it("keeps founder input visible at peek and through drawer detent changes", () => {
+  it("keeps founder input visible and minimized when it receives focus", () => {
     render(
       <UnifiedContextCanvas
         request={request}
@@ -378,15 +378,33 @@ describe("Variant G Unified Context Canvas", () => {
     fireEvent.focus(input)
     expect(
       screen.getByTestId("founder-editor").getAttribute("data-detent")
-    ).toBe("compose")
-    expect(screen.getByRole("textbox", { name: "Founder input" })).toBe(input)
-    fireEvent.click(screen.getByRole("button", { name: "Collapse editor" }))
-    expect(
-      screen.getByTestId("founder-editor").getAttribute("data-detent")
     ).toBe("peek")
+    expect(screen.getByRole("textbox", { name: "Founder input" })).toBe(input)
+    expect(screen.getByRole("button", { name: "Expand editor" })).toBeTruthy()
     expect(screen.getByRole("textbox", { name: "Founder input" })).toBe(input)
     expect(body.hasAttribute("inert")).toBe(false)
     expect(body.hasAttribute("aria-hidden")).toBe(false)
+  })
+
+  it("removes internal research instructions and source summaries from expert interviews", () => {
+    render(
+      <UnifiedContextCanvas
+        request={{ ...request, requestType: "expert_interview" }}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+      />
+    )
+
+    expect(
+      screen.getByRole("article", { name: "Original question" })
+    ).toBeTruthy()
+    expect(
+      screen.queryByRole("article", { name: "Original source" })
+    ).toBeNull()
+    expect(
+      screen.queryByRole("article", { name: "Research required" })
+    ).toBeNull()
+    expect(screen.queryByText(request.source!.body!)).toBeNull()
   })
 
   it("keeps the document interactive while the non-modal drawer is open", async () => {

@@ -333,9 +333,6 @@ export function FounderInputDrawer({
                   value={draft}
                   readOnly={controller?.readOnly}
                   onChange={(event) => onTextChange(event.target.value)}
-                  onFocus={() => {
-                    if (!expanded) expandTo(COMPOSE_SNAP_POINT)
-                  }}
                   placeholder="Add your perspective…"
                 />
               ) : (

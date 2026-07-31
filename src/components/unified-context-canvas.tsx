@@ -119,7 +119,7 @@ function contextItemsFor(
           : [],
     })
   }
-  if (request.source?.body) {
+  if (request.source?.body && request.requestType !== "expert_interview") {
     sourceItems.push({
       id: "original-source-body",
       contextId: "original-source-body",
@@ -159,11 +159,17 @@ function contextItemsFor(
   }
   return [
     ...sourceItems,
-    ...contextItems.map((item) => ({
-      ...item,
-      id: item.contextId,
-      ...presentation[item.kind],
-    })),
+    ...contextItems
+      .filter(
+        (item) =>
+          request.requestType !== "expert_interview" ||
+          item.kind !== "research_requirements"
+      )
+      .map((item) => ({
+        ...item,
+        id: item.contextId,
+        ...presentation[item.kind],
+      })),
   ]
 }
 
