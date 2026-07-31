@@ -115,6 +115,10 @@ const context = [
   },
 ] satisfies Array<ContentContextItem>
 
+function expandFounderEditor() {
+  fireEvent.click(screen.getByRole("button", { name: "Expand editor" }))
+}
+
 describe("Variant G Unified Context Canvas", () => {
   afterEach(cleanup)
 
@@ -144,6 +148,7 @@ describe("Variant G Unified Context Canvas", () => {
       />
     )
     expect(screen.getByText(/inactive.*read-only/i)).toBeTruthy()
+    expandFounderEditor()
     const editor = screen.getByRole("textbox", { name: "Founder input" })
     expect((editor as HTMLTextAreaElement).readOnly).toBe(true)
     fireEvent.change(editor, { target: { value: "Blocked edit" } })
@@ -188,6 +193,7 @@ describe("Variant G Unified Context Canvas", () => {
         }}
       />
     )
+    expandFounderEditor()
     expect(screen.queryByText(/inactive.*read-only/i)).toBeNull()
     expect(
       screen
@@ -262,6 +268,7 @@ describe("Variant G Unified Context Canvas", () => {
       />
     )
 
+    expandFounderEditor()
     const editor = screen.getByRole("textbox", { name: "Founder input" })
     expect((editor as HTMLTextAreaElement).value).toBe(
       "Recovered offline input"
@@ -310,10 +317,18 @@ describe("Variant G Unified Context Canvas", () => {
       name: "Content Request workspace",
     })
     expect(within(canvas).getByText(request.source!.body!)).toBeTruthy()
-    expect(screen.getByRole("textbox", { name: "Founder input" })).toBeTruthy()
     expect(
-      screen.getByTestId("founder-editor").getAttribute("data-expanded")
-    ).toBe("false")
+      screen.getAllByRole("textbox", {
+        name: "Founder input",
+        hidden: true,
+      })
+    ).toHaveLength(1)
+    expect(
+      screen.getByTestId("founder-editor-body").hasAttribute("inert")
+    ).toBe(true)
+    expect(
+      screen.getByTestId("founder-editor").getAttribute("data-detent")
+    ).toBe("peek")
 
     fireEvent.click(screen.getByRole("button", { name: "Hide Talking points" }))
     expect(screen.queryByRole("article", { name: "Talking points" })).toBeNull()
@@ -335,16 +350,49 @@ describe("Variant G Unified Context Canvas", () => {
     expect(
       screen.getByTestId("founder-editor").getAttribute("data-expanded")
     ).toBe("true")
-    expect(document.activeElement).toBe(
-      screen.getByRole("textbox", { name: "Founder input" })
-    )
+    expect(screen.getByRole("textbox", { name: "Founder input" })).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Collapse editor" }))
     expect(
       screen.getByTestId("founder-editor").getAttribute("data-expanded")
     ).toBe("false")
     expect(
-      screen.getAllByRole("textbox", { name: "Founder input" })
+      screen.getAllByRole("textbox", {
+        name: "Founder input",
+        hidden: true,
+      })
     ).toHaveLength(1)
+  })
+
+  it("keeps the document interactive while the non-modal drawer is open", async () => {
+    render(
+      <UnifiedContextCanvas
+        request={request}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+      />
+    )
+
+    expect(
+      screen.getByTestId("founder-editor-drawer").getAttribute("data-detent")
+    ).toBe("peek")
+    expect(document.querySelector('[data-slot="drawer-overlay"]')).toBeNull()
+    expect(
+      screen
+        .getByRole("main", { name: "Content Request workspace" })
+        .hasAttribute("aria-hidden")
+    ).toBe(false)
+    await waitFor(() => expect(document.body.style.pointerEvents).toBe("auto"))
+
+    expandFounderEditor()
+    expect(
+      screen.getByTestId("founder-editor").getAttribute("data-detent")
+    ).toBe("full")
+    fireEvent.click(
+      screen.getByRole("button", { name: "Hide Research required" })
+    )
+    expect(
+      screen.queryByRole("article", { name: "Research required" })
+    ).toBeNull()
   })
 
   it("renders original source markdown as structured, accessible content", () => {
@@ -497,7 +545,7 @@ describe("Variant G Unified Context Canvas", () => {
           finishSave = resolve
         })
     )
-    const view = render(
+    render(
       <UnifiedContextCanvas
         request={{ ...request, humanId: "CR-AUTOSAVE" }}
         contextItems={context}
@@ -506,7 +554,8 @@ describe("Variant G Unified Context Canvas", () => {
         onDraftSave={onDraftSave}
       />
     )
-    const editor = within(view.container).getByRole("textbox", {
+    expandFounderEditor()
+    const editor = screen.getByRole("textbox", {
       name: "Founder input",
     })
     expect((editor as HTMLTextAreaElement).value).toBe(
@@ -515,15 +564,10 @@ describe("Variant G Unified Context Canvas", () => {
     fireEvent.change(editor, {
       target: { value: "Restored durable founder text plus a new point" },
     })
-    expect(
-      within(view.container).getByText("Saving", { exact: true })
-    ).toBeTruthy()
-    fireEvent.click(
-      within(view.container).getByRole("button", { name: "Expand editor" })
-    )
+    expect(screen.getByText("Saving", { exact: true })).toBeTruthy()
     expect(
       (
-        within(view.container).getByRole("textbox", {
+        screen.getByRole("textbox", {
           name: "Founder input",
         }) as HTMLTextAreaElement
       ).value
@@ -531,9 +575,7 @@ describe("Variant G Unified Context Canvas", () => {
     await waitFor(() => expect(onDraftSave).toHaveBeenCalledOnce())
     finishSave?.()
     await waitFor(() =>
-      expect(
-        within(view.container).getByText("Saved", { exact: true })
-      ).toBeTruthy()
+      expect(screen.getByText("Saved", { exact: true })).toBeTruthy()
     )
 
     Object.defineProperty(window.navigator, "onLine", {
@@ -542,9 +584,7 @@ describe("Variant G Unified Context Canvas", () => {
     })
     fireEvent(window, new Event("offline"))
     fireEvent.change(editor, { target: { value: "An offline edit" } })
-    expect(
-      within(view.container).getByText("Offline", { exact: true })
-    ).toBeTruthy()
+    expect(screen.getByText("Offline", { exact: true })).toBeTruthy()
     expect(onDraftSave).toHaveBeenCalledOnce()
     Object.defineProperty(window.navigator, "onLine", {
       configurable: true,
@@ -563,15 +603,13 @@ describe("Variant G Unified Context Canvas", () => {
         onDraftSave={onDraftSave}
       />
     )
-    fireEvent.change(
-      within(view.container).getByRole("textbox", { name: "Founder input" }),
-      { target: { value: "A save that encounters a transient outage" } }
-    )
+    expandFounderEditor()
+    fireEvent.change(screen.getByRole("textbox", { name: "Founder input" }), {
+      target: { value: "A save that encounters a transient outage" },
+    })
     await waitFor(
       () =>
-        expect(
-          within(view.container).getByText("Save pending", { exact: true })
-        ).toBeTruthy(),
+        expect(screen.getByText("Save pending", { exact: true })).toBeTruthy(),
       { timeout: 3_000 }
     )
     expect(onDraftSave).toHaveBeenCalledTimes(3)
@@ -594,14 +632,12 @@ describe("Variant G Unified Context Canvas", () => {
         onDraftSave={onDraftSave}
       />
     )
-    fireEvent.change(
-      within(view.container).getByRole("textbox", { name: "Founder input" }),
-      { target: { value: "A draft after an ownership conflict" } }
-    )
+    expandFounderEditor()
+    fireEvent.change(screen.getByRole("textbox", { name: "Founder input" }), {
+      target: { value: "A draft after an ownership conflict" },
+    })
     await waitFor(() =>
-      expect(
-        within(view.container).getByText("Save blocked", { exact: true })
-      ).toBeTruthy()
+      expect(screen.getByText("Save blocked", { exact: true })).toBeTruthy()
     )
     expect(onDraftSave).toHaveBeenCalledOnce()
     view.unmount()
@@ -609,7 +645,7 @@ describe("Variant G Unified Context Canvas", () => {
 
   it("keeps submitted founder input and archived restore controls read-only", () => {
     const restore = vi.fn()
-    const view = render(
+    render(
       <UnifiedContextCanvas
         request={{ ...request, lifecycle: "founder_complete" }}
         contextItems={context}
@@ -640,25 +676,22 @@ describe("Variant G Unified Context Canvas", () => {
         }}
       />
     )
+    expandFounderEditor()
     expect(
-      within(view.container)
+      screen
         .getByRole("textbox", { name: "Founder input" })
         .hasAttribute("readonly")
     ).toBe(true)
-    fireEvent.click(
-      within(view.container).getByRole("button", { name: "History (0)" })
-    )
+    fireEvent.click(screen.getByRole("button", { name: "History (0)" }))
     expect(
-      within(view.container)
-        .getByRole("button", { name: "Restore" })
-        .hasAttribute("disabled")
+      screen.getByRole("button", { name: "Restore" }).hasAttribute("disabled")
     ).toBe(true)
     expect(restore).not.toHaveBeenCalled()
   })
 
   it("uses the entire idle voice surface as the accessible record control", () => {
     const start = vi.fn()
-    const view = render(
+    render(
       <UnifiedContextCanvas
         request={request}
         contextItems={context}
@@ -697,7 +730,7 @@ describe("Variant G Unified Context Canvas", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Record input" }))
     const editor = screen.getByTestId("founder-editor")
-    const input = view.container.querySelector(".unified-editor__input")
+    const input = document.querySelector(".unified-editor__input")
     const recordSurface = screen.getByRole("button", {
       name: "Press to record",
     })
@@ -762,7 +795,7 @@ describe("Variant G Unified Context Canvas", () => {
 
   it("blocks founder submission while local voice work is pending", () => {
     const submit = vi.fn()
-    const view = render(
+    render(
       <UnifiedContextCanvas
         request={request}
         contextItems={context}
@@ -807,6 +840,7 @@ describe("Variant G Unified Context Canvas", () => {
         }}
       />
     )
+    expandFounderEditor()
     expect(
       screen.getByText(
         "Finish, retry, or discard pending voice input before submitting."
@@ -817,17 +851,14 @@ describe("Variant G Unified Context Canvas", () => {
         .getByRole("button", { name: "Submit to drafting" })
         .hasAttribute("disabled")
     ).toBe(true)
-    fireEvent.click(
-      within(view.container).getByRole("button", { name: "Record input" })
-    )
+    fireEvent.click(screen.getByRole("button", { name: "Record input" }))
     expect(
-      within(view.container).getByRole("button", {
+      screen.getByRole("button", {
         name: /Retry transcription/,
       }).className
     ).toContain("h-11")
     expect(
-      within(view.container).getByRole("button", { name: "Discard recording" })
-        .className
+      screen.getByRole("button", { name: "Discard recording" }).className
     ).toContain("h-11")
   })
 })

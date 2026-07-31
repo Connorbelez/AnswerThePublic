@@ -29,6 +29,22 @@ function DrawerClose({
   return <DrawerPrimitive.Close data-slot="drawer-close" {...props} />
 }
 
+function DrawerHandle({
+  className,
+  ...props
+}: React.ComponentProps<typeof DrawerPrimitive.Handle>) {
+  return (
+    <DrawerPrimitive.Handle
+      data-slot="drawer-handle"
+      className={cn(
+        "mx-auto h-1.5 w-12 shrink-0 rounded-full bg-muted",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
 function DrawerOverlay({
   className,
   ...props
@@ -48,11 +64,16 @@ function DrawerOverlay({
 function DrawerContent({
   className,
   children,
+  showHandle = true,
+  showOverlay = true,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Content>) {
+}: React.ComponentProps<typeof DrawerPrimitive.Content> & {
+  showHandle?: boolean
+  showOverlay?: boolean
+}) {
   return (
     <DrawerPortal data-slot="drawer-portal">
-      <DrawerOverlay />
+      {showOverlay ? <DrawerOverlay /> : null}
       <DrawerPrimitive.Content
         data-slot="drawer-content"
         className={cn(
@@ -61,7 +82,9 @@ function DrawerContent({
         )}
         {...props}
       >
-        <div className="mx-auto mt-4 hidden h-1.5 w-[100px] shrink-0 rounded-full bg-muted group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
+        {showHandle ? (
+          <DrawerHandle className="mt-4 hidden w-[100px] group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
+        ) : null}
         {children}
       </DrawerPrimitive.Content>
     </DrawerPortal>
@@ -124,6 +147,7 @@ export {
   Drawer,
   DrawerPortal,
   DrawerOverlay,
+  DrawerHandle,
   DrawerTrigger,
   DrawerClose,
   DrawerContent,

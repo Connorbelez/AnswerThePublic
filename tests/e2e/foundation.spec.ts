@@ -170,7 +170,7 @@ test("an administrator switches into and out of Elie's QA workspace", async ({
     page.getByText("QA view: you are seeing Elie’s workspace.", {
       exact: false,
     })
-  ).toBeVisible()
+  ).toHaveCount(0)
   await expect(page.getByText("Founder library", { exact: true })).toBeVisible()
 
   if (mobile) {
@@ -2292,6 +2292,32 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
   expect(cardPinBounds?.height).toBeGreaterThanOrEqual(44)
   const editor = founderPage.getByTestId("founder-editor")
   await expect(editor).toHaveAttribute("data-expanded", "false")
+  await expect(editor).toHaveAttribute("data-detent", "peek")
+  await expect(founderPage.locator('[data-slot="drawer-overlay"]')).toHaveCount(
+    0
+  )
+  await expect(
+    founderPage.getByRole("main", { name: "Content Request workspace" })
+  ).not.toHaveAttribute("aria-hidden", "true")
+  const drawer = founderPage.getByTestId("founder-editor-drawer")
+  const drawerBounds = await drawer.boundingBox()
+  const viewport = founderPage.viewportSize()
+  expect(drawerBounds).not.toBeNull()
+  expect(viewport).not.toBeNull()
+  expect(viewport!.height - drawerBounds!.y).toBeGreaterThanOrEqual(68)
+  expect(viewport!.height - drawerBounds!.y).toBeLessThanOrEqual(96)
+  const flowPositions = await founderPage.evaluate(() => ({
+    app: getComputedStyle(document.querySelector(".app-header")!).position,
+    request: getComputedStyle(
+      document.querySelector(".unified-canvas__topbar")!
+    ).position,
+    context: getComputedStyle(
+      document.querySelector(".unified-context-deck__controls")!
+    ).position,
+  }))
+  expect(flowPositions.app).not.toBe("sticky")
+  expect(flowPositions.request).not.toBe("sticky")
+  expect(flowPositions.context).not.toBe("sticky")
   const transitionDuration = await editor.evaluate(
     (element) => getComputedStyle(element).transitionDuration
   )
@@ -2301,10 +2327,17 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
   expect(recordBounds?.height).toBeGreaterThanOrEqual(44)
   await recordMode.focus()
   await founderPage.keyboard.press("Enter")
+  await expect(editor).toHaveAttribute("data-detent", "compose")
   const recordSurface = founderPage.getByRole("button", {
     name: "Press to record",
   })
   await expect(recordSurface).toBeVisible()
+  await founderPage
+    .getByRole("button", { name: "Hide Original question" })
+    .click()
+  await expect(
+    founderPage.getByRole("article", { name: "Original question" })
+  ).toHaveCount(0)
   const recordLayout = await editor.evaluate((element) => {
     const input = element.querySelector(".unified-editor__input")
     const trigger = element.querySelector(".unified-editor__record-trigger")
@@ -2391,21 +2424,21 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
   await expect(
     founderPage.getByRole("textbox", { name: "Founder input" })
   ).toBeVisible()
+  await founderPage.getByRole("button", { name: "Collapse editor" }).click()
+  await expect(editor).toHaveAttribute("data-detent", "peek")
   await founderPage.getByRole("button", { name: "Expand editor" }).click()
-  await expect(editor).toHaveAttribute("data-expanded", "true")
+  await expect(editor).toHaveAttribute("data-detent", "full")
   await expect(
     founderPage.getByRole("textbox", { name: "Founder input" })
-  ).toBeFocused()
+  ).toBeVisible()
   const expandedDeck = await cards.evaluate((element) => ({
     display: getComputedStyle(element).display,
     scrollSnapType: getComputedStyle(element).scrollSnapType,
     overflow: element.scrollWidth - element.clientWidth,
   }))
-  expect(expandedDeck.display).toBe("flex")
-  expect(expandedDeck.scrollSnapType).toContain("x")
-  if (browserName === "webkit") {
-    expect(expandedDeck.overflow).toBeGreaterThan(0)
-  }
+  expect(expandedDeck.display).toBe(browserName === "webkit" ? "block" : "grid")
+  expect(expandedDeck.scrollSnapType).not.toContain("x")
+  expect(expandedDeck.overflow).toBe(0)
 
   const founderText =
     "Preserve the existing mortgage, confirm lender consent, and explain the staged-draw cash-flow gap."
@@ -2425,7 +2458,15 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
     founderPage.getByRole("list", { name: "Founder input version history" })
   ).toContainText("user_elie")
   const requestPath = pathname(founderPage.url())
+  const ensureFounderEditorExpanded = async () => {
+    await expect(editor).toHaveAttribute("data-detent", /^(peek|compose|full)$/)
+    if ((await editor.getAttribute("data-detent")) !== "full") {
+      await founderPage.getByRole("button", { name: "Expand editor" }).click()
+      await expect(editor).toHaveAttribute("data-detent", "full")
+    }
+  }
   await founderPage.reload()
+  await ensureFounderEditorExpanded()
   await expect(
     founderPage.getByRole("textbox", { name: "Founder input" })
   ).toHaveValue(founderText)
@@ -2453,6 +2494,7 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
   } else {
     await founderPage.reload()
   }
+  await ensureFounderEditorExpanded()
   await expect(
     founderPage.getByRole("textbox", { name: "Founder input" })
   ).toHaveValue(offlineText)
@@ -2470,6 +2512,7 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
     .click()
   await operatorPage.getByRole("button", { name: "Archive request" }).click()
   await founderPage.reload()
+  await ensureFounderEditorExpanded()
   await expect(founderPage.getByText(/inactive.*read-only/i)).toBeVisible()
   await expect(
     founderPage.getByRole("textbox", { name: "Founder input" })

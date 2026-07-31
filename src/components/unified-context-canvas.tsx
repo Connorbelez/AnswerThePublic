@@ -6,38 +6,28 @@ import {
   CircleAlert,
   ExternalLink,
   FileCheck2,
-  FileText,
   Link2,
-  Maximize2,
-  Mic,
-  Minimize2,
   Pin,
-  Redo2,
   ScrollText,
   Sparkles,
-  Undo2,
 } from "lucide-react"
 
 import type {
   ContentContextItem,
   ContentRequest,
   ContextDeckPreferences,
-  FounderArchivedVersion,
-  FounderVersionHistory,
 } from "@/application/content-requests"
+import {
+  FounderInputDrawer,
+  type FounderDraftController,
+} from "@/components/founder-input-drawer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ButtonAnchor } from "@/components/ui/button-link"
-import { Textarea } from "@/components/ui/textarea"
 import { Toggle } from "@/components/ui/toggle"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useHydrated } from "@/hooks/use-hydrated"
 import { cn } from "@/lib/utils"
 import { MarkdownContent } from "@/components/markdown-content"
-import {
-  FounderVoiceRecorder,
-  type FounderVoiceController,
-} from "@/components/founder-voice-recorder"
 
 type CanvasItem = ContentContextItem & {
   id: string
@@ -277,22 +267,7 @@ export function UnifiedContextCanvas({
   ) => void | Promise<void>
   onDraftSave?: (text: string, correlationId: string) => Promise<unknown>
   onSubmitFounderInput?: () => Promise<void>
-  draftController?: {
-    text: string
-    status: "Saved" | "Saving" | "Offline" | "Save pending" | "Save blocked"
-    canUndo: boolean
-    canRedo: boolean
-    history: FounderVersionHistory | null
-    archiveEntries: Array<FounderArchivedVersion>
-    archiveDone: boolean
-    readOnly?: boolean
-    onTextChange(text: string): void
-    onUndo(): void | Promise<void>
-    onRedo(): void | Promise<void>
-    onLoadOlderHistory(): void | Promise<void>
-    onRestoreArchivedVersion(versionId: string): void | Promise<void>
-    voice?: FounderVoiceController
-  }
+  draftController?: FounderDraftController
 }) {
   const hydrated = useHydrated()
   const items = useMemo(
@@ -316,8 +291,6 @@ export function UnifiedContextCanvas({
           .filter((item) => item.kind === "operator_cue")
           .map((item) => item.id)
   )
-  const [expanded, setExpanded] = useState(false)
-  const [historyOpen, setHistoryOpen] = useState(false)
   const [inputMode, setInputMode] = useState<"type" | "record">("type")
   const [draft, setDraft] = useState(initialDraft)
   const [saveStatus, setSaveStatus] = useState<
@@ -356,8 +329,6 @@ export function UnifiedContextCanvas({
   const draftWriteChain = useRef<Promise<void>>(Promise.resolve())
   const draftPersist = useRef<(write: DraftWrite) => void>(() => undefined)
   const [preferenceSyncFailed, setPreferenceSyncFailed] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState(false)
   const preferenceStorageKey = `fairlend:context-preferences:${encodeURIComponent(preferenceOwnerKey)}:${request.humanId}`
 
   useEffect(() => {
@@ -599,10 +570,6 @@ export function UnifiedContextCanvas({
     visible,
   ])
 
-  useEffect(() => {
-    if (expanded && inputMode === "type") editorRef.current?.focus()
-  }, [expanded, inputMode])
-
   function toggle(list: Array<string>, id: string) {
     return list.includes(id)
       ? list.filter((itemId) => itemId !== id)
@@ -648,11 +615,7 @@ export function UnifiedContextCanvas({
         </p>
       ) : null}
 
-      <section
-        className="unified-context-deck"
-        aria-label="Context deck"
-        data-expanded={String(expanded)}
-      >
+      <section className="unified-context-deck" aria-label="Context deck">
         <div className="unified-context-deck__controls">
           <div>
             <p>Prepared brief</p>
@@ -731,229 +694,29 @@ export function UnifiedContextCanvas({
         </div>
       </section>
 
-      <section
-        className="unified-editor"
-        id="founder-editor"
-        data-testid="founder-editor"
-        data-expanded={String(expanded)}
-        data-input-mode={inputMode}
-        data-voice-state={draftController?.voice?.state}
-        aria-label="Founder input editor"
-      >
-        <div className="unified-editor__toolbar">
-          <ToggleGroup
-            className="unified-editor__modes"
-            aria-label="Input method"
-            disabled={!hydrated || editorReadOnly}
-            value={[inputMode]}
-            onValueChange={(values) => {
-              const next = values[0]
-              if (next === "type" || next === "record") setInputMode(next)
-            }}
-          >
-            <ToggleGroupItem value="type" aria-label="Type input">
-              <FileText /> Type
-            </ToggleGroupItem>
-            <ToggleGroupItem value="record" aria-label="Record input">
-              <Mic /> Record
-            </ToggleGroupItem>
-          </ToggleGroup>
-          <span
-            className="unified-editor__save-status"
-            data-state={displayedSaveStatus.toLowerCase()}
-            role="status"
-            aria-live="polite"
-          >
-            {displayedSaveStatus}
-          </span>
-          {draftController ? (
-            <div
-              className="unified-editor__history-controls"
-              aria-label="Version history"
-            >
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Undo founder input"
-                disabled={!draftController.canUndo || draftController.readOnly}
-                onClick={() => {
-                  if (!draftController.readOnly) void draftController.onUndo()
-                }}
-              >
-                <Undo2 />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Redo founder input"
-                disabled={!draftController.canRedo || draftController.readOnly}
-                onClick={() => {
-                  if (!draftController.readOnly) void draftController.onRedo()
-                }}
-              >
-                <Redo2 />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm-touch"
-                aria-expanded={historyOpen}
-                aria-controls="founder-version-history"
-                onClick={() => {
-                  setHistoryOpen((current) => !current)
-                  setExpanded(true)
-                }}
-              >
-                <ScrollText /> History ({draftController.history?.length ?? 0})
-              </Button>
-            </div>
-          ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm-touch"
-            aria-expanded={expanded}
-            aria-controls="founder-editor"
-            aria-label={expanded ? "Collapse editor" : "Expand editor"}
-            onClick={() => setExpanded((current) => !current)}
-          >
-            {expanded ? <Minimize2 /> : <Maximize2 />}
-            {expanded ? "Collapse" : "Expand"}
-          </Button>
-        </div>
-        {draftController && historyOpen ? (
-          <ol
-            id="founder-version-history"
-            className="unified-editor__version-history"
-            aria-label="Founder input version history"
-          >
-            {draftController.history?.entries.map((entry) => (
-              <li
-                key={`${entry.position}-${entry.state.correlationId}`}
-                aria-current={
-                  draftController.history?.position === entry.position
-                    ? "step"
-                    : undefined
-                }
-              >
-                <span>
-                  {entry.state.actorSubject} · version {entry.position + 1}
-                </span>
-                <time dateTime={new Date(entry.state.occurredAt).toISOString()}>
-                  {new Intl.DateTimeFormat(undefined, {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  }).format(entry.state.occurredAt)}
-                </time>
-              </li>
-            ))}
-            {draftController.history?.entries.length === 0 ? (
-              <li>No durable versions yet.</li>
-            ) : null}
-            {draftController.archiveEntries.map((entry) => (
-              <li key={`archive-${entry.versionId}`}>
-                <span>
-                  {entry.actorSubject} · archived revision {entry.revision}
-                </span>
-                <time dateTime={new Date(entry.occurredAt).toISOString()}>
-                  {new Intl.DateTimeFormat(undefined, {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  }).format(entry.occurredAt)}
-                </time>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm-touch"
-                  disabled={draftController.readOnly}
-                  onClick={() =>
-                    !draftController.readOnly &&
-                    void draftController.onRestoreArchivedVersion(
-                      entry.versionId
-                    )
-                  }
-                >
-                  Restore
-                </Button>
-              </li>
-            ))}
-            {!draftController.archiveDone ? (
-              <li>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm-touch"
-                  onClick={() => void draftController.onLoadOlderHistory()}
-                >
-                  Load older versions
-                </Button>
-              </li>
-            ) : null}
-          </ol>
-        ) : null}
-        <div className="unified-editor__input">
-          {inputMode === "type" ? (
-            <Textarea
-              ref={editorRef}
-              aria-label="Founder input"
-              value={displayedDraft}
-              readOnly={draftController?.readOnly}
-              onChange={(event) => {
-                if (editorReadOnly) return
-                if (draftRetryTimer.current !== null) {
-                  window.clearTimeout(draftRetryTimer.current)
-                  draftRetryTimer.current = null
-                }
-                draftVersion.current += 1
-                setDraft(event.target.value)
-                draftController?.onTextChange(event.target.value)
-                setSaveStatus(window.navigator.onLine ? "Saving" : "Offline")
-              }}
-              placeholder="Add your perspective…"
-            />
-          ) : (
-            <FounderVoiceRecorder
-              voice={draftController?.voice}
-              readOnly={draftController?.readOnly}
-            />
-          )}
-        </div>
-        {onSubmitFounderInput ? (
-          <div className="unified-editor__submit-row">
-            <span role="status" aria-live="polite">
-              {submitError
-                ? "Submission failed. Your input remains saved."
-                : voicePending
-                  ? "Finish, retry, or discard pending voice input before submitting."
-                  : "Submit when your perspective is complete."}
-            </span>
-            <Button
-              type="button"
-              disabled={
-                submitting ||
-                displayedSaveStatus !== "Saved" ||
-                !displayedDraft.trim() ||
-                voicePending
-              }
-              onClick={async () => {
-                setSubmitting(true)
-                setSubmitError(false)
-                try {
-                  await onSubmitFounderInput()
-                } catch {
-                  setSubmitError(true)
-                } finally {
-                  setSubmitting(false)
-                }
-              }}
-            >
-              {submitting ? "Submitting…" : "Submit to drafting"}
-            </Button>
-          </div>
-        ) : null}
-      </section>
+      <FounderInputDrawer
+        controller={draftController}
+        draft={displayedDraft}
+        editorReadOnly={editorReadOnly}
+        editorRef={editorRef}
+        hydrated={hydrated}
+        inputMode={inputMode}
+        onInputModeChange={setInputMode}
+        onTextChange={(text) => {
+          if (editorReadOnly) return
+          if (draftRetryTimer.current !== null) {
+            window.clearTimeout(draftRetryTimer.current)
+            draftRetryTimer.current = null
+          }
+          draftVersion.current += 1
+          setDraft(text)
+          draftController?.onTextChange(text)
+          setSaveStatus(window.navigator.onLine ? "Saving" : "Offline")
+        }}
+        onSubmitFounderInput={onSubmitFounderInput}
+        saveStatus={displayedSaveStatus}
+        voicePending={voicePending}
+      />
     </main>
   )
 }

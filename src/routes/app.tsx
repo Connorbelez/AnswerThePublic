@@ -160,15 +160,6 @@ function ApplicationShell() {
         </div>
       </header>
       <Separator />
-      {session.role === "administrator" && session.workspaceView === "elie" ? (
-        <div
-          className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-center text-xs font-medium text-amber-950"
-          role="status"
-        >
-          QA view: you are seeing Elie’s workspace. Your administrator
-          permissions remain active.
-        </div>
-      ) : null}
       <Outlet />
     </div>
   )

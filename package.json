@@ -107,5 +107,8 @@
     "vite": "^8",
     "vitest": "^4.1.5",
     "wrangler": "^4.70.0"
+  },
+  "patchedDependencies": {
+    "vaul@1.1.2": "patches/vaul@1.1.2.patch"
   }
 }
