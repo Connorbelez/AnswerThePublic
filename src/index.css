@@ -1604,11 +1604,7 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
-}
-
-.unified-editor__body[aria-hidden="true"] {
-  visibility: hidden;
-  pointer-events: none;
+  background: white;
 }
 
 .unified-editor__version-history {
@@ -1669,6 +1665,11 @@
 
 .unified-editor[data-expanded="true"] .unified-editor__input {
   flex: 1 1 auto;
+}
+
+.unified-editor[data-expanded="false"] .unified-editor__version-history,
+.unified-editor[data-expanded="false"] .unified-editor__submit-row {
+  display: none;
 }
 
 .unified-editor__input textarea {

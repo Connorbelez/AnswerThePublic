@@ -320,12 +320,11 @@ describe("Variant G Unified Context Canvas", () => {
     expect(
       screen.getAllByRole("textbox", {
         name: "Founder input",
-        hidden: true,
       })
     ).toHaveLength(1)
     expect(
       screen.getByTestId("founder-editor-body").hasAttribute("inert")
-    ).toBe(true)
+    ).toBe(false)
     expect(
       screen.getByTestId("founder-editor").getAttribute("data-detent")
     ).toBe("peek")
@@ -358,9 +357,36 @@ describe("Variant G Unified Context Canvas", () => {
     expect(
       screen.getAllByRole("textbox", {
         name: "Founder input",
-        hidden: true,
       })
     ).toHaveLength(1)
+  })
+
+  it("keeps founder input visible at peek and through drawer detent changes", () => {
+    render(
+      <UnifiedContextCanvas
+        request={request}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+      />
+    )
+
+    const body = screen.getByTestId("founder-editor-body")
+    const input = screen.getByRole("textbox", { name: "Founder input" })
+
+    expect(body.hasAttribute("inert")).toBe(false)
+    expect(body.hasAttribute("aria-hidden")).toBe(false)
+    fireEvent.focus(input)
+    expect(
+      screen.getByTestId("founder-editor").getAttribute("data-detent")
+    ).toBe("compose")
+    expect(screen.getByRole("textbox", { name: "Founder input" })).toBe(input)
+    fireEvent.click(screen.getByRole("button", { name: "Collapse editor" }))
+    expect(
+      screen.getByTestId("founder-editor").getAttribute("data-detent")
+    ).toBe("peek")
+    expect(screen.getByRole("textbox", { name: "Founder input" })).toBe(input)
+    expect(body.hasAttribute("inert")).toBe(false)
+    expect(body.hasAttribute("aria-hidden")).toBe(false)
   })
 
   it("keeps the document interactive while the non-modal drawer is open", async () => {

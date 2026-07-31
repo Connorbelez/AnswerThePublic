@@ -20,7 +20,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
-const PEEK_SNAP_POINT = "76px"
+const PEEK_SNAP_POINT = "160px"
 const COMPOSE_SNAP_POINT = 0.56
 const FULL_SNAP_POINT = 0.92
 const SNAP_POINTS = [PEEK_SNAP_POINT, COMPOSE_SNAP_POINT, FULL_SNAP_POINT]
@@ -97,6 +97,7 @@ export function FounderInputDrawer({
 
   function collapse() {
     setActiveSnapPoint(PEEK_SNAP_POINT)
+    setHistoryOpen(false)
     window.setTimeout(() => {
       modeControlsRef.current
         ?.querySelector<HTMLButtonElement>("[aria-pressed='true']")
@@ -116,9 +117,11 @@ export function FounderInputDrawer({
       autoFocus={false}
       snapPoints={SNAP_POINTS}
       activeSnapPoint={activeSnapPoint}
-      setActiveSnapPoint={(next) => setActiveSnapPoint(next ?? PEEK_SNAP_POINT)}
+      setActiveSnapPoint={(next) => {
+        if (next !== null) setActiveSnapPoint(next)
+      }}
       snapToSequentialPoint
-      repositionInputs
+      repositionInputs={false}
     >
       <DrawerContent
         className="founder-input-drawer"
@@ -249,8 +252,6 @@ export function FounderInputDrawer({
             id="founder-editor-body"
             className="unified-editor__body"
             data-testid="founder-editor-body"
-            inert={!expanded}
-            aria-hidden={!expanded}
           >
             {controller && historyOpen ? (
               <ol
@@ -332,6 +333,9 @@ export function FounderInputDrawer({
                   value={draft}
                   readOnly={controller?.readOnly}
                   onChange={(event) => onTextChange(event.target.value)}
+                  onFocus={() => {
+                    if (!expanded) expandTo(COMPOSE_SNAP_POINT)
+                  }}
                   placeholder="Add your perspective…"
                 />
               ) : (
@@ -342,7 +346,11 @@ export function FounderInputDrawer({
               )}
             </div>
             {onSubmitFounderInput ? (
-              <div className="unified-editor__submit-row">
+              <div
+                className="unified-editor__submit-row"
+                inert={!expanded}
+                aria-hidden={!expanded}
+              >
                 <span role="status" aria-live="polite">
                   {submitError
                     ? "Submission failed. Your input remains saved."

@@ -2304,8 +2304,12 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
   const viewport = founderPage.viewportSize()
   expect(drawerBounds).not.toBeNull()
   expect(viewport).not.toBeNull()
-  expect(viewport!.height - drawerBounds!.y).toBeGreaterThanOrEqual(68)
-  expect(viewport!.height - drawerBounds!.y).toBeLessThanOrEqual(96)
+  expect(viewport!.height - drawerBounds!.y).toBeGreaterThanOrEqual(152)
+  expect(viewport!.height - drawerBounds!.y).toBeLessThanOrEqual(176)
+  const founderInput = founderPage.getByRole("textbox", {
+    name: "Founder input",
+  })
+  await expect(founderInput).toBeVisible()
   const flowPositions = await founderPage.evaluate(() => ({
     app: getComputedStyle(document.querySelector(".app-header")!).position,
     request: getComputedStyle(
@@ -2431,6 +2435,30 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
   await expect(
     founderPage.getByRole("textbox", { name: "Founder input" })
   ).toBeVisible()
+  await founderInput.focus()
+  await founderPage.evaluate(() => {
+    window.visualViewport?.dispatchEvent(new Event("resize"))
+  })
+  await founderPage.waitForTimeout(32)
+  const stableInputPaint = await founderInput.evaluate((element) => {
+    const inputStyles = getComputedStyle(element)
+    const body = element.closest(".unified-editor__body")
+    const drawer = element.closest<HTMLElement>("[data-slot='drawer-content']")
+    return {
+      bottomOverride: drawer?.style.bottom ?? null,
+      bodyBackground: body ? getComputedStyle(body).backgroundColor : null,
+      heightOverride: drawer?.style.height ?? null,
+      opacity: inputStyles.opacity,
+      visibility: inputStyles.visibility,
+    }
+  })
+  expect(stableInputPaint).toEqual({
+    bottomOverride: "",
+    bodyBackground: "rgb(255, 255, 255)",
+    heightOverride: "",
+    opacity: "1",
+    visibility: "visible",
+  })
   const expandedDeck = await cards.evaluate((element) => ({
     display: getComputedStyle(element).display,
     scrollSnapType: getComputedStyle(element).scrollSnapType,
@@ -2442,9 +2470,6 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
 
   const founderText =
     "Preserve the existing mortgage, confirm lender consent, and explain the staged-draw cash-flow gap."
-  const founderInput = founderPage.getByRole("textbox", {
-    name: "Founder input",
-  })
   await founderInput.fill(founderText)
   await expect(founderPage.getByText("Saving", { exact: true })).toBeVisible()
   await expect(founderPage.getByText("Saved", { exact: true })).toBeVisible()
