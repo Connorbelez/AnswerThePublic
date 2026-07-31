@@ -615,6 +615,24 @@ describe("Content Request workflow contract", () => {
     expect(stored?.email).toBe("verified@fairlend.ca")
   })
 
+  it("returns an empty founder projection before the configured founder signs in", async () => {
+    const workspace = convexTest(schema, modules)
+    const administrator = workspace.withIdentity({
+      subject: "user_admin_without_founder",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "admin",
+      email: "admin-without-founder@fairlend.ca",
+    })
+    await administrator.mutation(api.principals.syncCurrent)
+
+    await expect(
+      administrator.query(api.contentRequests.listFounderWorkspace, {
+        founderEmail: "elie@fairlend.ca",
+      })
+    ).resolves.toEqual([])
+  })
+
   it("shows founders only assigned work and tracks first/latest open separately", async () => {
     const workspace = convexTest(schema, modules)
     const operator = workspace.withIdentity(operatorIdentity)

@@ -136,6 +136,8 @@ WorkOS identity: Convex still authorizes and audits every operation as the real
 administrator. Elie's queue is resolved from the verified
 `FAIRLEND_ELIE_EMAIL` principal, and founder-owned drafts and voice captures
 remain owned by that principal when an administrator exercises them for QA.
+If the founder has not signed in yet, the projection opens as an empty library
+until the founder principal is provisioned.
 
 ### Ticket 03 assignment migration
 

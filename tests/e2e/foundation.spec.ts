@@ -183,6 +183,34 @@ test("an administrator switches into and out of Elie's QA workspace", async ({
   await context.close()
 })
 
+test("an administrator can switch to the founder workspace without a founder sign-in", async ({
+  browser,
+}, testInfo) => {
+  const mobile = testInfo.project.name.includes("mobile")
+  const context = await browser.newContext({
+    extraHTTPHeaders: {
+      "x-fairlend-e2e-key": "local-playwright-only",
+      "x-fairlend-e2e-user": JSON.stringify({
+        subject: "user_administrator_without_founder_sign_in",
+        organizationId: "org_fairlend",
+        email: "administrator-without-founder-sign-in@fairlend.ca",
+        displayName: "Administrator",
+        workosRole: "admin",
+      }),
+    },
+  })
+  const page = await context.newPage()
+
+  await page.goto("/app")
+  if (mobile) {
+    await page.getByRole("button", { name: "Open navigation" }).click()
+  }
+  await page.getByRole("button", { name: "View Elie’s workspace" }).click()
+
+  await expect(page.getByText("Founder library", { exact: true })).toBeVisible()
+  await context.close()
+})
+
 test("a signed-in identity without an application role is denied", async ({
   browser,
 }) => {

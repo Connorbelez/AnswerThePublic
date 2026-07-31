@@ -863,9 +863,10 @@ export const listFounderWorkspace = query({
           .eq("email", founderEmail)
       )
       .first()
-    if (!founder || founder.kind === "system") {
-      throw new ConvexError({ code: "FOUNDER_WORKSPACE_NOT_FOUND" })
-    }
+    // The founder account may not have completed its first sign-in yet. The
+    // admin projection is still a valid, empty workspace until that principal
+    // is provisioned; a missing founder must not turn navigation into a 500.
+    if (!founder || founder.kind === "system") return []
     const limit = Math.min(Math.max(Math.trunc(args.limit ?? 50), 1), 100)
     const requests = await listActiveFounderRequests(
       ctx,
