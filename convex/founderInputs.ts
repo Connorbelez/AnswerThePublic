@@ -2,7 +2,11 @@ import { ConvexError, v } from "convex/values"
 import { paginationOptsValidator } from "convex/server"
 import { Timeline } from "convex-timeline"
 import { hash } from "fast-sha256"
-import * as Automerge from "@automerge/automerge"
+// Convex resolves Automerge's root export to a browser ESM-WASM wrapper that
+// its server-side module analyzer cannot initialize. Use the slim entry and
+// initialize the package's supported base64 payload lazily inside the runtime.
+import * as Automerge from "@automerge/automerge/slim"
+import { automergeWasmBase64 } from "@automerge/automerge/automerge.wasm.base64"
 
 import type { Doc } from "./_generated/dataModel"
 import { components } from "./_generated/api"
@@ -15,6 +19,7 @@ import {
 import {
   requireActiveRequest,
   requireEditor,
+  requireFounderWorkspacePrincipal,
   requirePrincipal,
 } from "./lib/authorization"
 import { requestQueueSortKey } from "./lib/requestOrdering"
@@ -72,6 +77,17 @@ type TimelineDocument = {
   occurredAt: number
 }
 
+let automergeInitialization: Promise<void> | undefined
+
+function ensureAutomergeInitialized() {
+  if (Automerge.isWasmInitialized()) {
+    return Promise.resolve()
+  }
+  automergeInitialization ??=
+    Automerge.initializeBase64Wasm(automergeWasmBase64)
+  return automergeInitialization
+}
+
 function timelineMetadata(document: unknown) {
   const state = document as TimelineDocument
   return {
@@ -120,6 +136,7 @@ async function canonicalFounderDocument(
   humanId: string,
   encodedChanges: Array<string>
 ) {
+  await ensureAutomergeInitialized()
   try {
     const [document] = Automerge.applyChanges(
       Automerge.init<CanonicalFounderDocument>(),
@@ -166,7 +183,9 @@ async function canonicalFounderDocument(
     }
     return {
       text: materializedText,
-      heads: [...Automerge.getHeads(document)].sort(),
+      heads: [...Automerge.getHeads(document)].sort((a, b) =>
+        a.localeCompare(b)
+      ),
     }
   } catch {
     throw new ConvexError({
@@ -194,19 +213,17 @@ async function requestForPrincipal(
   return { principal, request }
 }
 
-function assertAssignedFounder(
-  principal: Awaited<ReturnType<typeof requirePrincipal>>,
-  request: Doc<"contentRequests">
+async function founderRequestForPrincipal(
+  ctx: QueryCtx | MutationCtx,
+  humanId: string
 ) {
-  if (principal.role !== "founder") {
-    throw new ConvexError({ code: "ROLE_ACCESS_DENIED" })
-  }
-  if (
-    (request.assigneePrincipalId ?? request.createdByPrincipalId) !==
-    principal._id
-  ) {
-    throw new ConvexError({ code: "RESOURCE_ACCESS_DENIED" })
-  }
+  const { principal, request } = await requestForPrincipal(ctx, humanId)
+  const founderPrincipal = await requireFounderWorkspacePrincipal(
+    ctx,
+    principal,
+    request
+  )
+  return { principal, request, founderPrincipal }
 }
 
 function assertFounderInputMutable(request: Doc<"contentRequests">) {
@@ -246,10 +263,12 @@ export const getMine = query({
   args: { humanId: v.string() },
   returns: v.union(founderInputValidator, v.null()),
   handler: async (ctx, args) => {
-    const { principal, request } = await requestForPrincipal(ctx, args.humanId)
-    assertAssignedFounder(principal, request)
+    const { request, founderPrincipal } = await founderRequestForPrincipal(
+      ctx,
+      args.humanId
+    )
     const document = await inputForRequest(ctx, request._id)
-    if (document && document.founderPrincipalId !== principal._id) {
+    if (document && document.founderPrincipalId !== founderPrincipal._id) {
       throw new ConvexError({ code: "FOUNDER_INPUT_HANDOFF_REQUIRED" })
     }
     return document ? publicFounderInput(request, document) : null
@@ -261,7 +280,8 @@ export const getMetadata = query({
   returns: founderInputMetadataValidator,
   handler: async (ctx, args) => {
     const { principal, request } = await requestForPrincipal(ctx, args.humanId)
-    if (principal.role === "founder") assertAssignedFounder(principal, request)
+    if (principal.role === "founder")
+      await requireFounderWorkspacePrincipal(ctx, principal, request)
     else requireEditor(principal)
     const document = await inputForRequest(ctx, request._id)
     return {
@@ -280,8 +300,8 @@ export const saveText = mutation({
   },
   returns: founderInputValidator,
   handler: async (ctx, args) => {
-    const { principal, request } = await requestForPrincipal(ctx, args.humanId)
-    assertAssignedFounder(principal, request)
+    const { principal, request, founderPrincipal } =
+      await founderRequestForPrincipal(ctx, args.humanId)
     assertFounderInputMutable(request)
     if (args.text.length > 100_000) {
       throw new ConvexError({
@@ -299,7 +319,7 @@ export const saveText = mutation({
     }
     const inputFingerprint = contentChecksum(args.text)
     const existing = await inputForRequest(ctx, request._id)
-    if (existing && existing.founderPrincipalId !== principal._id) {
+    if (existing && existing.founderPrincipalId !== founderPrincipal._id) {
       throw new ConvexError({ code: "FOUNDER_INPUT_HANDOFF_REQUIRED" })
     }
     const priorSave = await ctx.db
@@ -339,7 +359,7 @@ export const saveText = mutation({
       documentId = await ctx.db.insert("founderInputDocuments", {
         organizationId: principal.organizationId,
         requestId: request._id,
-        founderPrincipalId: principal._id,
+        founderPrincipalId: founderPrincipal._id,
         text: args.text,
         revision,
         hasMeaningfulDraft,
@@ -406,10 +426,10 @@ export const pullAutomergeChanges = query({
     materializedText: v.union(v.string(), v.null()),
   }),
   handler: async (ctx, args) => {
-    const { principal, request } = await requestForPrincipal(ctx, args.humanId)
-    assertAssignedFounder(principal, request)
+    const { principal, request, founderPrincipal } =
+      await founderRequestForPrincipal(ctx, args.humanId)
     const document = await inputForRequest(ctx, request._id)
-    if (document && document.founderPrincipalId !== principal._id) {
+    if (document && document.founderPrincipalId !== founderPrincipal._id) {
       throw new ConvexError({ code: "FOUNDER_INPUT_HANDOFF_REQUIRED" })
     }
     if (
@@ -455,8 +475,8 @@ export const submitAutomergeChanges = mutation({
   },
   returns: founderInputValidator,
   handler: async (ctx, args) => {
-    const { principal, request } = await requestForPrincipal(ctx, args.humanId)
-    assertAssignedFounder(principal, request)
+    const { principal, request, founderPrincipal } =
+      await founderRequestForPrincipal(ctx, args.humanId)
     assertFounderInputMutable(request)
     if (args.text.length > 100_000) {
       throw new ConvexError({
@@ -476,7 +496,9 @@ export const submitAutomergeChanges = mutation({
     if (!correlationId || args.changes.length > 500) {
       throw new ConvexError({ code: "VALIDATION_FAILED" })
     }
-    const uniqueHeads = [...new Set(args.heads)].sort()
+    const uniqueHeads = [...new Set(args.heads)].sort((a, b) =>
+      a.localeCompare(b)
+    )
     if (uniqueHeads.length > 100 || uniqueHeads.some((head) => !head.trim())) {
       throw new ConvexError({ code: "VALIDATION_FAILED", field: "heads" })
     }
@@ -494,7 +516,7 @@ export const submitAutomergeChanges = mutation({
     }
 
     const existing = await inputForRequest(ctx, request._id)
-    if (existing && existing.founderPrincipalId !== principal._id) {
+    if (existing && existing.founderPrincipalId !== founderPrincipal._id) {
       throw new ConvexError({ code: "FOUNDER_INPUT_HANDOFF_REQUIRED" })
     }
     if (
@@ -515,7 +537,7 @@ export const submitAutomergeChanges = mutation({
       registry &&
       (registry.organizationId !== principal.organizationId ||
         registry.requestId !== request._id ||
-        registry.founderPrincipalId !== principal._id)
+        registry.founderPrincipalId !== founderPrincipal._id)
     ) {
       throw new ConvexError({ code: "AUTOMERGE_DOCUMENT_MISMATCH" })
     }
@@ -551,7 +573,7 @@ export const submitAutomergeChanges = mutation({
       await ctx.db.insert("automergeDocuments", {
         organizationId: principal.organizationId,
         requestId: request._id,
-        founderPrincipalId: principal._id,
+        founderPrincipalId: founderPrincipal._id,
         documentId,
         createdAt: now,
       })
@@ -602,7 +624,7 @@ export const submitAutomergeChanges = mutation({
       founderDocumentId = await ctx.db.insert("founderInputDocuments", {
         organizationId: principal.organizationId,
         requestId: request._id,
-        founderPrincipalId: principal._id,
+        founderPrincipalId: founderPrincipal._id,
         text: canonical.text,
         revision,
         hasMeaningfulDraft,
@@ -705,8 +727,10 @@ export const getVersionHistory = query({
     ),
   }),
   handler: async (ctx, args) => {
-    const { principal, request } = await requestForPrincipal(ctx, args.humanId)
-    assertAssignedFounder(principal, request)
+    const { request, founderPrincipal } = await founderRequestForPrincipal(
+      ctx,
+      args.humanId
+    )
     const document = await inputForRequest(ctx, request._id)
     if (!document) {
       return {
@@ -717,7 +741,7 @@ export const getVersionHistory = query({
         entries: [],
       }
     }
-    if (document.founderPrincipalId !== principal._id) {
+    if (document.founderPrincipalId !== founderPrincipal._id) {
       throw new ConvexError({ code: "FOUNDER_INPUT_HANDOFF_REQUIRED" })
     }
     const scope = `founder-input:${document._id}`
@@ -747,10 +771,12 @@ export const listArchivedVersions = query({
     continueCursor: v.string(),
   }),
   handler: async (ctx, args) => {
-    const { principal, request } = await requestForPrincipal(ctx, args.humanId)
-    assertAssignedFounder(principal, request)
+    const { request, founderPrincipal } = await founderRequestForPrincipal(
+      ctx,
+      args.humanId
+    )
     const document = await inputForRequest(ctx, request._id)
-    if (document && document.founderPrincipalId !== principal._id) {
+    if (document && document.founderPrincipalId !== founderPrincipal._id) {
       throw new ConvexError({ code: "FOUNDER_INPUT_HANDOFF_REQUIRED" })
     }
     const result = await ctx.db
@@ -783,12 +809,12 @@ export const restoreArchivedVersion = mutation({
   },
   returns: founderInputValidator,
   handler: async (ctx, args) => {
-    const { principal, request } = await requestForPrincipal(ctx, args.humanId)
-    assertAssignedFounder(principal, request)
+    const { principal, request, founderPrincipal } =
+      await founderRequestForPrincipal(ctx, args.humanId)
     assertFounderInputMutable(request)
     const document = await inputForRequest(ctx, request._id)
     if (!document) throw new ConvexError({ code: "NOT_FOUND" })
-    if (document.founderPrincipalId !== principal._id) {
+    if (document.founderPrincipalId !== founderPrincipal._id) {
       throw new ConvexError({ code: "FOUNDER_INPUT_HANDOFF_REQUIRED" })
     }
     const correlationId = args.correlationId.trim()
@@ -899,12 +925,12 @@ async function moveTimeline(
   direction: "undo" | "redo",
   correlationIdInput: string
 ) {
-  const { principal, request } = await requestForPrincipal(ctx, humanId)
-  assertAssignedFounder(principal, request)
+  const { principal, request, founderPrincipal } =
+    await founderRequestForPrincipal(ctx, humanId)
   assertFounderInputMutable(request)
   const document = await inputForRequest(ctx, request._id)
   if (!document) throw new ConvexError({ code: "NOT_FOUND" })
-  if (document.founderPrincipalId !== principal._id) {
+  if (document.founderPrincipalId !== founderPrincipal._id) {
     throw new ConvexError({ code: "FOUNDER_INPUT_HANDOFF_REQUIRED" })
   }
   const correlationId = correlationIdInput.trim()
@@ -1012,8 +1038,7 @@ export const assertDurablySynced = query({
   args: { humanId: v.string(), heads: v.array(v.string()) },
   returns: v.object({ synced: v.boolean(), durableHeads: v.array(v.string()) }),
   handler: async (ctx, args) => {
-    const { principal, request } = await requestForPrincipal(ctx, args.humanId)
-    assertAssignedFounder(principal, request)
+    const { request } = await founderRequestForPrincipal(ctx, args.humanId)
     const document = await inputForRequest(ctx, request._id)
     const durableHeads = [...(document?.durableHeads ?? [])].sort()
     const localHeads = [...new Set(args.heads)].sort()

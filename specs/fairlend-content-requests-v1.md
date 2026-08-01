@@ -22,9 +22,49 @@ A Content Request is the durable unit of work for one response obligation. It co
 
 Elie receives a prioritized stack of assigned Content Requests. Variant G's Unified Canvas is the canonical interaction model: the context deck occupies the available reading surface while the founder-input editor remains immediately available in a compact state and can expand into a focused writing or recording surface. Context items can be toggled and pinned. The input mode can switch between keyboard and microphone. Work autosaves and remains usable offline.
 
+In Record mode, the complete idle recording surface is one press-to-record button rather than a passive panel containing a smaller action. Type and Record modes size from their content, keep the submit row in normal document flow, and reserve the mobile safe-area inset exactly once so editor controls never cover the textarea, recorder, or submission action. Recording, paused, upload, transcription, permission-denied, and retry states retain explicit labels and keyboard-sized controls.
+
 Operators receive computed action queues rather than a generic status board. The workspace makes it immediately clear which requests need Elie, which are being drafted by an agent, which are ready for an operator to deliver, which need attention, and which have been delivered. Every delivery channel has a Responded checklist item. Required channels determine whether the Content Request is Responded.
 
 Agents receive full system control through a shared application contract exposed by the CLI, HTTP API, and private ChatGPT App. Agents can create and update requests, manage context, assignments, jobs, deliverables, versions, delivery targets, share links, and archives. They cannot edit immutable source text or founder raw input, cannot silently replace an approved response with a regeneration, and cannot hard-delete ordinary records. All mutations are attributed and auditable.
+
+### Expert Interview requests
+
+- An Expert Interview is a first-class Content Request used when the missing value is practitioner knowledge rather than another summary of indexed sources.
+- Before creation, an agent researches existing searchable coverage and records specific Knowledge Gaps. Each gap includes its kind, existing coverage, why that coverage falls short, the practitioner contribution that would close it, and supporting citations.
+- Gap kinds include confusing coverage, local-specific information, reality on the ground, practitioner best practice, fragmented how-to content, missing evidence, and an explicit other category.
+- The Interview Brief includes title, topic, article summary, audience, framing, FairLend posture, and intended founder contribution.
+- Every Interview Question records its motivation and references at least one Knowledge Gap. Questions are designed to elicit experience, examples, case evidence, decision criteria, or a practical sequence that cannot be copied from the researched sources.
+- Operator-supplied instructions take priority over agent inferences. Expert Interviews created through the operator/local-agent workflow are Critical.
+- The founder experience uses the approved Focused Proofline pattern: a quick brief, all questions and motivations, progressive-disclosure question rows, and a sticky split action for answering all at once or one at a time. Batch mode expands all questions above one shared text/microphone composer and requires explicit submission confirmation.
+- Every immutable founder or guest Submission remains separately attributed. An operator must explicitly include or exclude every Submission before processing; undecided evidence is never synthesized.
+- Processing loads the Interview Brief, Knowledge Gaps and citations, questions and motivations, selected answers, assets and transcripts, existing article versions, and priority operator instructions into one canonical attributed bundle. It preserves disagreements, reports unresolved gaps, separates sourced facts from practitioner claims and editorial inference, and forbids invented evidence or consensus.
+- Completing processing creates a new article Deliverable or a new immutable version on an explicitly targeted article Deliverable. Provenance binds the result to the signed bundle digest, ordered Submission IDs, exact expert-context versions, canonical bundle, and immutable completion projection without rewriting any source Submission.
+
+The shared agent control plane exposes:
+
+- `expert_interview.research_prompt`
+- `expert_interview.create`
+- `expert_interview.submissions`
+- `expert_interview.submission_selection`
+- `expert_interview.processing_input`
+- `expert_interview.complete_processing`
+
+The private MCP server additionally publishes `expert_interview_research` and `expert_interview_synthesis` prompts. The local CLI provides equivalent ergonomic commands over the same authenticated HTTP control endpoint. MCP, CLI, and HTTP therefore share validation, idempotency, attribution, and persistence behavior.
+
+### Trusted guest access
+
+- Every Content Request can have multiple independent Guest Access Grants. A grant is an unguessable bearer token assigned by an administrator to one Person and scoped to one request.
+- The admin-side Person selector is autocomplete-backed and defaults to the founder. A missing Person may be created inline. There is no identity selector on the guest page.
+- The product trusts that the administrator sends the token to the assigned Person. Assignment is immutable; a mistake is handled by revoking and regenerating the grant.
+- Grants expire 48 hours after generation by default. They may be independently revoked or renewed. Renewal rotates the token and reconnects the preserved Response Workspace.
+- The guest sees the full approved founder experience and only the permitted request context. They never see other respondents or their drafts, comments, or submissions.
+- Each grant owns an isolated autosaved Response Workspace for text, audio, attachments, transcripts, and progress. Cross-device editing uses one active editor lease with explicit takeover.
+- Administrators can inspect live provisional drafts and leave targeted comments but cannot edit respondent content.
+- Submission requires explicit confirmation and creates an immutable attributed snapshot. Administrators may reopen the workspace while the grant remains valid.
+- Expiry or revocation blocks access without deleting drafts or submissions. Retention follows the parent Content Request.
+- Submission, approaching expiry, and failed audio/attachment upload create active notifications. Routine autosave and open events do not.
+- Each submission remains a separate source. Agent synthesis supports explicit include/exclude decisions and preserves attribution and disagreement.
 
 The opportunity automation produces its maintained Markdown report first. A separate ingestion step validates the entire report and atomically upserts Content Requests. The ingestion layer normalizes source URLs, deduplicates repeated opportunities, preserves original input, converts research into structured context, and upgrades a matching automated request to manual and Critical when an operator creates it manually.
 
@@ -172,6 +212,7 @@ The opportunity automation produces its maintained Markdown report first. A sepa
 
 - Content Request fields are optional by default unless required to preserve identity, authorization, or workflow integrity.
 - The minimum creation contract requires a title, origin type, creator identity, and default priority/lifecycle values. A source URL, raw source text, deadline, assignee, context, and delivery targets may be added later.
+- Routing a request to the founder does not require a candidate or promoted response version. A request without a draft remains Pending in Needs Elie until meaningful founder activity begins.
 - Each Content Request has a stable human-readable ID and an opaque database identity.
 - Origin types include automated scout, manual operator entry, ChatGPT App, CLI, and HTTP API.
 - Manual origin upgrades priority to Critical and sorts ahead of automated work within every action queue.
@@ -179,6 +220,16 @@ The opportunity automation produces its maintained Markdown report first. A sepa
 - Agent-produced summaries, talking points, citations, research notes, open questions, guardrails, and operator cues are mutable structured context items with version history.
 - A request has exactly one accountable assignee in V1 and zero or more watchers.
 - Reassignment records the previous assignee, new assignee, actor, timestamp, and optional reason without resetting workflow state.
+
+### Founder handoffs
+
+- Routing an opportunity to Elie creates one durable active Founder Handoff after assignment, selected deliverables, and the required original-response target have succeeded.
+- A Founder Handoff is separate from deliverable-version promotion and external-response delivery. It stores the recipient, immutable selected formats, optional operator note, creator, correlation ID, notification reference, delivery/open timestamps, and active or ended state.
+- Repeating or replaying promotion while an active handoff exists returns that handoff without another assignment, deliverable, target, notification, or audit event.
+- The recipient's first request open after the handoff records `openedAt` and marks the linked handoff notification read. Opens by operators or other principals do not count.
+- Reassignment away from the handoff recipient ends the active handoff. Reassignment back does not revive it; a new promotion creates a fresh handoff and notification.
+- The public handoff stage is the furthest persisted state: Delivered to Elie, Opened by Elie, Draft in progress, Elie complete, Agent drafting, Ready, or Drafting needs attention. Email queued/sent/failed and external delivery remain independent status axes.
+- Existing promotion artifacts may be backfilled only when founder assignment, the primary response, configured derivative deliverables, and the required original target prove the historical operation completed. Historical email state may remain unavailable.
 
 ### Content Request lifecycle
 
@@ -245,6 +296,8 @@ The opportunity automation produces its maintained Markdown report first. A sepa
 
 - The FairLend community-demand, journalist-request, and digital-PR scout continues to produce the maintained Markdown report as its first artifact.
 - Ingestion is a separate deterministic operation available through the CLI and API.
+- A project-owned scheduled automation invokes one compound opportunity-orchestration skill that performs discovery, persists the maintained report, validates it locally, and automatically ingests every valid above-threshold opportunity as `automated_scout`. External posting and delivery confirmation remain prohibited.
+- The orchestrator derives a stable idempotency key from the complete report, retries only transient failures with that same key, and stops for authentication, authorization, validation, payload, idempotency-reuse, or canonical-source-collision failures.
 - The complete Markdown document is parsed and validated before any database mutation occurs.
 - Validation failure writes nothing and returns structured diagnostics with locations and remediation guidance.
 - A valid report is applied atomically as an upsert batch.
@@ -290,7 +343,8 @@ The opportunity automation produces its maintained Markdown report first. A sepa
 ### Notifications
 
 - Notifications fire when ownership of the next action changes, not on every mutation.
-- Elie receives in-app and transactional email notifications for new assignment, Critical escalation, and approaching deadline.
+- Elie receives in-app and transactional email notifications for a durable founder handoff, new assignment, Critical escalation, and approaching deadline.
+- Opening a handed-off request directly as its recipient records the handoff open and marks the linked notification read.
 - Founder submission creates an agent job without a human notification.
 - Operators receive in-app and transactional email notifications when the primary response becomes Ready to respond, when drafting exhausts retries, or when a delivered target is reopened.
 - Autosaves, routine opens, job heartbeats, normal retries, and optional derivative completion do not create notifications.
@@ -309,7 +363,7 @@ The opportunity automation produces its maintained Markdown report first. A sepa
 ### Auditability and observability
 
 - Every mutation records actor identity, credential identity, Content Request ID, operation, timestamp, correlation ID, and before/after version references where applicable.
-- Delivery receipts, immutable source snapshots, founder submissions, promotions, assignment changes, share-link changes, imports, archives, and restorations receive first-class audit events.
+- Delivery receipts, immutable source snapshots, founder submissions, founder handoffs, deliverable promotions, assignment changes, share-link changes, imports, archives, and restorations receive first-class audit events.
 - Agent job telemetry records queue time, start time, completion time, attempts, lease history, error classification, and output version references.
 - Product analytics record time to first open, time to founder submission, time to ready response, time to delivery, delivery before expiration, drafting failure rate, and substantial operator rewrite rate.
 - Sensitive content is excluded from logs. Logs reference record and version IDs rather than duplicating founder or source text.
@@ -340,6 +394,7 @@ The opportunity automation produces its maintained Markdown report first. A sepa
 - The suite covers:
   - Minimal manual creation and Critical priority.
   - Automated Markdown validation and atomic upsert.
+  - Compound automation handoff, content-addressed idempotency, fail-closed configuration, and retry classification.
   - URL normalization and deduplication.
   - Manual upgrade of an automated request without immutable-source replacement.
   - Assignment, watcher, opening, drafting, and submission behavior.

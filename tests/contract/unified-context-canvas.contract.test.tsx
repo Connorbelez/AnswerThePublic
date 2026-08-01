@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { UnifiedContextCanvas } from "@/components/unified-context-canvas"
 import type {
@@ -19,6 +20,7 @@ const request = {
   requestId: "opaque-142",
   title: "Financing a laneway suite without breaking a low-rate mortgage",
   aliases: [],
+  requestType: "standard",
   origin: "automated_scout",
   priority: "high",
   lifecycle: "pending",
@@ -113,7 +115,16 @@ const context = [
   },
 ] satisfies Array<ContentContextItem>
 
+function expandFounderEditor() {
+  fireEvent.click(screen.getByRole("button", { name: "Expand editor" }))
+}
+
 describe("Variant G Unified Context Canvas", () => {
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+  })
+
   it("renders inactive founder work as visibly read-only", () => {
     const onTextChange = vi.fn()
     const view = render(
@@ -140,6 +151,7 @@ describe("Variant G Unified Context Canvas", () => {
       />
     )
     expect(screen.getByText(/inactive.*read-only/i)).toBeTruthy()
+    expandFounderEditor()
     const editor = screen.getByRole("textbox", { name: "Founder input" })
     expect((editor as HTMLTextAreaElement).readOnly).toBe(true)
     fireEvent.change(editor, { target: { value: "Blocked edit" } })
@@ -184,6 +196,7 @@ describe("Variant G Unified Context Canvas", () => {
         }}
       />
     )
+    expandFounderEditor()
     expect(screen.queryByText(/inactive.*read-only/i)).toBeNull()
     expect(
       screen
@@ -258,6 +271,7 @@ describe("Variant G Unified Context Canvas", () => {
       />
     )
 
+    expandFounderEditor()
     const editor = screen.getByRole("textbox", { name: "Founder input" })
     expect((editor as HTMLTextAreaElement).value).toBe(
       "Recovered offline input"
@@ -306,10 +320,17 @@ describe("Variant G Unified Context Canvas", () => {
       name: "Content Request workspace",
     })
     expect(within(canvas).getByText(request.source!.body!)).toBeTruthy()
-    expect(screen.getByRole("textbox", { name: "Founder input" })).toBeTruthy()
     expect(
-      screen.getByTestId("founder-editor").getAttribute("data-expanded")
-    ).toBe("false")
+      screen.getAllByRole("textbox", {
+        name: "Founder input",
+      })
+    ).toHaveLength(1)
+    expect(
+      screen.getByTestId("founder-editor-body").hasAttribute("inert")
+    ).toBe(false)
+    expect(
+      screen.getByTestId("founder-editor").getAttribute("data-detent")
+    ).toBe("peek")
 
     fireEvent.click(screen.getByRole("button", { name: "Hide Talking points" }))
     expect(screen.queryByRole("article", { name: "Talking points" })).toBeNull()
@@ -331,16 +352,170 @@ describe("Variant G Unified Context Canvas", () => {
     expect(
       screen.getByTestId("founder-editor").getAttribute("data-expanded")
     ).toBe("true")
-    expect(document.activeElement).toBe(
-      screen.getByRole("textbox", { name: "Founder input" })
-    )
+    expect(screen.getByRole("textbox", { name: "Founder input" })).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Collapse editor" }))
     expect(
       screen.getByTestId("founder-editor").getAttribute("data-expanded")
     ).toBe("false")
     expect(
-      screen.getAllByRole("textbox", { name: "Founder input" })
+      screen.getAllByRole("textbox", {
+        name: "Founder input",
+      })
     ).toHaveLength(1)
+  })
+
+  it("keeps founder input visible and minimized when it receives focus", () => {
+    render(
+      <UnifiedContextCanvas
+        request={request}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+      />
+    )
+
+    const body = screen.getByTestId("founder-editor-body")
+    const input = screen.getByRole("textbox", { name: "Founder input" })
+
+    expect(body.hasAttribute("inert")).toBe(false)
+    expect(body.hasAttribute("aria-hidden")).toBe(false)
+    fireEvent.focus(input)
+    expect(
+      screen.getByTestId("founder-editor").getAttribute("data-detent")
+    ).toBe("peek")
+    expect(screen.getByRole("textbox", { name: "Founder input" })).toBe(input)
+    expect(screen.getByRole("button", { name: "Expand editor" })).toBeTruthy()
+    expect(screen.getByRole("textbox", { name: "Founder input" })).toBe(input)
+    expect(body.hasAttribute("inert")).toBe(false)
+    expect(body.hasAttribute("aria-hidden")).toBe(false)
+  })
+
+  it("anchors the focused minimized input to the visual viewport while scrolling", async () => {
+    const visualViewport = Object.assign(new EventTarget(), {
+      height: 480,
+      offsetTop: 20,
+    })
+    vi.stubGlobal("innerHeight", 800)
+    vi.stubGlobal("visualViewport", visualViewport)
+    expect(window.visualViewport).toBe(visualViewport)
+    render(
+      <UnifiedContextCanvas
+        request={request}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+      />
+    )
+
+    const input = screen.getByRole("textbox", { name: "Founder input" })
+    const drawer = screen.getByTestId("founder-editor-drawer")
+    input.focus()
+    expect(document.activeElement).toBe(input)
+    visualViewport.dispatchEvent(new Event("resize"))
+
+    await waitFor(() =>
+      expect(drawer.style.getPropertyValue("--founder-keyboard-inset")).toBe(
+        "300px"
+      )
+    )
+    visualViewport.offsetTop = 60
+    visualViewport.dispatchEvent(new Event("scroll"))
+    await waitFor(() =>
+      expect(drawer.style.getPropertyValue("--founder-keyboard-inset")).toBe(
+        "260px"
+      )
+    )
+    expect(drawer.getAttribute("data-detent")).toBe("peek")
+    expect(drawer.style.height).toBe("")
+  })
+
+  it("removes internal research instructions and source summaries from expert interviews", () => {
+    render(
+      <UnifiedContextCanvas
+        request={{ ...request, requestType: "expert_interview" }}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+      />
+    )
+
+    expect(
+      screen.getByRole("article", { name: "Original question" })
+    ).toBeTruthy()
+    expect(
+      screen.queryByRole("article", { name: "Original source" })
+    ).toBeNull()
+    expect(
+      screen.queryByRole("article", { name: "Research required" })
+    ).toBeNull()
+    expect(screen.queryByText(request.source!.body!)).toBeNull()
+  })
+
+  it("keeps the document interactive while the non-modal drawer is open", async () => {
+    render(
+      <UnifiedContextCanvas
+        request={request}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+      />
+    )
+
+    expect(
+      screen.getByTestId("founder-editor-drawer").getAttribute("data-detent")
+    ).toBe("peek")
+    expect(document.querySelector('[data-slot="drawer-overlay"]')).toBeNull()
+    expect(
+      screen
+        .getByRole("main", { name: "Content Request workspace" })
+        .hasAttribute("aria-hidden")
+    ).toBe(false)
+    await waitFor(() => expect(document.body.style.pointerEvents).toBe("auto"))
+
+    expandFounderEditor()
+    expect(
+      screen.getByTestId("founder-editor").getAttribute("data-detent")
+    ).toBe("full")
+    fireEvent.click(
+      screen.getByRole("button", { name: "Hide Research required" })
+    )
+    expect(
+      screen.queryByRole("article", { name: "Research required" })
+    ).toBeNull()
+  })
+
+  it("renders original source markdown as structured, accessible content", () => {
+    render(
+      <UnifiedContextCanvas
+        request={{
+          ...request,
+          humanId: "CR-MARKDOWN-SOURCE",
+          source: {
+            ...request.source,
+            body: `### Paying off an Ontario mortgage
+
+- **Thread:** [What happens after paying off a mortgage?](https://community.example/mortgage)
+- **Question:** What administrative steps remain?`,
+          },
+        }}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+      />
+    )
+
+    const sourceCard = screen.getByRole("article", { name: "Original source" })
+    expect(
+      within(sourceCard).getByRole("heading", {
+        level: 3,
+        name: "Paying off an Ontario mortgage",
+      })
+    ).toBeTruthy()
+    expect(within(sourceCard).getByText("Thread:").tagName).toBe("STRONG")
+    expect(
+      within(sourceCard)
+        .getByRole("link", {
+          name: "What happens after paying off a mortgage?",
+        })
+        .getAttribute("rel")
+    ).toBe("noopener noreferrer")
+    expect(sourceCard.textContent).not.toContain("###")
+    expect(sourceCard.textContent).not.toContain("**")
   })
 
   it("preserves URL-only sources, distinct same-kind items, and preference changes", async () => {
@@ -455,7 +630,7 @@ describe("Variant G Unified Context Canvas", () => {
           finishSave = resolve
         })
     )
-    const view = render(
+    render(
       <UnifiedContextCanvas
         request={{ ...request, humanId: "CR-AUTOSAVE" }}
         contextItems={context}
@@ -464,7 +639,8 @@ describe("Variant G Unified Context Canvas", () => {
         onDraftSave={onDraftSave}
       />
     )
-    const editor = within(view.container).getByRole("textbox", {
+    expandFounderEditor()
+    const editor = screen.getByRole("textbox", {
       name: "Founder input",
     })
     expect((editor as HTMLTextAreaElement).value).toBe(
@@ -473,15 +649,10 @@ describe("Variant G Unified Context Canvas", () => {
     fireEvent.change(editor, {
       target: { value: "Restored durable founder text plus a new point" },
     })
-    expect(
-      within(view.container).getByText("Saving", { exact: true })
-    ).toBeTruthy()
-    fireEvent.click(
-      within(view.container).getByRole("button", { name: "Expand editor" })
-    )
+    expect(screen.getByText("Saving", { exact: true })).toBeTruthy()
     expect(
       (
-        within(view.container).getByRole("textbox", {
+        screen.getByRole("textbox", {
           name: "Founder input",
         }) as HTMLTextAreaElement
       ).value
@@ -489,9 +660,7 @@ describe("Variant G Unified Context Canvas", () => {
     await waitFor(() => expect(onDraftSave).toHaveBeenCalledOnce())
     finishSave?.()
     await waitFor(() =>
-      expect(
-        within(view.container).getByText("Saved", { exact: true })
-      ).toBeTruthy()
+      expect(screen.getByText("Saved", { exact: true })).toBeTruthy()
     )
 
     Object.defineProperty(window.navigator, "onLine", {
@@ -500,9 +669,7 @@ describe("Variant G Unified Context Canvas", () => {
     })
     fireEvent(window, new Event("offline"))
     fireEvent.change(editor, { target: { value: "An offline edit" } })
-    expect(
-      within(view.container).getByText("Offline", { exact: true })
-    ).toBeTruthy()
+    expect(screen.getByText("Offline", { exact: true })).toBeTruthy()
     expect(onDraftSave).toHaveBeenCalledOnce()
     Object.defineProperty(window.navigator, "onLine", {
       configurable: true,
@@ -521,15 +688,13 @@ describe("Variant G Unified Context Canvas", () => {
         onDraftSave={onDraftSave}
       />
     )
-    fireEvent.change(
-      within(view.container).getByRole("textbox", { name: "Founder input" }),
-      { target: { value: "A save that encounters a transient outage" } }
-    )
+    expandFounderEditor()
+    fireEvent.change(screen.getByRole("textbox", { name: "Founder input" }), {
+      target: { value: "A save that encounters a transient outage" },
+    })
     await waitFor(
       () =>
-        expect(
-          within(view.container).getByText("Save pending", { exact: true })
-        ).toBeTruthy(),
+        expect(screen.getByText("Save pending", { exact: true })).toBeTruthy(),
       { timeout: 3_000 }
     )
     expect(onDraftSave).toHaveBeenCalledTimes(3)
@@ -552,14 +717,12 @@ describe("Variant G Unified Context Canvas", () => {
         onDraftSave={onDraftSave}
       />
     )
-    fireEvent.change(
-      within(view.container).getByRole("textbox", { name: "Founder input" }),
-      { target: { value: "A draft after an ownership conflict" } }
-    )
+    expandFounderEditor()
+    fireEvent.change(screen.getByRole("textbox", { name: "Founder input" }), {
+      target: { value: "A draft after an ownership conflict" },
+    })
     await waitFor(() =>
-      expect(
-        within(view.container).getByText("Save blocked", { exact: true })
-      ).toBeTruthy()
+      expect(screen.getByText("Save blocked", { exact: true })).toBeTruthy()
     )
     expect(onDraftSave).toHaveBeenCalledOnce()
     view.unmount()
@@ -567,7 +730,7 @@ describe("Variant G Unified Context Canvas", () => {
 
   it("keeps submitted founder input and archived restore controls read-only", () => {
     const restore = vi.fn()
-    const view = render(
+    render(
       <UnifiedContextCanvas
         request={{ ...request, lifecycle: "founder_complete" }}
         contextItems={context}
@@ -598,25 +761,126 @@ describe("Variant G Unified Context Canvas", () => {
         }}
       />
     )
+    expandFounderEditor()
     expect(
-      within(view.container)
+      screen
         .getByRole("textbox", { name: "Founder input" })
         .hasAttribute("readonly")
     ).toBe(true)
-    fireEvent.click(
-      within(view.container).getByRole("button", { name: "History (0)" })
-    )
+    fireEvent.click(screen.getByRole("button", { name: "History (0)" }))
     expect(
-      within(view.container)
-        .getByRole("button", { name: "Restore" })
-        .hasAttribute("disabled")
+      screen.getByRole("button", { name: "Restore" }).hasAttribute("disabled")
     ).toBe(true)
     expect(restore).not.toHaveBeenCalled()
   })
 
+  it("uses the entire idle voice surface as the accessible record control", () => {
+    const start = vi.fn()
+    render(
+      <UnifiedContextCanvas
+        request={request}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+        draftController={{
+          text: "",
+          status: "Saved",
+          canUndo: false,
+          canRedo: false,
+          history: null,
+          archiveEntries: [],
+          archiveDone: true,
+          onTextChange: vi.fn(),
+          onUndo: vi.fn(),
+          onRedo: vi.fn(),
+          onLoadOlderHistory: vi.fn(),
+          onRestoreArchivedVersion: vi.fn(),
+          voice: {
+            supported: true,
+            state: "idle",
+            elapsedMs: 0,
+            errorCode: null,
+            queuedCount: 0,
+            captures: [],
+            start,
+            pause: vi.fn(),
+            resume: vi.fn(),
+            stop: vi.fn(),
+            retry: vi.fn(),
+            discard: vi.fn(),
+            discardPending: vi.fn(),
+          },
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Record input" }))
+    const editor = screen.getByTestId("founder-editor")
+    const input = document.querySelector(".unified-editor__input")
+    const recordSurface = screen.getByRole("button", {
+      name: "Press to record",
+    })
+
+    expect(editor.getAttribute("data-input-mode")).toBe("record")
+    expect(recordSurface.parentElement).toBe(input)
+    expect(recordSurface.textContent).toContain("Press to record")
+    expect(recordSurface.textContent).toContain("Tap anywhere in this area")
+    expect(recordSurface.querySelector("button")).toBeNull()
+    fireEvent.click(recordSurface)
+    expect(start).toHaveBeenCalledOnce()
+  })
+
+  it("keeps active recording actions explicit and keyboard-sized", () => {
+    const pause = vi.fn()
+    const stop = vi.fn()
+    render(
+      <UnifiedContextCanvas
+        request={request}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+        draftController={{
+          text: "A typed point remains safe",
+          status: "Saved",
+          canUndo: false,
+          canRedo: false,
+          history: null,
+          archiveEntries: [],
+          archiveDone: true,
+          onTextChange: vi.fn(),
+          onUndo: vi.fn(),
+          onRedo: vi.fn(),
+          onLoadOlderHistory: vi.fn(),
+          onRestoreArchivedVersion: vi.fn(),
+          voice: {
+            supported: true,
+            state: "recording",
+            elapsedMs: 65_000,
+            errorCode: null,
+            queuedCount: 0,
+            captures: [],
+            start: vi.fn(),
+            pause,
+            resume: vi.fn(),
+            stop,
+            retry: vi.fn(),
+            discard: vi.fn(),
+            discardPending: vi.fn(),
+          },
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Record input" }))
+    expect(screen.getByText("Recording", { exact: true })).toBeTruthy()
+    expect(screen.getByLabelText("01:05 elapsed")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Pause recording" }))
+    fireEvent.click(screen.getByRole("button", { name: "Stop and save" }))
+    expect(pause).toHaveBeenCalledOnce()
+    expect(stop).toHaveBeenCalledOnce()
+  })
+
   it("blocks founder submission while local voice work is pending", () => {
     const submit = vi.fn()
-    const view = render(
+    render(
       <UnifiedContextCanvas
         request={request}
         contextItems={context}
@@ -661,6 +925,7 @@ describe("Variant G Unified Context Canvas", () => {
         }}
       />
     )
+    expandFounderEditor()
     expect(
       screen.getByText(
         "Finish, retry, or discard pending voice input before submitting."
@@ -671,17 +936,14 @@ describe("Variant G Unified Context Canvas", () => {
         .getByRole("button", { name: "Submit to drafting" })
         .hasAttribute("disabled")
     ).toBe(true)
-    fireEvent.click(
-      within(view.container).getByRole("button", { name: "Record input" })
-    )
+    fireEvent.click(screen.getByRole("button", { name: "Record input" }))
     expect(
-      within(view.container).getByRole("button", {
+      screen.getByRole("button", {
         name: /Retry transcription/,
       }).className
     ).toContain("h-11")
     expect(
-      within(view.container).getByRole("button", { name: "Discard recording" })
-        .className
+      screen.getByRole("button", { name: "Discard recording" }).className
     ).toContain("h-11")
   })
 })

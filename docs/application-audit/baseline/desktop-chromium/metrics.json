@@ -1,0 +1,304 @@
+{
+  "label": "baseline",
+  "project": "desktop-chromium",
+  "viewport": {
+    "width": 1536,
+    "height": 1024
+  },
+  "capturedAt": "2026-07-20T03:57:15.891Z",
+  "bundle": {
+    "assetCount": 25,
+    "totalBytes": 5755929,
+    "totalGzipBytes": 1983680,
+    "largestAssets": [
+      {
+        "file": "app.requests._requestId-Dwco2U7T.js",
+        "bytes": 4989102,
+        "gzipBytes": 1766531
+      },
+      {
+        "file": "index-_PdmMOMy.js",
+        "bytes": 272588,
+        "gzipBytes": 85760
+      },
+      {
+        "file": "index-BEEHPunC.css",
+        "bytes": 220422,
+        "gzipBytes": 33451
+      },
+      {
+        "file": "avatar-CbzWNeex.js",
+        "bytes": 93504,
+        "gzipBytes": 31468
+      },
+      {
+        "file": "utils-CHbsrnz1.js",
+        "bytes": 59204,
+        "gzipBytes": 19860
+      },
+      {
+        "file": "content-request-server-functions-DuPpKk9H.js",
+        "bytes": 41955,
+        "gzipBytes": 14786
+      },
+      {
+        "file": "app-BaO--ob-.js",
+        "bytes": 16173,
+        "gzipBytes": 6140
+      },
+      {
+        "file": "native-select-Dl58iWf8.js",
+        "bytes": 13466,
+        "gzipBytes": 4959
+      },
+      {
+        "file": "app.index-Bnoa3upJ.js",
+        "bytes": 11821,
+        "gzipBytes": 4024
+      },
+      {
+        "file": "jsx-runtime-n5LQ9ujS.js",
+        "bytes": 8535,
+        "gzipBytes": 3268
+      },
+      {
+        "file": "ToolbarRootContext-CdFVfIm1.js",
+        "bytes": 6411,
+        "gzipBytes": 2589
+      },
+      {
+        "file": "use-hydrated-B4UPAy_j.js",
+        "bytes": 4880,
+        "gzipBytes": 2225
+      }
+    ]
+  },
+  "warmNavigationMs": 130,
+  "routes": [
+    {
+      "route": "/sign-in",
+      "finalUrl": "/sign-in",
+      "visibleMs": 105.8,
+      "lcpMs": 48,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 665193,
+      "encodedBytes": 662493,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/unauthorized",
+      "finalUrl": "/unauthorized",
+      "visibleMs": 71.5,
+      "lcpMs": 36,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 4425,
+      "encodedBytes": 662572,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/route-that-does-not-exist",
+      "finalUrl": "/route-that-does-not-exist",
+      "visibleMs": 37,
+      "lcpMs": 36,
+      "cls": 0.0026,
+      "longTasks": 0,
+      "transferredBytes": 2100,
+      "encodedBytes": 660847,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 95.7,
+      "lcpMs": 76,
+      "cls": 0.0007,
+      "longTasks": 0,
+      "transferredBytes": 818656,
+      "encodedBytes": 812956,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 2
+        }
+      ]
+    },
+    {
+      "route": "/app/new",
+      "finalUrl": "/app/new",
+      "visibleMs": 80,
+      "lcpMs": 48,
+      "cls": 0.0001,
+      "longTasks": 0,
+      "transferredBytes": 12221,
+      "encodedBytes": 794007,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010002",
+      "finalUrl": "/app/requests/CR-00000000000010002",
+      "visibleMs": 62.9,
+      "lcpMs": 40,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 4997390,
+      "encodedBytes": 5795923,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": [
+        {
+          "id": "landmark-one-main",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "region",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "skip-link",
+          "impact": "moderate",
+          "nodes": 1
+        }
+      ]
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 61.2,
+      "lcpMs": 44,
+      "cls": 0.0002,
+      "longTasks": 0,
+      "transferredBytes": 5700,
+      "encodedBytes": 812956,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010002",
+      "finalUrl": "/app/requests/CR-00000000000010002",
+      "visibleMs": 61.2,
+      "lcpMs": 36,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 5000968,
+      "encodedBytes": 5795923,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": [
+        {
+          "id": "landmark-one-main",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "region",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "skip-link",
+          "impact": "moderate",
+          "nodes": 1
+        }
+      ]
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 80.3,
+      "lcpMs": 60,
+      "cls": 0.0007,
+      "longTasks": 0,
+      "transferredBytes": 818656,
+      "encodedBytes": 812956,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 2
+        }
+      ]
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 81.2,
+      "lcpMs": 64,
+      "cls": 0.0009,
+      "longTasks": 0,
+      "transferredBytes": 818656,
+      "encodedBytes": 812956,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 2
+        }
+      ]
+    },
+    {
+      "route": "/share/8368faf6a7c80e2dbaad5c3b8c92e98ca4ff0f64b90ea3db57f5d7ddfc5b6278",
+      "finalUrl": "/share/8368faf6a7c80e2dbaad5c3b8c92e98ca4ff0f64b90ea3db57f5d7ddfc5b6278",
+      "visibleMs": 54.2,
+      "lcpMs": 44,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 160390,
+      "encodedBytes": 818237,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010002",
+      "finalUrl": "/app/requests/CR-00000000000010002",
+      "visibleMs": 75.2,
+      "lcpMs": 48,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 6000,
+      "encodedBytes": 5795923,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": [
+        {
+          "id": "landmark-one-main",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "page-has-heading-one",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "region",
+          "impact": "moderate",
+          "nodes": 1
+        },
+        {
+          "id": "skip-link",
+          "impact": "moderate",
+          "nodes": 1
+        }
+      ]
+    }
+  ]
+}

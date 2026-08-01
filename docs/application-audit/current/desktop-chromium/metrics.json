@@ -1,0 +1,240 @@
+{
+  "label": "current",
+  "project": "desktop-chromium",
+  "viewport": {
+    "width": 1536,
+    "height": 1024
+  },
+  "capturedAt": "2026-07-29T05:03:32.382Z",
+  "bundle": {
+    "assetCount": 53,
+    "totalBytes": 4910265,
+    "totalGzipBytes": 1568163,
+    "executableBytes": 1529756,
+    "executableGzipBytes": 447144,
+    "deferredBinaryBytes": 3380509,
+    "deferredBinaryGzipBytes": 1121019,
+    "largestAssets": [
+      {
+        "file": "automerge-BdM9z0C5.wasm",
+        "kind": "wasm",
+        "bytes": 3380509,
+        "gzipBytes": 1121019
+      },
+      {
+        "file": "index-B9WaxRQT.js",
+        "kind": "executable",
+        "bytes": 322177,
+        "gzipBytes": 103453
+      },
+      {
+        "file": "index-Bx4_XmT8.css",
+        "kind": "executable",
+        "bytes": 263055,
+        "gzipBytes": 40002
+      },
+      {
+        "file": "founder-request-canvas-DLHq2QCA.js",
+        "kind": "executable",
+        "bytes": 228590,
+        "gzipBytes": 72685
+      },
+      {
+        "file": "app.requests._requestId-CYoWNQVQ.js",
+        "kind": "executable",
+        "bytes": 163904,
+        "gzipBytes": 48254
+      },
+      {
+        "file": "markdown-content-DxTo0MUA.js",
+        "kind": "executable",
+        "bytes": 154375,
+        "gzipBytes": 45493
+      },
+      {
+        "file": "useValueChanged-DzrIg_uT.js",
+        "kind": "executable",
+        "bytes": 49059,
+        "gzipBytes": 16114
+      },
+      {
+        "file": "avatar-CncVp5WA.js",
+        "kind": "executable",
+        "bytes": 45053,
+        "gzipBytes": 16189
+      },
+      {
+        "file": "app.expertise-prototype-pVS9ZDY7.js",
+        "kind": "executable",
+        "bytes": 42006,
+        "gzipBytes": 10734
+      },
+      {
+        "file": "respond._token-D37jtfxK.js",
+        "kind": "executable",
+        "bytes": 41517,
+        "gzipBytes": 12085
+      },
+      {
+        "file": "guest-submission-control-4uK-L7yP.js",
+        "kind": "executable",
+        "bytes": 38224,
+        "gzipBytes": 11404
+      },
+      {
+        "file": "utils-C3qR0QAR.js",
+        "kind": "executable",
+        "bytes": 35835,
+        "gzipBytes": 11739
+      }
+    ]
+  },
+  "warmNavigationMs": 0,
+  "warmNavigationCompleteMs": 134,
+  "routes": [
+    {
+      "route": "/sign-in",
+      "finalUrl": "/sign-in",
+      "visibleMs": 75.8,
+      "lcpMs": 44,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 659374,
+      "encodedBytes": 656674,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/unauthorized",
+      "finalUrl": "/unauthorized",
+      "visibleMs": 59.9,
+      "lcpMs": 32,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 3834,
+      "encodedBytes": 655212,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/route-that-does-not-exist",
+      "finalUrl": "/route-that-does-not-exist",
+      "visibleMs": 57.3,
+      "lcpMs": 28,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 1500,
+      "encodedBytes": 653478,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 147.1,
+      "lcpMs": 120,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 835298,
+      "encodedBytes": 827198,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/new",
+      "finalUrl": "/app/new",
+      "visibleMs": 78.8,
+      "lcpMs": 44,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 14587,
+      "encodedBytes": 792886,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010926",
+      "finalUrl": "/app/requests/CR-00000000000010926",
+      "visibleMs": 886.5,
+      "lcpMs": 448,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 345193,
+      "encodedBytes": 1148850,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 83.1,
+      "lcpMs": 60,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 413057,
+      "encodedBytes": 1219437,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010926",
+      "finalUrl": "/app/requests/CR-00000000000010926",
+      "visibleMs": 847,
+      "lcpMs": 444,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 3579908,
+      "encodedBytes": 4768583,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 108.4,
+      "lcpMs": 76,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 835298,
+      "encodedBytes": 827198,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 105.2,
+      "lcpMs": 76,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 835298,
+      "encodedBytes": 827198,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/share/ea2b11adbb228444f778a329f69e7b2fbb0804a7a1851e18ac12e73d74d0abd4",
+      "finalUrl": "/share/ea2b11adbb228444f778a329f69e7b2fbb0804a7a1851e18ac12e73d74d0abd4",
+      "visibleMs": 63.4,
+      "lcpMs": 32,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 159785,
+      "encodedBytes": 810863,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010926",
+      "finalUrl": "/app/requests/CR-00000000000010926",
+      "visibleMs": 408.5,
+      "lcpMs": 424,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 13910,
+      "encodedBytes": 1148862,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    }
+  ]
+}

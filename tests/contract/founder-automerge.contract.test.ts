@@ -100,3 +100,4 @@ describe("founder Automerge document contract", () => {
     expect(materializedFounderText(document)).toBe("First\n\nSecond")
   })
 })
+import "@automerge/automerge"

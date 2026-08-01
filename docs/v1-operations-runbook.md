@@ -18,17 +18,18 @@ bun run test:e2e
 dedicated migration validation suite, and a production build. Playwright runs
 separately because Chromium and WebKit must be installed on the runner.
 
-| Acceptance area                                                                                                                                          | Executable evidence                                                                                                                                          |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Founder/operator canonical workflow, responsive layout, keyboard input, touch targets, reduced motion, autosave, offline recovery, and owner-cache purge | `tests/e2e/foundation.spec.ts` on iPhone 13 WebKit and desktop Chromium                                                                                      |
-| Anonymous public view, exact allowlist, read-only behavior, and immediate revocation                                                                     | `tests/e2e/foundation.spec.ts`, `convex/publicShares.test.ts`, `tests/contract/public-share-response.contract.test.ts`                                       |
-| Full agent/CLI/HTTP registry, fuzzy resolution, bulk partial results, immutable source/founder boundaries, and idempotency                               | `tests/contract/agent-control-plane.contract.test.ts`, `tests/contract/content-request-adapters.contract.test.ts`                                            |
-| Private ChatGPT App schemas, confirmations, current-state fencing, revocation, and agent-only authorization                                              | `tests/contract/chatgpt-app.contract.test.ts`, `tests/contract/agent-credential.contract.test.ts`, `tests/contract/workos-agent-credential.contract.test.ts` |
-| Claim contention, lease fencing/reclaim, retry exhaustion, and ambiguous completion replay                                                               | `convex/agentJobs.test.ts`                                                                                                                                   |
-| Automerge offline/concurrent merge plus semantic singleton conflict/rebase/resolution                                                                    | `convex/founderInputs.test.ts`, `tests/contract/founder-automerge.contract.test.ts`, `convex/semanticConflicts.test.ts`                                      |
-| Aggregate-only product metrics and role isolation                                                                                                        | `convex/productMetrics.test.ts`                                                                                                                              |
-| Log payload privacy                                                                                                                                      | `tests/contract/operational-telemetry.contract.test.ts`                                                                                                      |
-| Backfill completeness                                                                                                                                    | `convex/migrations.test.ts` and `migrations:validateV1Invariants`                                                                                            |
+| Acceptance area                                                                                                                                                                                  | Executable evidence                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Founder/operator canonical workflow, responsive layout, keyboard input, touch targets, reduced motion, autosave, offline recovery, and owner-cache purge                                         | `tests/e2e/foundation.spec.ts` on iPhone 13 WebKit and desktop Chromium                                                                                                                                    |
+| Expert Interview Guest Access: Person assignment, token isolation, autosave/editor fencing, evidence recovery, immutable submission, lifecycle controls, notifications, and attributed synthesis | `tests/e2e/foundation.spec.ts`, `convex/guestAccess.test.ts`, `convex/guestAccessLifecycle.test.ts`, `convex/guestEvidence.test.ts`, `convex/guestNotifications.test.ts`, `convex/expertSynthesis.test.ts` |
+| Anonymous public view, exact allowlist, read-only behavior, and immediate revocation                                                                                                             | `tests/e2e/foundation.spec.ts`, `convex/publicShares.test.ts`, `tests/contract/public-share-response.contract.test.ts`                                                                                     |
+| Full agent/CLI/HTTP registry, fuzzy resolution, bulk partial results, immutable source/founder boundaries, and idempotency                                                                       | `tests/contract/agent-control-plane.contract.test.ts`, `tests/contract/content-request-adapters.contract.test.ts`                                                                                          |
+| Private ChatGPT App schemas, confirmations, current-state fencing, revocation, and agent-only authorization                                                                                      | `tests/contract/chatgpt-app.contract.test.ts`, `tests/contract/agent-credential.contract.test.ts`, `tests/contract/workos-agent-credential.contract.test.ts`                                               |
+| Claim contention, lease fencing/reclaim, retry exhaustion, and ambiguous completion replay                                                                                                       | `convex/agentJobs.test.ts`                                                                                                                                                                                 |
+| Automerge offline/concurrent merge plus semantic singleton conflict/rebase/resolution                                                                                                            | `convex/founderInputs.test.ts`, `tests/contract/founder-automerge.contract.test.ts`, `convex/semanticConflicts.test.ts`                                                                                    |
+| Aggregate-only product metrics and role isolation                                                                                                                                                | `convex/productMetrics.test.ts`                                                                                                                                                                            |
+| Log payload privacy                                                                                                                                                                              | `tests/contract/operational-telemetry.contract.test.ts`                                                                                                                                                    |
+| Backfill completeness                                                                                                                                                                            | `convex/migrations.test.ts` and `migrations:validateV1Invariants`                                                                                                                                          |
 
 ## Migration deployment gate
 
@@ -37,9 +38,12 @@ compatible schema and before admitting normal traffic:
 
 ```bash
 bunx convex run --prod migrations:backfillAssignmentFields '{}'
+bunx convex run --prod migrations:backfillContentRequestTypes '{}'
+bunx convex run --prod migrations:backfillNormalizedPrincipalEmails '{}'
 bunx convex run --prod migrations:backfillNormalizedSourceUrls '{}'
 bunx convex run --prod migrations:backfillPrimaryDeliverables '{}'
 bunx convex run --prod migrations:backfillOriginalDeliveryTargets '{}'
+bunx convex run --prod migrations:backfillFounderHandoffs '{}'
 bunx convex run --prod migrations:backfillAgentJobClaimability '{}'
 bunx convex run --prod migrations:backfillActiveVoiceCaptureCounts '{}'
 bunx convex run --prod migrations:backfillOperatorWorkspace '{}'
@@ -56,12 +60,12 @@ The deployment gate is satisfied only when `done` is `true` and `issues` is
 empty. If `done` is `false`, pass the returned `continueCursor` as `cursor` and
 repeat until the terminal page. Issue codes identify the exact repair surface:
 assignment fields, canonical source URL (including unresolved collisions),
-active voice count, one retained primary deliverable, one retained required
-original target, operator projection, or agent-job claimability. “Retained”
-means active children for an active request and archived children for a fully
-archived request; an in-progress archive correctly remains blocked until its
-children settle. Do not tighten optional legacy schema fields until this scan is
-clean.
+active voice count, request type, one retained primary deliverable, one retained
+required original target, reconstructed founder handoff, operator projection,
+or agent-job claimability. “Retained” means active children for an active
+request and archived children for a fully archived request; an in-progress
+archive correctly remains blocked until its children settle. Do not tighten
+optional legacy schema fields until this scan is clean.
 
 ## Product metrics
 
@@ -105,6 +109,24 @@ outcome, HTTP status, duration, and bounded item count.
 - revoked public share or agent credential: issue a new share/credential only
   after confirming the revocation was intentional. Revocation is immediate and
   must not be bypassed with cached content.
+- expired or revoked Guest Access Grant: renew from the authenticated request
+  workspace only after confirming the assigned Person and request. Never recover
+  a grant by reusing its old plaintext token; renewal rotates the token and
+  preserves the response history.
+- failed guest upload: use the upload-failure notification, when present, to
+  locate the request. In the authenticated request workspace, open **Guest
+  responses** and inspect the attributable asset under **Response evidence**.
+  Leave targeted feedback if the respondent needs recovery instructions.
+- failed guest transcription: open the request directly and inspect **Guest
+  responses** → **Response evidence** in the authenticated request workspace.
+  Transcription failures do not create administrator notifications. Ask the
+  respondent to use the existing response link to retry transcription, reselect
+  the source file, or explicitly discard the asset; reopen a submitted workspace
+  first when further edits are required.
+- for either guest asset failure, monitor the upload-session, transcription,
+  unclaimed-storage, and notification-outbox recovery jobs until the terminal
+  state is recorded. Do not treat an unsettled or failed asset as submitted
+  evidence.
 - offline founder edit: keep the route open or reopen it under the same WorkOS
   principal. The Automerge queue syncs when connectivity returns; signing out
   intentionally purges the owner-scoped page and draft cache.

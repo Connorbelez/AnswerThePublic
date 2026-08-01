@@ -1,7 +1,9 @@
 .git/
+.scratch/
 .e2e-dist/
 .wrangler/
 dist/
+docs/research/
 node_modules/
 playwright-report/
 test-results/

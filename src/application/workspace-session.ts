@@ -7,6 +7,10 @@ export const WORKSPACE_ROLES = [
 
 export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number]
 
+export const WORKSPACE_VIEWS = ["operator", "elie"] as const
+
+export type WorkspaceView = (typeof WORKSPACE_VIEWS)[number]
+
 export type ExternalIdentity = {
   subject: string
   organizationId: string
@@ -29,6 +33,10 @@ export type Principal = PrincipalLookup & {
 export type WorkspaceSession = Principal &
   Pick<ExternalIdentity, "email" | "displayName">
 
+export type WorkspaceViewSession = WorkspaceSession & {
+  workspaceView: WorkspaceView
+}
+
 export interface IdentityProvider {
   getIdentity(): Promise<ExternalIdentity | null>
 }
@@ -45,6 +53,8 @@ const WORKOS_ROLE_MAP = {
   founder: "founder",
   "operator-editor": "operator_editor",
   "agent-editor": "agent_editor",
+  // WorkOS default Admin role slug plus the FairLend custom slug.
+  admin: "administrator",
   administrator: "administrator",
 } as const satisfies Record<string, WorkspaceRole>
 
@@ -74,6 +84,30 @@ export class PrincipalNotProvisionedError extends Error {
     super("The authenticated principal has not been provisioned.")
     this.name = "PrincipalNotProvisionedError"
   }
+}
+
+export class WorkspaceViewAccessDeniedError extends Error {
+  constructor() {
+    super("Only administrators can switch workspace views.")
+    this.name = "WorkspaceViewAccessDeniedError"
+  }
+}
+
+export function resolveWorkspaceView(
+  role: WorkspaceRole,
+  requestedView: string | null | undefined
+): WorkspaceView {
+  if (role === "founder") return "elie"
+  if (role === "administrator" && requestedView === "elie") return "elie"
+  return "operator"
+}
+
+export function authorizeWorkspaceViewSwitch(
+  role: WorkspaceRole,
+  requestedView: WorkspaceView
+) {
+  if (role !== "administrator") throw new WorkspaceViewAccessDeniedError()
+  return requestedView
 }
 
 function mapWorkosRole(role: string | null): WorkspaceRole {

@@ -13,6 +13,38 @@ import {
   MAX_VOICE_CAPTURES_PER_REQUEST,
   VOICE_CAPTURE_OVERFLOW_SENTINEL,
 } from "./lib/requestLimits"
+import {
+  founderHandoffFormats,
+  type FounderHandoffFormat,
+} from "../shared/founder-handoff"
+
+function inferredFounderHandoffFormats(
+  deliverables: Array<Doc<"deliverables">>,
+  targets: Array<Doc<"deliveryTargets">>
+) {
+  const activeDeliverables = deliverables.filter(
+    (deliverable) => (deliverable.retention ?? "active") === "active"
+  )
+  const primary = activeDeliverables.find(
+    (deliverable) => deliverable.isPrimary
+  )
+  if (!primary) return null
+  const hasRequiredOriginalTarget = targets.some(
+    (target) =>
+      target.retention === "active" &&
+      target.isOriginal &&
+      target.isRequired &&
+      target.deliverableId === primary._id
+  )
+  if (!hasRequiredOriginalTarget) return null
+  const available = new Set(
+    activeDeliverables.map((deliverable) => deliverable.kind)
+  )
+  const formats = founderHandoffFormats.filter(
+    (format) => format === "original_response" || available.has(format)
+  ) as Array<FounderHandoffFormat>
+  return primary.promotedVersionId || formats.length > 1 ? formats : null
+}
 
 function agentJobClaimability(
   job: Pick<
@@ -83,6 +115,70 @@ export const backfillAssignmentFields = internalMutation({
   },
 })
 
+/**
+ * Expand-only request classification migration. Legacy rows with a durable
+ * Expert Interview package retain that classification; every other legacy row
+ * is a Standard Request.
+ */
+export const backfillContentRequestTypes = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  returns: v.object({ migrated: v.number(), done: v.boolean() }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("contentRequests").paginate({
+      cursor: args.cursor ?? null,
+      numItems: 50,
+    })
+    let migrated = 0
+    for (const request of page.page) {
+      const expertInterview = await ctx.db
+        .query("expertInterviews")
+        .withIndex("by_request", (index) => index.eq("requestId", request._id))
+        .unique()
+      const expectedRequestType = expertInterview
+        ? "expert_interview"
+        : "standard"
+      if (request.requestType === expectedRequestType) continue
+      await ctx.db.patch(request._id, {
+        requestType: expectedRequestType,
+      })
+      migrated += 1
+    }
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.backfillContentRequestTypes,
+        { cursor: page.continueCursor }
+      )
+    return { migrated, done: page.isDone }
+  },
+})
+
+export const backfillNormalizedPrincipalEmails = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  returns: v.object({ migrated: v.number(), done: v.boolean() }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("principals").paginate({
+      cursor: args.cursor ?? null,
+      numItems: 100,
+    })
+    let migrated = 0
+    for (const principal of page.page) {
+      const normalizedEmail = principal.email?.trim().toLowerCase()
+      if (!normalizedEmail || normalizedEmail === principal.email) continue
+      await ctx.db.patch(principal._id, { email: normalizedEmail })
+      migrated += 1
+    }
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.backfillNormalizedPrincipalEmails,
+        { cursor: page.continueCursor }
+      )
+    }
+    return { migrated, done: page.isDone }
+  },
+})
+
 export const backfillNormalizedSourceUrls = internalMutation({
   args: { cursor: v.optional(v.string()) },
   returns: v.object({ migrated: v.number(), done: v.boolean() }),
@@ -93,21 +189,55 @@ export const backfillNormalizedSourceUrls = internalMutation({
     })
     let migrated = 0
     for (const request of page.page) {
+      const expertInterview =
+        request.requestType === "expert_interview"
+          ? true
+          : await ctx.db
+              .query("expertInterviews")
+              .withIndex("by_request", (index) =>
+                index.eq("requestId", request._id)
+              )
+              .unique()
+      if (expertInterview) {
+        if (request.normalizedSourceUrl) {
+          await ctx.db.patch(request._id, { normalizedSourceUrl: undefined })
+          migrated += 1
+        }
+        continue
+      }
       if (request.normalizedSourceUrl || !request.sourceSnapshotId) continue
       const source = await ctx.db.get(request.sourceSnapshotId)
       const normalizedSourceUrl = source?.url
         ? normalizeSourceUrl(source.url)
         : null
       if (!normalizedSourceUrl) continue
-      const conflictingRequest = await ctx.db
+      const conflictingRequests = await ctx.db
         .query("contentRequests")
         .withIndex("by_organization_normalized_source_url", (index) =>
           index
             .eq("organizationId", request.organizationId)
             .eq("normalizedSourceUrl", normalizedSourceUrl)
         )
-        .first()
-      if (conflictingRequest && conflictingRequest._id !== request._id) {
+        .collect()
+      let conflictingRequest: (typeof conflictingRequests)[number] | undefined
+      for (const candidate of conflictingRequests) {
+        if (
+          candidate._id === request._id ||
+          candidate.requestType === "expert_interview"
+        )
+          continue
+        const candidateExpertInterview = await ctx.db
+          .query("expertInterviews")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", candidate._id)
+          )
+          .unique()
+        if (!candidateExpertInterview) {
+          conflictingRequest = candidate
+          break
+        }
+      }
+      if (conflictingRequest) {
         const existingConflict = await ctx.db
           .query("migrationConflicts")
           .withIndex("by_request_type", (index) =>
@@ -358,6 +488,95 @@ export const backfillOperatorWorkspace = internalMutation({
 })
 
 /**
+ * Reconstructs only promotions whose durable pre-handoff artifacts prove the
+ * operation completed: a promoted primary response and its required original
+ * target. The selected derivative formats come from active deliverables.
+ *
+ * Historical handoffs intentionally do not enqueue notifications. The
+ * migration is resumable and idempotent; an active handoff is never replaced.
+ */
+export const backfillFounderHandoffs = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  returns: v.object({ migrated: v.number(), done: v.boolean() }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("contentRequests").paginate({
+      cursor: args.cursor ?? null,
+      numItems: 50,
+    })
+    let migrated = 0
+    for (const request of page.page) {
+      const recipientId =
+        request.assigneePrincipalId ?? request.createdByPrincipalId
+      const [recipient, existing, deliverables, targets, latestAssignment] =
+        await Promise.all([
+          ctx.db.get(recipientId),
+          ctx.db
+            .query("founderHandoffs")
+            .withIndex("by_request_state", (index) =>
+              index.eq("requestId", request._id).eq("state", "active")
+            )
+            .unique(),
+          ctx.db
+            .query("deliverables")
+            .withIndex("by_request", (index) =>
+              index.eq("requestId", request._id)
+            )
+            .collect(),
+          ctx.db
+            .query("deliveryTargets")
+            .withIndex("by_request", (index) =>
+              index.eq("requestId", request._id)
+            )
+            .collect(),
+          ctx.db
+            .query("assignmentEvents")
+            .withIndex("by_request_occurred_at", (index) =>
+              index.eq("requestId", request._id)
+            )
+            .order("desc")
+            .first(),
+        ])
+      if (existing || recipient?.role !== "founder") continue
+      const selectedFormats = inferredFounderHandoffFormats(
+        deliverables,
+        targets
+      )
+      if (!selectedFormats) continue
+      const relevantUpdatedAt = [
+        request.createdAt,
+        latestAssignment?.occurredAt ?? 0,
+        ...deliverables.map((deliverable) => deliverable.updatedAt),
+        ...targets.map((target) => target.updatedAt),
+      ]
+      const deliveredAt = Math.max(...relevantUpdatedAt)
+      const createdByPrincipalId =
+        latestAssignment?.actorPrincipalId ?? request.createdByPrincipalId
+      await ctx.db.insert("founderHandoffs", {
+        organizationId: request.organizationId,
+        requestId: request._id,
+        recipientPrincipalId: recipient._id,
+        selectedFormats,
+        state: "active",
+        createdByPrincipalId,
+        correlationId: `migration:founder-handoff:${request._id}`,
+        deliveredAt,
+        createdAt: deliveredAt,
+        updatedAt: deliveredAt,
+      })
+      await refreshOperatorWorkspaceProjection(ctx, request._id)
+      migrated += 1
+    }
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(
+        0,
+        internal.migrations.backfillFounderHandoffs,
+        { cursor: page.continueCursor }
+      )
+    return { migrated, done: page.isDone }
+  },
+})
+
+/**
  * Introduced with indexed job claiming. This keeps the hot claim path bounded
  * while making every pre-existing non-terminal job visible to that index.
  * Safe to rerun because jobs with the correct claimability timestamp are
@@ -530,39 +749,63 @@ export const validateV1Invariants = internalQuery({
       if (request.activeVoiceCaptureCount === undefined)
         issues.push({ humanId: request.humanId, code: "voice_capture_count" })
 
-      const [deliverables, targets, projection, jobs, source] =
-        await Promise.all([
-          ctx.db
-            .query("deliverables")
-            .withIndex("by_request", (index) =>
-              index.eq("requestId", request._id)
-            )
-            .collect(),
-          ctx.db
-            .query("deliveryTargets")
-            .withIndex("by_request", (index) =>
-              index.eq("requestId", request._id)
-            )
-            .collect(),
-          ctx.db
-            .query("operatorWorkspaceItems")
-            .withIndex("by_request", (index) =>
-              index.eq("requestId", request._id)
-            )
-            .unique(),
-          ctx.db
-            .query("agentJobs")
-            .withIndex("by_request", (index) =>
-              index.eq("requestId", request._id)
-            )
-            .collect(),
-          request.sourceSnapshotId
-            ? ctx.db.get(request.sourceSnapshotId)
-            : Promise.resolve(null),
-        ])
-      const expectedNormalizedSourceUrl = source?.url
-        ? normalizeSourceUrl(source.url)
-        : null
+      const [
+        deliverables,
+        targets,
+        projection,
+        jobs,
+        source,
+        recipient,
+        expertInterview,
+      ] = await Promise.all([
+        ctx.db
+          .query("deliverables")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", request._id)
+          )
+          .collect(),
+        ctx.db
+          .query("deliveryTargets")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", request._id)
+          )
+          .collect(),
+        ctx.db
+          .query("operatorWorkspaceItems")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", request._id)
+          )
+          .unique(),
+        ctx.db
+          .query("agentJobs")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", request._id)
+          )
+          .collect(),
+        request.sourceSnapshotId
+          ? ctx.db.get(request.sourceSnapshotId)
+          : Promise.resolve(null),
+        ctx.db.get(request.assigneePrincipalId ?? request.createdByPrincipalId),
+        ctx.db
+          .query("expertInterviews")
+          .withIndex("by_request", (index) =>
+            index.eq("requestId", request._id)
+          )
+          .unique(),
+      ])
+      if (
+        !request.requestType ||
+        (Boolean(expertInterview) &&
+          request.requestType !== "expert_interview") ||
+        (!expertInterview && request.requestType === "expert_interview")
+      )
+        issues.push({ humanId: request.humanId, code: "request_type" })
+      const isExpertInterview =
+        request.requestType === "expert_interview" || Boolean(expertInterview)
+      const expectedNormalizedSourceUrl =
+        !isExpertInterview && source?.url
+          ? normalizeSourceUrl(source.url)
+          : null
       const collision = await ctx.db
         .query("migrationConflicts")
         .withIndex("by_request_type", (index) =>
@@ -571,14 +814,15 @@ export const validateV1Invariants = internalQuery({
             .eq("type", "normalized_source_url_collision")
         )
         .unique()
-      if (collision && !collision.resolved) {
+      if (!isExpertInterview && collision && !collision.resolved) {
         issues.push({
           humanId: request.humanId,
           code: "normalized_source_url_collision",
         })
       } else if (
-        expectedNormalizedSourceUrl &&
-        request.normalizedSourceUrl !== expectedNormalizedSourceUrl
+        (isExpertInterview && request.normalizedSourceUrl !== undefined) ||
+        (expectedNormalizedSourceUrl &&
+          request.normalizedSourceUrl !== expectedNormalizedSourceUrl)
       )
         issues.push({
           humanId: request.humanId,
@@ -602,6 +846,19 @@ export const validateV1Invariants = internalQuery({
         issues.push({ humanId: request.humanId, code: "original_target" })
       if (!projection)
         issues.push({ humanId: request.humanId, code: "operator_projection" })
+      if (
+        recipient?.role === "founder" &&
+        inferredFounderHandoffFormats(deliverables, targets)
+      ) {
+        const handoff = await ctx.db
+          .query("founderHandoffs")
+          .withIndex("by_request_state", (index) =>
+            index.eq("requestId", request._id).eq("state", "active")
+          )
+          .unique()
+        if (!handoff)
+          issues.push({ humanId: request.humanId, code: "founder_handoff" })
+      }
 
       for (const job of jobs) {
         const { claimableAt, reapableAt } = agentJobClaimability(job)

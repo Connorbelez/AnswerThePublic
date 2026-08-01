@@ -1,0 +1,277 @@
+{
+  "label": "optimized",
+  "project": "desktop-chromium",
+  "viewport": {
+    "width": 1536,
+    "height": 1024
+  },
+  "capturedAt": "2026-07-20T04:11:14.213Z",
+  "bundle": {
+    "assetCount": 31,
+    "totalBytes": 5773245,
+    "totalGzipBytes": 1989990,
+    "largestAssets": [
+      {
+        "file": "founder-request-canvas-Bj8oBY5d.js",
+        "bytes": 4741429,
+        "gzipBytes": 1693360
+      },
+      {
+        "file": "index-CplXGkI3.js",
+        "bytes": 315639,
+        "gzipBytes": 100801
+      },
+      {
+        "file": "index-D9WkoBtY.css",
+        "bytes": 231581,
+        "gzipBytes": 35492
+      },
+      {
+        "file": "markdown-content-BtqzDHf-.js",
+        "bytes": 154387,
+        "gzipBytes": 45495
+      },
+      {
+        "file": "app.requests._requestId-BkbjXWW_.js",
+        "bytes": 96472,
+        "gzipBytes": 30006
+      },
+      {
+        "file": "avatar-Y9B_UdwE.js",
+        "bytes": 93516,
+        "gzipBytes": 31479
+      },
+      {
+        "file": "utils-BXza46oy.js",
+        "bytes": 35835,
+        "gzipBytes": 11739
+      },
+      {
+        "file": "dist-CYALE3ch.js",
+        "bytes": 31753,
+        "gzipBytes": 11524
+      },
+      {
+        "file": "app-BcT9kxzj.js",
+        "bytes": 16323,
+        "gzipBytes": 6151
+      },
+      {
+        "file": "app.index-7zDKmWvB.js",
+        "bytes": 11863,
+        "gzipBytes": 4032
+      },
+      {
+        "file": "toggle-group-C1qCPBwt.js",
+        "bytes": 9036,
+        "gzipBytes": 3470
+      },
+      {
+        "file": "ToolbarRootContext-8I-w6Wvr.js",
+        "bytes": 6406,
+        "gzipBytes": 2586
+      }
+    ]
+  },
+  "warmNavigationMs": 220.1,
+  "routes": [
+    {
+      "route": "/sign-in",
+      "finalUrl": "/sign-in",
+      "visibleMs": 85,
+      "lcpMs": 40,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 666439,
+      "encodedBytes": 664039,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/unauthorized",
+      "finalUrl": "/unauthorized",
+      "visibleMs": 38.4,
+      "lcpMs": 36,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 4127,
+      "encodedBytes": 664113,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/route-that-does-not-exist",
+      "finalUrl": "/route-that-does-not-exist",
+      "visibleMs": 40.6,
+      "lcpMs": 36,
+      "cls": 0.0026,
+      "longTasks": 0,
+      "transferredBytes": 1800,
+      "encodedBytes": 662386,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 79.9,
+      "lcpMs": 68,
+      "cls": 0.0007,
+      "longTasks": 1,
+      "transferredBytes": 821034,
+      "encodedBytes": 815034,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 2,
+          "targets": [
+            [
+              ".request-card-link:nth-child(1) > .group\\/card.flex-col.gap-\\(--card-spacing\\) > .group\\/card-header.\\@container\\/card-header.auto-rows-min > .request-card__meta > .bg-destructive\\/10.text-destructive.focus-visible\\:ring-destructive\\/20"
+            ],
+            [
+              ".request-card-link:nth-child(2) > .group\\/card.flex-col.gap-\\(--card-spacing\\) > .group\\/card-header.\\@container\\/card-header.auto-rows-min > .request-card__meta > .bg-destructive\\/10.text-destructive.focus-visible\\:ring-destructive\\/20"
+            ]
+          ],
+          "snippets": [
+            "<span data-slot=\"badge\" data-variant=\"destructive\" class=\"group/badge inline-f...\">",
+            "<span data-slot=\"badge\" data-variant=\"destructive\" class=\"group/badge inline-f...\">"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/app/new",
+      "finalUrl": "/app/new",
+      "visibleMs": 80.8,
+      "lcpMs": 52,
+      "cls": 0.0001,
+      "longTasks": 0,
+      "transferredBytes": 12540,
+      "encodedBytes": 795611,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010002",
+      "finalUrl": "/app/requests/CR-00000000000010002",
+      "visibleMs": 108.2,
+      "lcpMs": 544,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 261682,
+      "encodedBytes": 1052387,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 72.9,
+      "lcpMs": 48,
+      "cls": 0.0002,
+      "longTasks": 0,
+      "transferredBytes": 19978,
+      "encodedBytes": 815034,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010002",
+      "finalUrl": "/app/requests/CR-00000000000010002",
+      "visibleMs": 76.9,
+      "lcpMs": 608,
+      "cls": 0.0002,
+      "longTasks": 1,
+      "transferredBytes": 5010121,
+      "encodedBytes": 5804192,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 68.4,
+      "lcpMs": 56,
+      "cls": 0.0007,
+      "longTasks": 1,
+      "transferredBytes": 821034,
+      "encodedBytes": 815034,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 2,
+          "targets": [
+            [
+              ".request-card-link:nth-child(1) > .group\\/card.flex-col.gap-\\(--card-spacing\\) > .group\\/card-header.\\@container\\/card-header.auto-rows-min > .request-card__meta > .bg-destructive\\/10.text-destructive.focus-visible\\:ring-destructive\\/20"
+            ],
+            [
+              ".request-card-link:nth-child(2) > .group\\/card.flex-col.gap-\\(--card-spacing\\) > .group\\/card-header.\\@container\\/card-header.auto-rows-min > .request-card__meta > .bg-destructive\\/10.text-destructive.focus-visible\\:ring-destructive\\/20"
+            ]
+          ],
+          "snippets": [
+            "<span data-slot=\"badge\" data-variant=\"destructive\" class=\"group/badge inline-f...\">",
+            "<span data-slot=\"badge\" data-variant=\"destructive\" class=\"group/badge inline-f...\">"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 75.4,
+      "lcpMs": 64,
+      "cls": 0.0009,
+      "longTasks": 1,
+      "transferredBytes": 821034,
+      "encodedBytes": 815034,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "nodes": 2,
+          "targets": [
+            [
+              ".request-card-link:nth-child(1) > .group\\/card.flex-col.gap-\\(--card-spacing\\) > .group\\/card-header.\\@container\\/card-header.auto-rows-min > .request-card__meta > .bg-destructive\\/10.text-destructive.focus-visible\\:ring-destructive\\/20"
+            ],
+            [
+              ".request-card-link:nth-child(2) > .group\\/card.flex-col.gap-\\(--card-spacing\\) > .group\\/card-header.\\@container\\/card-header.auto-rows-min > .request-card__meta > .bg-destructive\\/10.text-destructive.focus-visible\\:ring-destructive\\/20"
+            ]
+          ],
+          "snippets": [
+            "<span data-slot=\"badge\" data-variant=\"destructive\" class=\"group/badge inline-f...\">",
+            "<span data-slot=\"badge\" data-variant=\"destructive\" class=\"group/badge inline-f...\">"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "/share/d0fc68068f8b3dfb138b7bf04b349c92faed6504901567bb032ae6d6b106d72c",
+      "finalUrl": "/share/d0fc68068f8b3dfb138b7bf04b349c92faed6504901567bb032ae6d6b106d72c",
+      "visibleMs": 73.8,
+      "lcpMs": 44,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 160090,
+      "encodedBytes": 819776,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010002",
+      "finalUrl": "/app/requests/CR-00000000000010002",
+      "visibleMs": 132.8,
+      "lcpMs": 540,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 9603,
+      "encodedBytes": 1052387,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    }
+  ]
+}

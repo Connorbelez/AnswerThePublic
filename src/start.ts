@@ -1,7 +1,4 @@
-import {
-  createCsrfMiddleware,
-  createStart,
-} from "@tanstack/react-start"
+import { createCsrfMiddleware, createStart } from "@tanstack/react-start"
 import { authkitMiddleware } from "@workos/authkit-tanstack-react-start"
 
 import { getOptionalWorkosServerConfig } from "@/config/workos-runtime-config"
@@ -13,6 +10,8 @@ const csrfMiddleware = createCsrfMiddleware({
 export const startInstance = createStart(() => ({
   requestMiddleware: [
     csrfMiddleware,
-    ...(getOptionalWorkosServerConfig() ? [authkitMiddleware()] : []),
+    ...(import.meta.env.MODE !== "e2e" && getOptionalWorkosServerConfig()
+      ? [authkitMiddleware()]
+      : []),
   ],
 }))

@@ -4,6 +4,7 @@ import {
   PrincipalNotProvisionedError,
   UnsupportedWorkspaceRoleError,
   createWorkspaceSessionService,
+  resolveWorkspaceView,
   type PrincipalRepository,
 } from "@/application/workspace-session"
 import type { WorkspaceSessionResult } from "@/application/load-workspace-session"
@@ -18,9 +19,8 @@ export async function loadWorkspaceSessionFromRequest(): Promise<WorkspaceSessio
       if (!identities.fixtureIdentity) {
         throw new Error("Browser-test identity injection is disabled.")
       }
-      const { createConvexTestPrincipalRepository } = await import(
-        "@/infrastructure/convex-test-principal-repository.server"
-      )
+      const { createConvexTestPrincipalRepository } =
+        await import("@/infrastructure/convex-test-principal-repository.server")
       principals = await createConvexTestPrincipalRepository(
         identities.fixtureIdentity
       )
@@ -33,10 +33,10 @@ export async function loadWorkspaceSessionFromRequest(): Promise<WorkspaceSessio
     }
     const expectedOrganizationId = identities.isFixture
       ? process.env.FAIRLEND_E2E_ORGANIZATION_ID
-      : process.env.WORKOS_ORGANIZATION_ID ??
+      : (process.env.WORKOS_ORGANIZATION_ID ??
         (import.meta.env.MODE === "e2e"
           ? process.env.FAIRLEND_E2E_ORGANIZATION_ID
-          : undefined)
+          : undefined))
     if (!expectedOrganizationId) {
       throw new Error("The FairLend WorkOS organization is not configured.")
     }
@@ -46,7 +46,18 @@ export async function loadWorkspaceSessionFromRequest(): Promise<WorkspaceSessio
       principals,
       expectedOrganizationId,
     }).load()
-    return { status: "authenticated", session }
+    const { readWorkspaceViewCookie } =
+      await import("@/application/workspace-view-cookie.server")
+    return {
+      status: "authenticated",
+      session: {
+        ...session,
+        workspaceView: resolveWorkspaceView(
+          session.role,
+          readWorkspaceViewCookie()
+        ),
+      },
+    }
   } catch (error) {
     if (error instanceof AuthenticationRequiredError) {
       return { status: "unauthenticated" }

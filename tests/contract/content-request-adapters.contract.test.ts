@@ -18,11 +18,27 @@ import { AuthenticationRequiredError } from "@/application/workspace-session"
 function serviceStub(overrides: Partial<ContentRequestService> = {}) {
   return {
     createManual: vi.fn(),
+    createExpertInterview: vi.fn(),
+    saveExpertInterviewPackage: vi.fn(),
+    getExpertInterview: vi.fn(),
+    searchPeople: vi.fn(),
+    createPerson: vi.fn(),
+    listGuestAccessGrants: vi.fn(),
+    createGuestAccessGrant: vi.fn(),
+    revokeGuestAccessGrant: vi.fn(),
+    renewGuestAccessGrant: vi.fn(),
+    inspectGuestResponseWorkspace: vi.fn(),
+    addGuestResponseFeedback: vi.fn(),
+    addGuestResponseAssetFeedback: vi.fn(),
+    reopenGuestResponseWorkspace: vi.fn(),
     getByHumanId: vi.fn(),
     list: vi.fn(),
+    listFounderWorkspace: vi.fn(),
     listPage: vi.fn(),
     getProductMetrics: vi.fn(),
     listOperatorWorkspace: vi.fn(),
+    getCurrentFounderHandoff: vi.fn(),
+    finalizeFounderHandoff: vi.fn(),
     resolve: vi.fn(),
     update: vi.fn(),
     assign: vi.fn(),
@@ -64,10 +80,18 @@ function serviceStub(overrides: Partial<ContentRequestService> = {}) {
     listAgentJobs: vi.fn(),
     listAgentJobsPage: vi.fn(),
     claimAgentJob: vi.fn(),
+    claimAgentJobForRequest: vi.fn(),
+    claimExpertSynthesisJob: vi.fn(),
     heartbeatAgentJob: vi.fn(),
     getAgentJobInput: vi.fn(),
     completeAgentJob: vi.fn(),
     failAgentJob: vi.fn(),
+    listExpertInterviewSubmissions: vi.fn(),
+    listExpertInterviewContextVersionIds: vi.fn(),
+    createExpertSynthesisProcessingSnapshot: vi.fn(),
+    verifyExpertSynthesisProcessingSnapshot: vi.fn(),
+    commitExpertSynthesis: vi.fn(),
+    setExpertInterviewSubmissionInclusion: vi.fn(),
     listDeliverables: vi.fn(),
     createDerivativeDeliverable: vi.fn(),
     createDeliverableVersion: vi.fn(),
@@ -91,6 +115,29 @@ function serviceStub(overrides: Partial<ContentRequestService> = {}) {
 }
 
 describe("Content Request adapter contracts", () => {
+  it("logs unexpected failures while keeping the HTTP response generic", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+    const handlers = createContentRequestCollectionHandler(async () => {
+      throw new Error("diagnostic-only failure")
+    })
+
+    const response = await handlers.GET({
+      request: new Request("https://fairlend.test/api/v1/content-requests"),
+    })
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "The request could not be completed.",
+      },
+    })
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining("diagnostic-only failure")
+    )
+    consoleError.mockRestore()
+  })
+
   it("maps an HTTP manual-create body and correlation ID to the shared service", async () => {
     const createManual = vi.fn().mockResolvedValue({ humanId: "CR-123" })
     const handlers = createContentRequestCollectionHandler(async () =>

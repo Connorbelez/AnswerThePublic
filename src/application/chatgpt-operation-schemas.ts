@@ -28,6 +28,9 @@ const conflictId = nonEmpty.describe(
 const shareId = nonEmpty.describe(
   "Stable public share ID returned by share.list"
 )
+const personId = nonEmpty.describe(
+  "Stable organization-scoped Person ID selected for this grant"
+)
 const cursor = z
   .string()
   .nullable()
@@ -56,6 +59,21 @@ const citation = z.strictObject({
   supports: nonEmpty,
 })
 const priority = z.enum(["critical", "high", "normal", "low"])
+const expertInterviewFraming = z.enum([
+  "educational",
+  "how_to",
+  "insider_knowledge",
+  "fairlend_sales",
+])
+const expertInterviewGapKind = z.enum([
+  "confusing_coverage",
+  "local_specific",
+  "reality_on_the_ground",
+  "practitioner_best_practice",
+  "fragmented_how_to",
+  "missing_evidence",
+  "other",
+])
 
 const noArguments = z.strictObject({})
 
@@ -144,6 +162,151 @@ export const chatGptOperationArgumentSchemas: Record<
     source,
   }),
   "request.relations": z.strictObject({ humanId }),
+  "expert_interview.research_prompt": z.strictObject({
+    topic: nonEmpty.describe(
+      "Question or topic whose indexed knowledge gaps should be researched"
+    ),
+    audience: z.string().optional(),
+    geography: z.string().optional(),
+    framing: expertInterviewFraming.optional(),
+    operatorInstructions: z
+      .string()
+      .optional()
+      .describe(
+        "Operator-supplied requirements; these take priority over agent inferences"
+      ),
+  }),
+  "expert_interview.create": z.strictObject({
+    title: nonEmpty,
+    aliases: z.array(nonEmpty).max(100).optional(),
+    brief: z.strictObject({
+      topic: nonEmpty,
+      summary: nonEmpty,
+      audience: nonEmpty,
+      framing: expertInterviewFraming,
+      fairlendPosture: nonEmpty,
+      founderContribution: nonEmpty,
+    }),
+    gaps: z
+      .array(
+        z.strictObject({
+          id: nonEmpty,
+          kind: expertInterviewGapKind,
+          title: nonEmpty,
+          existingCoverage: nonEmpty,
+          whyItFallsShort: nonEmpty,
+          expertOpportunity: nonEmpty,
+          citations: z.array(citation).max(100),
+        })
+      )
+      .min(1)
+      .max(50),
+    questions: z
+      .array(
+        z.strictObject({
+          id: nonEmpty,
+          question: nonEmpty,
+          motivation: nonEmpty,
+          gapIds: z.array(nonEmpty).min(1).max(50),
+        })
+      )
+      .min(1)
+      .max(100),
+    operatorInstructions: z
+      .string()
+      .optional()
+      .describe(
+        "Operator-supplied requirements persisted as highest-priority agent context"
+      ),
+    source,
+  }),
+  "expert_interview.processing_input": z.strictObject({
+    humanId,
+    submissionIds: z
+      .array(nonEmpty)
+      .min(1)
+      .max(100)
+      .describe("Explicit ordered immutable Submission IDs to synthesize"),
+    synthesisInstructions: z
+      .string()
+      .optional()
+      .describe(
+        "Operator-supplied synthesis requirements; these take priority over defaults"
+      ),
+  }),
+  "expert_interview.submissions": z.strictObject({ humanId }),
+  "expert_interview.submission_selection": z.strictObject({
+    humanId,
+    submissionId: nonEmpty,
+    included: z.boolean(),
+  }),
+  "expert_interview.complete_processing": z
+    .strictObject({
+      humanId,
+      processingToken: nonEmpty.describe(
+        "The signed processing snapshot token returned by expert_interview.processing_input"
+      ),
+      payloadDigest: z
+        .string()
+        .regex(/^[0-9a-f]{64}$/)
+        .describe(
+          "The canonical processing payload SHA-256 returned by expert_interview.processing_input"
+        ),
+      submissionIds: z
+        .array(nonEmpty)
+        .min(1)
+        .max(100)
+        .describe("The exact Submission IDs used to create this draft"),
+      body: nonEmpty.describe("Publication-ready Markdown article draft"),
+      jobId: jobId
+        .optional()
+        .describe(
+          "Required when the request has an active founder drafting job"
+        ),
+      leaseToken: nonEmpty
+        .optional()
+        .describe("Active lease token returned by job.claim"),
+      leaseGeneration: z.number().int().min(1).optional(),
+      deliverableId: deliverableId
+        .optional()
+        .describe(
+          "Optional exact article Deliverable to version; omit to create a new Deliverable"
+        ),
+      name: z.string().optional(),
+      changeSummary: z.string().optional(),
+    })
+    .superRefine((value, context) => {
+      const leaseTuple = [value.jobId, value.leaseToken, value.leaseGeneration]
+      if (
+        leaseTuple.some((item) => item !== undefined) &&
+        !leaseTuple.every((item) => item !== undefined)
+      )
+        context.addIssue({
+          code: "custom",
+          message:
+            "jobId, leaseToken, and leaseGeneration must be supplied together",
+          path: ["jobId"],
+        })
+    }),
+  "person.search": z.strictObject({
+    query: z.string(),
+    limit,
+  }),
+  "person.create": z.strictObject({
+    humanId,
+    displayName: nonEmpty,
+    email: z.string().email(),
+  }),
+  "guest_access.list": z.strictObject({
+    humanId,
+    ...offsetPagination,
+  }),
+  "guest_access.create": z.strictObject({
+    humanId,
+    personId,
+  }),
+  "guest_access.revoke": z.strictObject({ grantId: nonEmpty }),
+  "guest_access.renew": z.strictObject({ grantId: nonEmpty }),
   "principal.list": z.strictObject(offsetPagination),
   "notification.list": z.strictObject(pagination),
   "notification.read": z.strictObject({
@@ -185,6 +348,11 @@ export const chatGptOperationArgumentSchemas: Record<
   }),
   "job.list": z.strictObject(pagination),
   "job.claim": z.strictObject({
+    humanId: humanId
+      .optional()
+      .describe(
+        "Bind the claim to the exact Expert Interview request instead of claiming the oldest organization job"
+      ),
     leaseMs: z.number().int().min(1).max(3_600_000),
   }),
   "job.input": z.strictObject({ jobId }),

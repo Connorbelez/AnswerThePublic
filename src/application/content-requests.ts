@@ -1,11 +1,24 @@
+import type {
+  FounderHandoffFormat,
+  FounderHandoffStage,
+} from "../../shared/founder-handoff"
+import type {
+  CompleteExpertInterviewProcessingInput,
+  CreateExpertInterviewInput,
+  ExpertInterviewBrief,
+  ExpertInterviewPackage,
+  ExpertInterviewQuestion,
+  ExpertInterviewSubmissionSummary,
+  ExpertSynthesisProcessingSnapshot,
+  ExpertSynthesisProvenance,
+  SaveExpertInterviewPackageInput,
+} from "@/application/expert-interviews"
+
 export type RequestOrigin =
-  | "manual"
-  | "automated_scout"
-  | "chatgpt_app"
-  | "cli"
-  | "http_api"
+  "manual" | "automated_scout" | "chatgpt_app" | "cli" | "http_api"
 
 export type RequestPriority = "critical" | "high" | "normal" | "low"
+export type ContentRequestType = "standard" | "expert_interview"
 
 export type RequestLifecycle =
   | "pending"
@@ -40,6 +53,7 @@ export type ContentRequest = {
   humanId: string
   title: string
   aliases: Array<string>
+  requestType: ContentRequestType
   origin: RequestOrigin
   priority: RequestPriority
   timingLabel?: string | null
@@ -149,11 +163,15 @@ export type ContentNotification = {
   requestHumanId: string
   type:
     | "request_assigned"
+    | "founder_handoff"
     | "critical_escalation"
     | "deadline_approaching"
     | "response_ready"
     | "drafting_failed"
     | "delivery_reopened"
+    | "guest_submission"
+    | "guest_expiry_approaching"
+    | "guest_upload_failed"
   emailQueued: boolean
   emailStatus: "queued" | "sent" | "failed"
   createdAt: number
@@ -166,7 +184,8 @@ export type ContentRequestAuditEvent = {
   operation: string
   correlationId: string
   requestHumanId: string
-  actorPrincipalId: string
+  actorPrincipalId: string | null
+  actorGrantId: string | null
   credentialId: string
   occurredAt: number
   beforeVersion: number | null
@@ -301,12 +320,7 @@ export type AgentJob = {
   jobId: string
   requestHumanId: string
   status:
-    | "queued"
-    | "running"
-    | "retry_wait"
-    | "failed"
-    | "completed"
-    | "cancelled"
+    "queued" | "running" | "retry_wait" | "failed" | "completed" | "cancelled"
   attempts: number
   maxAttempts: number
   leaseGeneration: number
@@ -322,6 +336,8 @@ export type AgentJob = {
 
 export type AgentJobInput = {
   job: AgentJob
+  processingModel: "founder_input" | "expert_submissions"
+  expertSubmissionIds: Array<string>
   source: {
     question: string | null
     body: string | null
@@ -335,7 +351,7 @@ export type AgentJobInput = {
     heads: Array<string>
     revision: number
     occurredAt: number
-  }
+  } | null
   context: Array<{
     kind: string
     title: string
@@ -431,6 +447,478 @@ export type PublicShareView = {
   createdAt: number
 }
 
+export type PersonSummary = {
+  personId: string
+  displayName: string
+  email: string
+  principalId: string | null
+  isFounder: boolean
+}
+
+export type PersonSearchResult = {
+  people: Array<PersonSummary>
+  defaultPersonId: string | null
+}
+
+export type CreatePersonInput = {
+  humanId: string
+  displayName: string
+  email: string
+  correlationId: string
+}
+
+export type GuestAccessGrantState =
+  "generated" | "opened" | "in_progress" | "submitted" | "expired" | "revoked"
+
+export type GuestAccessGrantSummary = {
+  grantId: string
+  requestHumanId: string
+  person: PersonSummary
+  state: GuestAccessGrantState
+  tokenVersion: number
+  expiresAt: number
+  createdAt: number
+  firstOpenedAt: number | null
+  latestActivityAt: number
+  progress: { completed: number; total: number }
+  submitted: boolean
+  events: Array<{
+    kind:
+      | "generated"
+      | "opened"
+      | "first_progress"
+      | "submitted"
+      | "expired"
+      | "revoked"
+      | "renewed"
+      | "reopened"
+      | "taken_over"
+    occurredAt: number
+    actor: "guest" | "administrator" | "system"
+    actorName: string
+    tokenVersion: number | null
+  }>
+}
+
+export type CreateGuestAccessGrantInput = {
+  humanId: string
+  personId: string
+  correlationId: string
+}
+
+export type CreateGuestAccessGrantResult = {
+  grant: GuestAccessGrantSummary
+  token: string | null
+}
+
+export type MutateGuestAccessGrantInput = {
+  grantId: string
+  correlationId: string
+  expectedAggregateVersion?: number
+}
+
+export type RenewGuestAccessGrantResult = {
+  grant: GuestAccessGrantSummary
+  token: string | null
+}
+
+export type GuestAnswerMode = "batch" | "one_by_one"
+
+export type GuestEditorLease = {
+  active: boolean
+  generation: number
+  expiresAt: number | null
+}
+
+export type GuestResponseFeedback = {
+  feedbackId: string
+  scope:
+    | { kind: "workspace" }
+    | { kind: "question"; questionId: string }
+    | { kind: "asset"; assetId: string }
+  body: string
+  author: { displayName: string }
+  createdAt: number
+}
+
+export type GuestResponseAdminFeedback = Omit<
+  GuestResponseFeedback,
+  "author"
+> & {
+  author: { principalId: string; displayName: string }
+}
+
+export type GuestResponseAssetScope =
+  { kind: "batch" } | { kind: "question"; questionId: string }
+
+export type GuestResponseAsset = {
+  assetId: string
+  clientAssetId: string
+  kind: "audio" | "attachment"
+  scope: GuestResponseAssetScope
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+  uploadState: "uploading" | "uploaded" | "failed" | "discarded"
+  transcriptionState:
+    | "not_applicable"
+    | "queued"
+    | "transcribing"
+    | "transcribed"
+    | "failed"
+    | "discarded"
+  transcript: string | null
+  transcriptVersion: number
+  transcriptionLeaseExpiresAt: number | null
+  failureCode: string | null
+  retryHistory: Array<{
+    stage: "upload" | "transcription"
+    attempt: number
+    outcome: "started" | "succeeded" | "failed"
+    code: string | null
+    at: number
+  }>
+  version: number
+  submittedAt: number | null
+  discardedAt: number | null
+  downloadUrl: string | null
+  feedback: Array<GuestResponseAssetFeedback>
+  createdAt: number
+  updatedAt: number
+}
+
+export type GuestResponseAssetFeedback = {
+  feedbackId: string
+  assetId: string
+  body: string
+  author: { displayName: string }
+  createdAt: number
+}
+
+export type GuestResponseAdminAssetFeedback = Omit<
+  GuestResponseAssetFeedback,
+  "author"
+> & {
+  author: { principalId: string; displayName: string }
+}
+
+export type GuestResponseSubmission = {
+  submissionId: string
+  requestHumanId: string
+  respondent: {
+    personId: string
+    displayName: string
+    email: string
+  }
+  workspaceRevision: number
+  answerMode: GuestAnswerMode
+  selectedAnswerMode?: GuestAnswerMode
+  selectionMethod?:
+    "single_mode" | "respondent_choice" | "legacy_workspace_mode"
+  batchText: string
+  questionAnswers: Array<{ questionId: string; text: string }>
+  questions: Array<{
+    questionId: string
+    question: string
+    motivation: string
+    position: number
+    version: number
+  }>
+  assetSnapshots?: Array<{
+    assetId: string
+    version: number
+    transcriptVersion: number
+    kind: "audio" | "attachment"
+    scope: GuestResponseAssetScope
+  }>
+  submittedAt: number
+}
+
+export type GuestResponseWorkspace = {
+  answerMode: GuestAnswerMode
+  batchText: string
+  questionAnswers: Array<{ questionId: string; text: string }>
+  progress: { completed: number; total: number }
+  revision: number
+  editorLease: GuestEditorLease
+  locked?: boolean
+  lockedAt?: number | null
+  feedback?: Array<GuestResponseFeedback>
+}
+
+export type SaveGuestResponseWorkspaceInput = {
+  token: string
+  leaseId: string
+  leaseGeneration: number
+  operationId: string
+  expectedRevision: number
+  answerMode: GuestAnswerMode
+  batchText: string
+  questionAnswers: Array<{ questionId: string; text: string }>
+}
+
+export type SaveGuestResponseWorkspaceResult =
+  | { status: "saved"; workspace: GuestResponseWorkspace }
+  | { status: "conflict"; workspace: GuestResponseWorkspace }
+  | {
+      status: "lease_conflict"
+      workspace: GuestResponseWorkspace
+      editorLease: GuestEditorLease
+    }
+
+export type AcquireGuestEditorLeaseInput = {
+  token: string
+  leaseId: string
+  operationId: string
+}
+
+export type HeartbeatGuestEditorLeaseInput = AcquireGuestEditorLeaseInput & {
+  leaseGeneration: number
+}
+
+export type TakeoverGuestEditorLeaseInput = AcquireGuestEditorLeaseInput & {
+  expectedGeneration: number
+}
+
+export type GuestEditorLeaseResult = {
+  status: "editing" | "conflict"
+  editorLease: GuestEditorLease
+}
+
+export type SubmitGuestResponseWorkspaceInput = {
+  token: string
+  leaseId: string
+  leaseGeneration: number
+  operationId: string
+  expectedRevision: number
+  confirmed: true
+  selectedAnswerMode?: GuestAnswerMode
+}
+
+export type SubmitGuestResponseWorkspaceResult = {
+  status: "submitted"
+  workspace: { locked: true; revision: number }
+  submission: GuestResponseSubmission
+}
+
+export type GuestResponseAdminView = {
+  grantId: string
+  requestHumanId: string
+  assignedPerson: { displayName: string }
+  readOnly: true
+  questions: Array<{
+    questionId: string
+    question: string
+    motivation: string
+  }>
+  workspace: Omit<GuestResponseWorkspace, "feedback"> & {
+    feedback: Array<GuestResponseAdminFeedback>
+  }
+  submissions: Array<GuestResponseSubmission>
+  assets?: Array<{
+    asset: GuestResponseAsset
+    feedback: Array<GuestResponseAdminAssetFeedback>
+  }>
+}
+
+export type BeginGuestEvidenceUploadInput = {
+  token: string
+  leaseId: string
+  leaseGeneration: number
+  clientAssetId: string
+  kind: "audio" | "attachment"
+  scope: GuestResponseAssetScope
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+}
+
+export type BeginGuestEvidenceUploadResult = {
+  asset: GuestResponseAsset
+  uploadSessionId: string
+  uploadUrl: string
+  uploadRegistrationToken: string
+}
+
+export type GuestEvidenceRetryResult = {
+  asset: GuestResponseAsset
+  uploadSessionId: string | null
+  uploadUrl: string | null
+  uploadRegistrationToken: string | null
+}
+
+export type FinalizeGuestEvidenceUploadInput = {
+  token: string
+  leaseId: string
+  leaseGeneration: number
+  assetId: string
+  uploadSessionId: string
+  storageId: string
+}
+
+export type RegisterGuestEvidenceUploadInput = {
+  assetId: string
+  uploadSessionId: string
+  storageId: string
+  uploadRegistrationToken: string
+}
+
+export type MarkGuestEvidenceUploadFailedInput = {
+  token: string
+  leaseId: string
+  leaseGeneration: number
+  assetId: string
+  uploadSessionId: string
+  failureCode: string
+}
+
+export type RetryGuestEvidenceInput = {
+  token: string
+  leaseId: string
+  leaseGeneration: number
+  assetId: string
+  operationId: string
+}
+
+export type DiscardGuestEvidenceInput = RetryGuestEvidenceInput
+
+export type AddGuestResponseAssetFeedbackInput = {
+  grantId: string
+  assetId: string
+  body: string
+  correlationId: string
+}
+
+export type AddGuestResponseFeedbackInput = {
+  grantId: string
+  scope: { kind: "workspace" } | { kind: "question"; questionId: string }
+  body: string
+  correlationId: string
+}
+
+export type ReopenGuestResponseWorkspaceInput = {
+  grantId: string
+  correlationId: string
+}
+
+export type GuestAccessView =
+  | {
+      status: "available"
+      grantId: string
+      expiresAt: number
+      request: {
+        humanId: string
+        title: string
+        requestType: "standard" | "expert_interview"
+        brief: {
+          question: string | null
+          body: string | null
+        }
+      }
+      interview: {
+        brief: ExpertInterviewBrief
+        questions: Array<
+          Pick<ExpertInterviewQuestion, "id" | "question" | "motivation">
+        >
+      } | null
+      questions: Array<
+        Pick<ExpertInterviewQuestion, "id" | "question" | "motivation">
+      >
+      workspace?: GuestResponseWorkspace
+    }
+  | { status: "expired" }
+  | { status: "rate_limited" }
+
+export interface GuestAccessRepository {
+  resolve(token: string, networkSource: string): Promise<GuestAccessView | null>
+  acquireEditorLease(
+    input: AcquireGuestEditorLeaseInput
+  ): Promise<GuestEditorLeaseResult | null>
+  heartbeatEditorLease(
+    input: HeartbeatGuestEditorLeaseInput
+  ): Promise<GuestEditorLeaseResult | null>
+  takeoverEditorLease(
+    input: TakeoverGuestEditorLeaseInput
+  ): Promise<GuestEditorLeaseResult | null>
+  saveResponseWorkspace(
+    input: SaveGuestResponseWorkspaceInput
+  ): Promise<SaveGuestResponseWorkspaceResult | null>
+  submitResponseWorkspace(
+    input: SubmitGuestResponseWorkspaceInput
+  ): Promise<SubmitGuestResponseWorkspaceResult | null>
+  beginEvidenceUpload(
+    input: BeginGuestEvidenceUploadInput
+  ): Promise<BeginGuestEvidenceUploadResult>
+  finalizeEvidenceUpload(
+    input: FinalizeGuestEvidenceUploadInput
+  ): Promise<GuestResponseAsset>
+  registerEvidenceUpload(input: RegisterGuestEvidenceUploadInput): Promise<null>
+  markEvidenceUploadFailed(
+    input: MarkGuestEvidenceUploadFailedInput
+  ): Promise<GuestResponseAsset>
+  listEvidence(token: string): Promise<Array<GuestResponseAsset>>
+  retryEvidence(
+    input: RetryGuestEvidenceInput
+  ): Promise<GuestEvidenceRetryResult>
+  discardEvidence(input: DiscardGuestEvidenceInput): Promise<GuestResponseAsset>
+}
+
+export interface GuestAccessService {
+  resolve(token: string, networkSource: string): Promise<GuestAccessView | null>
+  acquireEditorLease(
+    input: AcquireGuestEditorLeaseInput
+  ): Promise<GuestEditorLeaseResult | null>
+  heartbeatEditorLease(
+    input: HeartbeatGuestEditorLeaseInput
+  ): Promise<GuestEditorLeaseResult | null>
+  takeoverEditorLease(
+    input: TakeoverGuestEditorLeaseInput
+  ): Promise<GuestEditorLeaseResult | null>
+  saveResponseWorkspace(
+    input: SaveGuestResponseWorkspaceInput
+  ): Promise<SaveGuestResponseWorkspaceResult | null>
+  submitResponseWorkspace(
+    input: SubmitGuestResponseWorkspaceInput
+  ): Promise<SubmitGuestResponseWorkspaceResult | null>
+  beginEvidenceUpload(
+    input: BeginGuestEvidenceUploadInput
+  ): Promise<BeginGuestEvidenceUploadResult>
+  finalizeEvidenceUpload(
+    input: FinalizeGuestEvidenceUploadInput
+  ): Promise<GuestResponseAsset>
+  registerEvidenceUpload(input: RegisterGuestEvidenceUploadInput): Promise<null>
+  markEvidenceUploadFailed(
+    input: MarkGuestEvidenceUploadFailedInput
+  ): Promise<GuestResponseAsset>
+  listEvidence(token: string): Promise<Array<GuestResponseAsset>>
+  retryEvidence(
+    input: RetryGuestEvidenceInput
+  ): Promise<GuestEvidenceRetryResult>
+  discardEvidence(input: DiscardGuestEvidenceInput): Promise<GuestResponseAsset>
+}
+
+export function createGuestAccessService(
+  repository: GuestAccessRepository
+): GuestAccessService {
+  return {
+    resolve: (token, networkSource) => repository.resolve(token, networkSource),
+    acquireEditorLease: (input) => repository.acquireEditorLease(input),
+    heartbeatEditorLease: (input) => repository.heartbeatEditorLease(input),
+    takeoverEditorLease: (input) => repository.takeoverEditorLease(input),
+    saveResponseWorkspace: (input) => repository.saveResponseWorkspace(input),
+    submitResponseWorkspace: (input) =>
+      repository.submitResponseWorkspace(input),
+    beginEvidenceUpload: (input) => repository.beginEvidenceUpload(input),
+    registerEvidenceUpload: (input) => repository.registerEvidenceUpload(input),
+    finalizeEvidenceUpload: (input) => repository.finalizeEvidenceUpload(input),
+    markEvidenceUploadFailed: (input) =>
+      repository.markEvidenceUploadFailed(input),
+    listEvidence: (token) => repository.listEvidence(token),
+    retryEvidence: (input) => repository.retryEvidence(input),
+    discardEvidence: (input) => repository.discardEvidence(input),
+  }
+}
+
 export function toPublicShareResponse(view: PublicShareView): PublicShareView {
   return {
     shareId: view.shareId,
@@ -459,9 +947,33 @@ export type OperatorQueue =
   | "delivered"
   | "attention_required"
 
+export type FounderHandoffStatus = {
+  handoffId: string
+  recipient: PrincipalSummary
+  selectedFormats: Array<FounderHandoffFormat>
+  note: string | null
+  stage: FounderHandoffStage
+  deliveredAt: number
+  openedAt: number | null
+  emailStatus: "queued" | "sent" | "failed" | null
+}
+
+export type FinalizeFounderHandoffInput = {
+  humanId: string
+  recipientPrincipalId: string
+  selectedFormats: Array<FounderHandoffFormat>
+  note?: string
+  correlationId: string
+}
+
+export type FinalizeFounderHandoffResult =
+  | { outcome: "applied"; handoff: FounderHandoffStatus }
+  | { outcome: "already_applied"; handoff: FounderHandoffStatus }
+
 export type OperatorWorkspaceItem = {
   request: ContentRequest
   queue: OperatorQueue
+  founderHandoff: FounderHandoffStatus | null
   agentJobStatus: AgentJob["status"] | null
   requiredDeliveryConfirmed: number
   requiredDeliveryTotal: number
@@ -554,10 +1066,87 @@ export type PrimaryDeliverableResult =
       conflict: SemanticConflict
     }
 
+export type ExpertInterviewCreationResult = {
+  request: ContentRequest
+  expertInterview: {
+    package: ExpertInterviewPackage
+    brief: ContentContextItem
+    gaps: Array<ContentContextItem>
+    questions: Array<ContentContextItem>
+    instructions: ContentContextItem
+  }
+}
+
 export interface ContentRequestRepository {
   createManual(input: PersistManualRequestInput): Promise<ContentRequest>
+  createExpertInterview(
+    input: CreateExpertInterviewInput & {
+      origin: PersistManualRequestInput["origin"]
+    }
+  ): Promise<ExpertInterviewCreationResult>
+  saveExpertInterviewPackage(
+    input: SaveExpertInterviewPackageInput
+  ): Promise<ExpertInterviewPackage>
+  getExpertInterview(humanId: string): Promise<ExpertInterviewPackage | null>
+  listExpertInterviewSubmissions(
+    humanId: string
+  ): Promise<Array<ExpertInterviewSubmissionSummary>>
+  listExpertInterviewContextVersionIds(humanId: string): Promise<Array<string>>
+  createExpertSynthesisProcessingSnapshot(input: {
+    humanId: string
+    submissionIds: Array<string>
+    synthesisInstructions?: string
+    correlationId: string
+  }): Promise<ExpertSynthesisProcessingSnapshot>
+  verifyExpertSynthesisProcessingSnapshot(input: {
+    humanId: string
+    processingToken: string
+    submissionIds: Array<string>
+  }): Promise<ExpertSynthesisProcessingSnapshot>
+  commitExpertSynthesis(
+    input: CompleteExpertInterviewProcessingInput
+  ): Promise<{
+    deliverable: Deliverable
+    provenance: ExpertSynthesisProvenance
+  }>
+  setExpertInterviewSubmissionInclusion(input: {
+    humanId: string
+    submissionId: string
+    included: boolean
+    correlationId: string
+  }): Promise<ExpertInterviewSubmissionSummary>
+  searchPeople(query: string, limit?: number): Promise<PersonSearchResult>
+  createPerson(input: CreatePersonInput): Promise<PersonSummary>
+  listGuestAccessGrants(
+    humanId: string
+  ): Promise<Array<GuestAccessGrantSummary>>
+  createGuestAccessGrant(
+    input: CreateGuestAccessGrantInput
+  ): Promise<CreateGuestAccessGrantResult>
+  revokeGuestAccessGrant(
+    input: MutateGuestAccessGrantInput
+  ): Promise<GuestAccessGrantSummary>
+  renewGuestAccessGrant(
+    input: MutateGuestAccessGrantInput
+  ): Promise<RenewGuestAccessGrantResult>
+  inspectGuestResponseWorkspace(
+    grantId: string
+  ): Promise<GuestResponseAdminView | null>
+  addGuestResponseAssetFeedback(
+    input: AddGuestResponseAssetFeedbackInput
+  ): Promise<GuestResponseAdminAssetFeedback>
+  addGuestResponseFeedback(
+    input: AddGuestResponseFeedbackInput
+  ): Promise<GuestResponseAdminFeedback>
+  reopenGuestResponseWorkspace(
+    input: ReopenGuestResponseWorkspaceInput
+  ): Promise<{ locked: false; lockedAt: null; revision: number }>
   getByHumanId(humanId: string): Promise<ContentRequest | null>
   list(limit?: number): Promise<Array<ContentRequest>>
+  listFounderWorkspace(
+    founderEmail: string,
+    limit?: number
+  ): Promise<Array<ContentRequest>>
   listPage(
     cursor: string | null,
     limit: number
@@ -565,6 +1154,12 @@ export interface ContentRequestRepository {
   listOperatorWorkspace(
     input?: OperatorWorkspaceInput
   ): Promise<OperatorWorkspacePage>
+  getCurrentFounderHandoff(
+    humanId: string
+  ): Promise<FounderHandoffStatus | null>
+  finalizeFounderHandoff(
+    input: FinalizeFounderHandoffInput
+  ): Promise<FinalizeFounderHandoffResult>
   resolve(query: string): Promise<RequestResolution>
   update(input: UpdateRequestInput): Promise<ContentRequest>
   assign(input: AssignRequestInput): Promise<ContentRequest>
@@ -620,12 +1215,14 @@ export interface ContentRequestRepository {
     limit: number
   ): Promise<CursorPage<ContentContextVersion>>
   getContextDeckPreferences(
-    humanId: string
+    humanId: string,
+    founderWorkspace?: boolean
   ): Promise<ContextDeckPreferences | null>
   saveContextDeckPreferences(
     humanId: string,
     preferences: ContextDeckPreferences,
-    correlationId: string
+    correlationId: string,
+    founderWorkspace?: boolean
   ): Promise<ContextDeckPreferences>
   getFounderInput(humanId: string): Promise<FounderInputDocument | null>
   saveFounderText(
@@ -695,6 +1292,16 @@ export interface ContentRequestRepository {
     limit: number
   ): Promise<CursorPage<AgentJob>>
   claimAgentJob(leaseToken: string, leaseMs: number): Promise<AgentJob | null>
+  claimAgentJobForRequest(
+    humanId: string,
+    leaseToken: string,
+    leaseMs: number
+  ): Promise<AgentJob | null>
+  claimExpertSynthesisJob(
+    humanId: string,
+    leaseToken: string,
+    leaseMs: number
+  ): Promise<AgentJob | null>
   heartbeatAgentJob(
     jobId: string,
     leaseToken: string,
@@ -813,8 +1420,72 @@ export interface ContentRequestRepository {
 
 export interface ContentRequestService {
   createManual(input: CreateManualRequestInput): Promise<ContentRequest>
+  createExpertInterview(
+    input: CreateExpertInterviewInput
+  ): Promise<ExpertInterviewCreationResult>
+  saveExpertInterviewPackage(
+    input: SaveExpertInterviewPackageInput
+  ): Promise<ExpertInterviewPackage>
+  getExpertInterview(humanId: string): Promise<ExpertInterviewPackage | null>
+  listExpertInterviewSubmissions(
+    humanId: string
+  ): Promise<Array<ExpertInterviewSubmissionSummary>>
+  listExpertInterviewContextVersionIds(humanId: string): Promise<Array<string>>
+  createExpertSynthesisProcessingSnapshot(input: {
+    humanId: string
+    submissionIds: Array<string>
+    synthesisInstructions?: string
+    correlationId: string
+  }): Promise<ExpertSynthesisProcessingSnapshot>
+  verifyExpertSynthesisProcessingSnapshot(input: {
+    humanId: string
+    processingToken: string
+    submissionIds: Array<string>
+  }): Promise<ExpertSynthesisProcessingSnapshot>
+  commitExpertSynthesis(
+    input: CompleteExpertInterviewProcessingInput
+  ): Promise<{
+    deliverable: Deliverable
+    provenance: ExpertSynthesisProvenance
+  }>
+  setExpertInterviewSubmissionInclusion(input: {
+    humanId: string
+    submissionId: string
+    included: boolean
+    correlationId: string
+  }): Promise<ExpertInterviewSubmissionSummary>
+  searchPeople(query: string, limit?: number): Promise<PersonSearchResult>
+  createPerson(input: CreatePersonInput): Promise<PersonSummary>
+  listGuestAccessGrants(
+    humanId: string
+  ): Promise<Array<GuestAccessGrantSummary>>
+  createGuestAccessGrant(
+    input: CreateGuestAccessGrantInput
+  ): Promise<CreateGuestAccessGrantResult>
+  revokeGuestAccessGrant(
+    input: MutateGuestAccessGrantInput
+  ): Promise<GuestAccessGrantSummary>
+  renewGuestAccessGrant(
+    input: MutateGuestAccessGrantInput
+  ): Promise<RenewGuestAccessGrantResult>
+  inspectGuestResponseWorkspace(
+    grantId: string
+  ): Promise<GuestResponseAdminView | null>
+  addGuestResponseAssetFeedback(
+    input: AddGuestResponseAssetFeedbackInput
+  ): Promise<GuestResponseAdminAssetFeedback>
+  addGuestResponseFeedback(
+    input: AddGuestResponseFeedbackInput
+  ): Promise<GuestResponseAdminFeedback>
+  reopenGuestResponseWorkspace(
+    input: ReopenGuestResponseWorkspaceInput
+  ): Promise<{ locked: false; lockedAt: null; revision: number }>
   getByHumanId(humanId: string): Promise<ContentRequest | null>
   list(limit?: number): Promise<Array<ContentRequest>>
+  listFounderWorkspace(
+    founderEmail: string,
+    limit?: number
+  ): Promise<Array<ContentRequest>>
   listPage(
     cursor: string | null,
     limit: number
@@ -822,6 +1493,12 @@ export interface ContentRequestService {
   listOperatorWorkspace(
     input?: OperatorWorkspaceInput
   ): Promise<OperatorWorkspacePage>
+  getCurrentFounderHandoff(
+    humanId: string
+  ): Promise<FounderHandoffStatus | null>
+  finalizeFounderHandoff(
+    input: FinalizeFounderHandoffInput
+  ): Promise<FinalizeFounderHandoffResult>
   resolve(query: string): Promise<RequestResolution>
   update(input: UpdateRequestInput): Promise<ContentRequest>
   assign(input: AssignRequestInput): Promise<ContentRequest>
@@ -877,12 +1554,14 @@ export interface ContentRequestService {
     limit: number
   ): Promise<CursorPage<ContentContextVersion>>
   getContextDeckPreferences(
-    humanId: string
+    humanId: string,
+    founderWorkspace?: boolean
   ): Promise<ContextDeckPreferences | null>
   saveContextDeckPreferences(
     humanId: string,
     preferences: ContextDeckPreferences,
-    correlationId: string
+    correlationId: string,
+    founderWorkspace?: boolean
   ): Promise<ContextDeckPreferences>
   getFounderInput(humanId: string): Promise<FounderInputDocument | null>
   saveFounderText(
@@ -952,6 +1631,16 @@ export interface ContentRequestService {
     limit: number
   ): Promise<CursorPage<AgentJob>>
   claimAgentJob(leaseToken: string, leaseMs: number): Promise<AgentJob | null>
+  claimAgentJobForRequest(
+    humanId: string,
+    leaseToken: string,
+    leaseMs: number
+  ): Promise<AgentJob | null>
+  claimExpertSynthesisJob(
+    humanId: string,
+    leaseToken: string,
+    leaseMs: number
+  ): Promise<AgentJob | null>
   heartbeatAgentJob(
     jobId: string,
     leaseToken: string,
@@ -1075,10 +1764,46 @@ export function createContentRequestService(
   return {
     createManual: (input) =>
       repository.createManual({ ...input, origin: creationOrigin }),
+    createExpertInterview: (input) =>
+      repository.createExpertInterview({ ...input, origin: creationOrigin }),
+    saveExpertInterviewPackage: (input) =>
+      repository.saveExpertInterviewPackage(input),
+    getExpertInterview: (humanId) => repository.getExpertInterview(humanId),
+    listExpertInterviewSubmissions: (humanId) =>
+      repository.listExpertInterviewSubmissions(humanId),
+    listExpertInterviewContextVersionIds: (humanId) =>
+      repository.listExpertInterviewContextVersionIds(humanId),
+    createExpertSynthesisProcessingSnapshot: (input) =>
+      repository.createExpertSynthesisProcessingSnapshot(input),
+    verifyExpertSynthesisProcessingSnapshot: (input) =>
+      repository.verifyExpertSynthesisProcessingSnapshot(input),
+    commitExpertSynthesis: (input) => repository.commitExpertSynthesis(input),
+    setExpertInterviewSubmissionInclusion: (input) =>
+      repository.setExpertInterviewSubmissionInclusion(input),
+    searchPeople: (query, limit) => repository.searchPeople(query, limit),
+    createPerson: (input) => repository.createPerson(input),
+    listGuestAccessGrants: (humanId) =>
+      repository.listGuestAccessGrants(humanId),
+    createGuestAccessGrant: (input) => repository.createGuestAccessGrant(input),
+    revokeGuestAccessGrant: (input) => repository.revokeGuestAccessGrant(input),
+    renewGuestAccessGrant: (input) => repository.renewGuestAccessGrant(input),
+    inspectGuestResponseWorkspace: (grantId) =>
+      repository.inspectGuestResponseWorkspace(grantId),
+    addGuestResponseAssetFeedback: (input) =>
+      repository.addGuestResponseAssetFeedback(input),
+    addGuestResponseFeedback: (input) =>
+      repository.addGuestResponseFeedback(input),
+    reopenGuestResponseWorkspace: (input) =>
+      repository.reopenGuestResponseWorkspace(input),
     getByHumanId: (humanId) => repository.getByHumanId(humanId),
     list: (limit) => repository.list(limit),
+    listFounderWorkspace: (founderEmail, limit) =>
+      repository.listFounderWorkspace(founderEmail, limit),
     listPage: (cursor, limit) => repository.listPage(cursor, limit),
     listOperatorWorkspace: (input) => repository.listOperatorWorkspace(input),
+    getCurrentFounderHandoff: (humanId) =>
+      repository.getCurrentFounderHandoff(humanId),
+    finalizeFounderHandoff: (input) => repository.finalizeFounderHandoff(input),
     resolve: (query) => repository.resolve(query),
     update: (input) => repository.update(input),
     assign: (input) => repository.assign(input),
@@ -1113,13 +1838,19 @@ export function createContentRequestService(
     upsertContext: (input) => repository.upsertContext(input),
     listContextVersions: (contextId, cursor, limit) =>
       repository.listContextVersions(contextId, cursor, limit),
-    getContextDeckPreferences: (humanId) =>
-      repository.getContextDeckPreferences(humanId),
-    saveContextDeckPreferences: (humanId, preferences, correlationId) =>
+    getContextDeckPreferences: (humanId, founderWorkspace) =>
+      repository.getContextDeckPreferences(humanId, founderWorkspace),
+    saveContextDeckPreferences: (
+      humanId,
+      preferences,
+      correlationId,
+      founderWorkspace
+    ) =>
       repository.saveContextDeckPreferences(
         humanId,
         preferences,
-        correlationId
+        correlationId,
+        founderWorkspace
       ),
     getFounderInput: (humanId) => repository.getFounderInput(humanId),
     saveFounderText: (humanId, text, correlationId) =>
@@ -1163,6 +1894,10 @@ export function createContentRequestService(
       repository.listAgentJobsPage(cursor, limit),
     claimAgentJob: (leaseToken, leaseMs) =>
       repository.claimAgentJob(leaseToken, leaseMs),
+    claimAgentJobForRequest: (humanId, leaseToken, leaseMs) =>
+      repository.claimAgentJobForRequest(humanId, leaseToken, leaseMs),
+    claimExpertSynthesisJob: (humanId, leaseToken, leaseMs) =>
+      repository.claimExpertSynthesisJob(humanId, leaseToken, leaseMs),
     heartbeatAgentJob: (jobId, leaseToken, leaseMs, leaseGeneration) =>
       repository.heartbeatAgentJob(jobId, leaseToken, leaseMs, leaseGeneration),
     getAgentJobInput: (jobId) => repository.getAgentJobInput(jobId),

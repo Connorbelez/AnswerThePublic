@@ -84,6 +84,12 @@ function withCorrelationId(
     throw new Error("IDEMPOTENCY_KEY_CONFLICT")
   if (isBulk && isAgentControlMutation(command.operation) && !stableKey)
     throw new Error("BULK_IDEMPOTENCY_KEY_REQUIRED")
+  if (
+    (command.operation === "expert_interview.processing_input" ||
+      command.operation === "expert_interview.complete_processing") &&
+    !stableKey
+  )
+    throw new Error("IDEMPOTENCY_KEY_REQUIRED")
   argumentsWithCorrelation.correlationId =
     stableKey ??
     (typeof argumentsWithCorrelation.correlationId === "string"

@@ -8,9 +8,6 @@ export default defineConfig({
     },
   },
   test: {
-    include: [
-      "tests/contract/**/*.test.{ts,tsx}",
-      "convex/**/*.test.{ts,tsx}",
-    ],
+    include: ["tests/contract/**/*.test.{ts,tsx}", "convex/**/*.test.{ts,tsx}"],
   },
 })

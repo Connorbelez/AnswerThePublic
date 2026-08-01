@@ -73,11 +73,121 @@ export async function createConvexTestContentRequestRepository(
     async createManual(input: PersistManualRequestInput) {
       return backend.mutation(api.contentRequests.createManual, input)
     },
+    async createExpertInterview(input) {
+      const created = await backend.mutation(api.expertInterviews.create, input)
+      return {
+        request: created.request,
+        expertInterview: {
+          package: created.package,
+          brief: created.brief,
+          gaps: created.gaps,
+          questions: created.questions,
+          instructions: created.instructions,
+        },
+      }
+    },
+    async saveExpertInterviewPackage(input) {
+      return backend.mutation(api.expertInterviews.savePackage, input)
+    },
+    async getExpertInterview(humanId) {
+      return backend.query(api.expertInterviews.getByHumanId, { humanId })
+    },
+    async listExpertInterviewSubmissions(humanId) {
+      return backend.mutation(api.expertSynthesis.listSubmissions, { humanId })
+    },
+    async listExpertInterviewContextVersionIds(humanId) {
+      return backend.query(api.expertSynthesis.listContextVersionIds, {
+        humanId,
+      })
+    },
+    async createExpertSynthesisProcessingSnapshot(input) {
+      return backend.mutation(
+        api.expertSynthesis.createProcessingSnapshot,
+        input
+      )
+    },
+    async verifyExpertSynthesisProcessingSnapshot(input) {
+      return backend.query(api.expertSynthesis.verifyProcessingSnapshot, input)
+    },
+    async commitExpertSynthesis(input) {
+      return backend.mutation(api.expertSynthesis.completeProcessing, {
+        ...input,
+        jobId: input.jobId as Id<"agentJobs"> | undefined,
+        deliverableId: input.deliverableId as Id<"deliverables"> | undefined,
+      })
+    },
+    async setExpertInterviewSubmissionInclusion(input) {
+      return backend.mutation(api.expertSynthesis.setSubmissionInclusion, input)
+    },
+    async searchPeople(query, limit) {
+      return backend.query(api.people.search, { query, limit })
+    },
+    async createPerson(input) {
+      return backend.mutation(api.people.create, input)
+    },
+    async listGuestAccessGrants(humanId) {
+      return backend.mutation(api.guestAccess.list, { humanId })
+    },
+    async createGuestAccessGrant(input) {
+      return backend.mutation(api.guestAccess.create, {
+        ...input,
+        personId: input.personId as Id<"people">,
+      })
+    },
+    async revokeGuestAccessGrant(input) {
+      return backend.mutation(api.guestAccess.revoke, {
+        ...input,
+        grantId: input.grantId as Id<"guestAccessGrants">,
+      })
+    },
+    async renewGuestAccessGrant(input) {
+      return backend.mutation(api.guestAccess.renew, {
+        ...input,
+        grantId: input.grantId as Id<"guestAccessGrants">,
+      })
+    },
+    async inspectGuestResponseWorkspace(grantId) {
+      const id = grantId as Id<"guestAccessGrants">
+      const [response, evidence] = await Promise.all([
+        backend.query(api.guestAccess.inspectResponseWorkspace, {
+          grantId: id,
+        }),
+        backend.query(api.guestEvidence.inspectForAdmin, { grantId: id }),
+      ])
+      return response && evidence
+        ? { ...response, assets: evidence.assets }
+        : response
+    },
+    async addGuestResponseAssetFeedback(input) {
+      return backend.mutation(api.guestEvidence.addAssetFeedback, {
+        ...input,
+        grantId: input.grantId as Id<"guestAccessGrants">,
+        assetId: input.assetId as Id<"responseAssets">,
+      })
+    },
+    async addGuestResponseFeedback(input) {
+      return backend.mutation(api.guestAccess.addResponseFeedback, {
+        ...input,
+        grantId: input.grantId as Id<"guestAccessGrants">,
+      })
+    },
+    async reopenGuestResponseWorkspace(input) {
+      return backend.mutation(api.guestAccess.reopenResponseWorkspace, {
+        ...input,
+        grantId: input.grantId as Id<"guestAccessGrants">,
+      })
+    },
     async getByHumanId(humanId) {
       return backend.query(api.contentRequests.getByHumanId, { humanId })
     },
     async list(limit) {
       return backend.query(api.contentRequests.list, { limit })
+    },
+    async listFounderWorkspace(founderEmail, limit) {
+      return backend.query(api.contentRequests.listFounderWorkspace, {
+        founderEmail,
+        limit,
+      })
     },
     async listPage(cursor, limit) {
       const result = await backend.query(api.contentRequests.listPage, {
@@ -101,13 +211,21 @@ export async function createConvexTestContentRequestRepository(
         disposition: input?.disposition,
         retention: input?.retention,
         assigneePrincipalId: input?.assigneePrincipalId as
-          | Id<"principals">
-          | undefined,
+          Id<"principals"> | undefined,
         deliveryChannel: input?.deliveryChannel,
         paginationOpts: {
           numItems: Math.min(Math.max(input?.limit ?? 50, 1), 100),
           cursor: input?.cursor ?? null,
         },
+      })
+    },
+    async getCurrentFounderHandoff(humanId) {
+      return backend.query(api.founderHandoffs.getCurrent, { humanId })
+    },
+    async finalizeFounderHandoff(input) {
+      return backend.mutation(api.founderHandoffs.finalize, {
+        ...input,
+        recipientPrincipalId: input.recipientPrincipalId as Id<"principals">,
       })
     },
     async resolve(query) {
@@ -247,16 +365,23 @@ export async function createConvexTestContentRequestRepository(
         nextCursor: result.isDone ? null : result.continueCursor,
       }
     },
-    async getContextDeckPreferences(humanId) {
+    async getContextDeckPreferences(humanId, founderWorkspace) {
       return backend.query(api.scoutIngestions.getContextDeckPreferences, {
         humanId,
+        founderWorkspace,
       })
     },
-    async saveContextDeckPreferences(humanId, preferences, correlationId) {
+    async saveContextDeckPreferences(
+      humanId,
+      preferences,
+      correlationId,
+      founderWorkspace
+    ) {
       return backend.mutation(api.scoutIngestions.saveContextDeckPreferences, {
         humanId,
         ...preferences,
         correlationId,
+        founderWorkspace,
       })
     },
     async getFounderInput(humanId) {
@@ -363,6 +488,20 @@ export async function createConvexTestContentRequestRepository(
     },
     async claimAgentJob(leaseToken, leaseMs) {
       return backend.mutation(api.agentJobs.claim, { leaseToken, leaseMs })
+    },
+    async claimAgentJobForRequest(humanId, leaseToken, leaseMs) {
+      return backend.mutation(api.agentJobs.claimForRequest, {
+        humanId,
+        leaseToken,
+        leaseMs,
+      })
+    },
+    async claimExpertSynthesisJob(humanId, leaseToken, leaseMs) {
+      return backend.mutation(api.agentJobs.claimExpertSynthesis, {
+        humanId,
+        leaseToken,
+        leaseMs,
+      })
     },
     async heartbeatAgentJob(jobId, leaseToken, leaseMs, leaseGeneration) {
       return backend.mutation(api.agentJobs.heartbeat, {
@@ -491,8 +630,7 @@ export async function createConvexTestContentRequestRepository(
         targetId: input.targetId as Id<"deliveryTargets">,
         versionId: input.versionId as Id<"deliverableVersions">,
         integrationSuccessId: input.integrationSuccessId as
-          | Id<"integrationDeliverySuccesses">
-          | undefined,
+          Id<"integrationDeliverySuccesses"> | undefined,
       })
     },
     async reopenDeliveryTarget(input) {

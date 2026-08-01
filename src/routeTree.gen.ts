@@ -14,14 +14,20 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as LogoutRouteImport } from './routes/logout'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as UnauthorizedRouteImport } from './routes/unauthorized'
+import { Route as ApiWorkspaceViewRouteImport } from './routes/api/workspace-view'
 import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as AppExpertisePrototypeRouteImport } from './routes/app.expertise-prototype'
 import { Route as AppNewRouteImport } from './routes/app.new'
+import { Route as RespondTokenRouteImport } from './routes/respond.$token'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth/callback'
 import { Route as ApiAuthSignInRouteImport } from './routes/api/auth/sign-in'
 import { Route as ApiChatgptMcpRouteImport } from './routes/api/chatgpt/mcp'
 import { Route as ApiE2eAutomatedRequestRouteImport } from './routes/api/e2e/automated-request'
+import { Route as ApiE2eGuestGrantStateRouteImport } from './routes/api/e2e/guest-grant-state'
 import { Route as ApiE2ePublicShareRouteImport } from './routes/api/e2e/public-share'
+import { Route as ApiE2eSettleTranscriptionRouteImport } from './routes/api/e2e/settle-transcription'
+import { Route as ApiE2eStorageUploadRouteImport } from './routes/api/e2e/storage-upload'
 import { Route as ApiV1AgentJobsRouteImport } from './routes/api/v1/agent-jobs'
 import { Route as ApiV1ContentRequestsRouteImport } from './routes/api/v1/content-requests'
 import { Route as ApiV1ControlRouteImport } from './routes/api/v1/control'
@@ -65,15 +71,30 @@ const UnauthorizedRoute = UnauthorizedRouteImport.update({
   path: '/unauthorized',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWorkspaceViewRoute = ApiWorkspaceViewRouteImport.update({
+  id: '/api/workspace-view',
+  path: '/api/workspace-view',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppExpertisePrototypeRoute = AppExpertisePrototypeRouteImport.update({
+  id: '/expertise-prototype',
+  path: '/expertise-prototype',
   getParentRoute: () => AppRoute,
 } as any)
 const AppNewRoute = AppNewRouteImport.update({
   id: '/new',
   path: '/new',
   getParentRoute: () => AppRoute,
+} as any)
+const RespondTokenRoute = RespondTokenRouteImport.update({
+  id: '/respond/$token',
+  path: '/respond/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ShareTokenRoute = ShareTokenRouteImport.update({
   id: '/share/$token',
@@ -100,9 +121,25 @@ const ApiE2eAutomatedRequestRoute = ApiE2eAutomatedRequestRouteImport.update({
   path: '/api/e2e/automated-request',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiE2eGuestGrantStateRoute = ApiE2eGuestGrantStateRouteImport.update({
+  id: '/api/e2e/guest-grant-state',
+  path: '/api/e2e/guest-grant-state',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiE2ePublicShareRoute = ApiE2ePublicShareRouteImport.update({
   id: '/api/e2e/public-share',
   path: '/api/e2e/public-share',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiE2eSettleTranscriptionRoute =
+  ApiE2eSettleTranscriptionRouteImport.update({
+    id: '/api/e2e/settle-transcription',
+    path: '/api/e2e/settle-transcription',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiE2eStorageUploadRoute = ApiE2eStorageUploadRouteImport.update({
+  id: '/api/e2e/storage-upload',
+  path: '/api/e2e/storage-upload',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1AgentJobsRoute = ApiV1AgentJobsRouteImport.update({
@@ -205,14 +242,20 @@ export interface FileRoutesByFullPath {
   '/logout': typeof LogoutRoute
   '/sign-in': typeof SignInRoute
   '/unauthorized': typeof UnauthorizedRoute
+  '/api/workspace-view': typeof ApiWorkspaceViewRoute
+  '/app/expertise-prototype': typeof AppExpertisePrototypeRoute
   '/app/new': typeof AppNewRoute
+  '/respond/$token': typeof RespondTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/app/': typeof AppIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/api/chatgpt/mcp': typeof ApiChatgptMcpRoute
   '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
+  '/api/e2e/guest-grant-state': typeof ApiE2eGuestGrantStateRoute
   '/api/e2e/public-share': typeof ApiE2ePublicShareRoute
+  '/api/e2e/settle-transcription': typeof ApiE2eSettleTranscriptionRoute
+  '/api/e2e/storage-upload': typeof ApiE2eStorageUploadRoute
   '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
   '/api/v1/control': typeof ApiV1ControlRoute
@@ -236,14 +279,20 @@ export interface FileRoutesByTo {
   '/logout': typeof LogoutRoute
   '/sign-in': typeof SignInRoute
   '/unauthorized': typeof UnauthorizedRoute
+  '/api/workspace-view': typeof ApiWorkspaceViewRoute
+  '/app/expertise-prototype': typeof AppExpertisePrototypeRoute
   '/app/new': typeof AppNewRoute
+  '/respond/$token': typeof RespondTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/app': typeof AppIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/api/chatgpt/mcp': typeof ApiChatgptMcpRoute
   '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
+  '/api/e2e/guest-grant-state': typeof ApiE2eGuestGrantStateRoute
   '/api/e2e/public-share': typeof ApiE2ePublicShareRoute
+  '/api/e2e/settle-transcription': typeof ApiE2eSettleTranscriptionRoute
+  '/api/e2e/storage-upload': typeof ApiE2eStorageUploadRoute
   '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
   '/api/v1/control': typeof ApiV1ControlRoute
@@ -269,14 +318,20 @@ export interface FileRoutesById {
   '/logout': typeof LogoutRoute
   '/sign-in': typeof SignInRoute
   '/unauthorized': typeof UnauthorizedRoute
+  '/api/workspace-view': typeof ApiWorkspaceViewRoute
+  '/app/expertise-prototype': typeof AppExpertisePrototypeRoute
   '/app/new': typeof AppNewRoute
+  '/respond/$token': typeof RespondTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/app/': typeof AppIndexRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/sign-in': typeof ApiAuthSignInRoute
   '/api/chatgpt/mcp': typeof ApiChatgptMcpRoute
   '/api/e2e/automated-request': typeof ApiE2eAutomatedRequestRoute
+  '/api/e2e/guest-grant-state': typeof ApiE2eGuestGrantStateRoute
   '/api/e2e/public-share': typeof ApiE2ePublicShareRoute
+  '/api/e2e/settle-transcription': typeof ApiE2eSettleTranscriptionRoute
+  '/api/e2e/storage-upload': typeof ApiE2eStorageUploadRoute
   '/api/v1/agent-jobs': typeof ApiV1AgentJobsRouteWithChildren
   '/api/v1/content-requests': typeof ApiV1ContentRequestsRouteWithChildren
   '/api/v1/control': typeof ApiV1ControlRoute
@@ -303,14 +358,20 @@ export interface FileRouteTypes {
     | '/logout'
     | '/sign-in'
     | '/unauthorized'
+    | '/api/workspace-view'
+    | '/app/expertise-prototype'
     | '/app/new'
+    | '/respond/$token'
     | '/share/$token'
     | '/app/'
     | '/api/auth/callback'
     | '/api/auth/sign-in'
     | '/api/chatgpt/mcp'
     | '/api/e2e/automated-request'
+    | '/api/e2e/guest-grant-state'
     | '/api/e2e/public-share'
+    | '/api/e2e/settle-transcription'
+    | '/api/e2e/storage-upload'
     | '/api/v1/agent-jobs'
     | '/api/v1/content-requests'
     | '/api/v1/control'
@@ -334,14 +395,20 @@ export interface FileRouteTypes {
     | '/logout'
     | '/sign-in'
     | '/unauthorized'
+    | '/api/workspace-view'
+    | '/app/expertise-prototype'
     | '/app/new'
+    | '/respond/$token'
     | '/share/$token'
     | '/app'
     | '/api/auth/callback'
     | '/api/auth/sign-in'
     | '/api/chatgpt/mcp'
     | '/api/e2e/automated-request'
+    | '/api/e2e/guest-grant-state'
     | '/api/e2e/public-share'
+    | '/api/e2e/settle-transcription'
+    | '/api/e2e/storage-upload'
     | '/api/v1/agent-jobs'
     | '/api/v1/content-requests'
     | '/api/v1/control'
@@ -366,14 +433,20 @@ export interface FileRouteTypes {
     | '/logout'
     | '/sign-in'
     | '/unauthorized'
+    | '/api/workspace-view'
+    | '/app/expertise-prototype'
     | '/app/new'
+    | '/respond/$token'
     | '/share/$token'
     | '/app/'
     | '/api/auth/callback'
     | '/api/auth/sign-in'
     | '/api/chatgpt/mcp'
     | '/api/e2e/automated-request'
+    | '/api/e2e/guest-grant-state'
     | '/api/e2e/public-share'
+    | '/api/e2e/settle-transcription'
+    | '/api/e2e/storage-upload'
     | '/api/v1/agent-jobs'
     | '/api/v1/content-requests'
     | '/api/v1/control'
@@ -399,12 +472,17 @@ export interface RootRouteChildren {
   LogoutRoute: typeof LogoutRoute
   SignInRoute: typeof SignInRoute
   UnauthorizedRoute: typeof UnauthorizedRoute
+  ApiWorkspaceViewRoute: typeof ApiWorkspaceViewRoute
+  RespondTokenRoute: typeof RespondTokenRoute
   ShareTokenRoute: typeof ShareTokenRoute
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiAuthSignInRoute: typeof ApiAuthSignInRoute
   ApiChatgptMcpRoute: typeof ApiChatgptMcpRoute
   ApiE2eAutomatedRequestRoute: typeof ApiE2eAutomatedRequestRoute
+  ApiE2eGuestGrantStateRoute: typeof ApiE2eGuestGrantStateRoute
   ApiE2ePublicShareRoute: typeof ApiE2ePublicShareRoute
+  ApiE2eSettleTranscriptionRoute: typeof ApiE2eSettleTranscriptionRoute
+  ApiE2eStorageUploadRoute: typeof ApiE2eStorageUploadRoute
   ApiV1AgentJobsRoute: typeof ApiV1AgentJobsRouteWithChildren
   ApiV1ContentRequestsRoute: typeof ApiV1ContentRequestsRouteWithChildren
   ApiV1ControlRoute: typeof ApiV1ControlRoute
@@ -454,11 +532,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnauthorizedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/workspace-view': {
+      id: '/api/workspace-view'
+      path: '/api/workspace-view'
+      fullPath: '/api/workspace-view'
+      preLoaderRoute: typeof ApiWorkspaceViewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/app/': {
       id: '/app/'
       path: '/'
       fullPath: '/app/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/expertise-prototype': {
+      id: '/app/expertise-prototype'
+      path: '/expertise-prototype'
+      fullPath: '/app/expertise-prototype'
+      preLoaderRoute: typeof AppExpertisePrototypeRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/new': {
@@ -467,6 +559,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/new'
       preLoaderRoute: typeof AppNewRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/respond/$token': {
+      id: '/respond/$token'
+      path: '/respond/$token'
+      fullPath: '/respond/$token'
+      preLoaderRoute: typeof RespondTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/share/$token': {
       id: '/share/$token'
@@ -503,11 +602,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiE2eAutomatedRequestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/e2e/guest-grant-state': {
+      id: '/api/e2e/guest-grant-state'
+      path: '/api/e2e/guest-grant-state'
+      fullPath: '/api/e2e/guest-grant-state'
+      preLoaderRoute: typeof ApiE2eGuestGrantStateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/e2e/public-share': {
       id: '/api/e2e/public-share'
       path: '/api/e2e/public-share'
       fullPath: '/api/e2e/public-share'
       preLoaderRoute: typeof ApiE2ePublicShareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/e2e/settle-transcription': {
+      id: '/api/e2e/settle-transcription'
+      path: '/api/e2e/settle-transcription'
+      fullPath: '/api/e2e/settle-transcription'
+      preLoaderRoute: typeof ApiE2eSettleTranscriptionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/e2e/storage-upload': {
+      id: '/api/e2e/storage-upload'
+      path: '/api/e2e/storage-upload'
+      fullPath: '/api/e2e/storage-upload'
+      preLoaderRoute: typeof ApiE2eStorageUploadRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/agent-jobs': {
@@ -633,12 +753,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppExpertisePrototypeRoute: typeof AppExpertisePrototypeRoute
   AppNewRoute: typeof AppNewRoute
   AppIndexRoute: typeof AppIndexRoute
   AppRequestsRequestIdRoute: typeof AppRequestsRequestIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppExpertisePrototypeRoute: AppExpertisePrototypeRoute,
   AppNewRoute: AppNewRoute,
   AppIndexRoute: AppIndexRoute,
   AppRequestsRequestIdRoute: AppRequestsRequestIdRoute,
@@ -712,12 +834,17 @@ const rootRouteChildren: RootRouteChildren = {
   LogoutRoute: LogoutRoute,
   SignInRoute: SignInRoute,
   UnauthorizedRoute: UnauthorizedRoute,
+  ApiWorkspaceViewRoute: ApiWorkspaceViewRoute,
+  RespondTokenRoute: RespondTokenRoute,
   ShareTokenRoute: ShareTokenRoute,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiAuthSignInRoute: ApiAuthSignInRoute,
   ApiChatgptMcpRoute: ApiChatgptMcpRoute,
   ApiE2eAutomatedRequestRoute: ApiE2eAutomatedRequestRoute,
+  ApiE2eGuestGrantStateRoute: ApiE2eGuestGrantStateRoute,
   ApiE2ePublicShareRoute: ApiE2ePublicShareRoute,
+  ApiE2eSettleTranscriptionRoute: ApiE2eSettleTranscriptionRoute,
+  ApiE2eStorageUploadRoute: ApiE2eStorageUploadRoute,
   ApiV1AgentJobsRoute: ApiV1AgentJobsRouteWithChildren,
   ApiV1ContentRequestsRoute: ApiV1ContentRequestsRouteWithChildren,
   ApiV1ControlRoute: ApiV1ControlRoute,

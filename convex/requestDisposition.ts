@@ -1171,6 +1171,7 @@ export const createFollowUp = mutation({
         .join(" "),
       queueSortKey: requestQueueSortKey("manual", "critical", now),
       aliases: [],
+      requestType: "standard",
       origin: "manual",
       priority: "critical",
       parentRequestId: parent._id,

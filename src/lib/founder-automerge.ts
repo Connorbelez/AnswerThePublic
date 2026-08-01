@@ -1,4 +1,4 @@
-import * as Automerge from "@automerge/automerge"
+import * as Automerge from "@automerge/automerge/slim"
 import { hash } from "fast-sha256"
 
 export const FOUNDER_AUTOMERGE_SCHEMA_VERSION = 1 as const
@@ -149,7 +149,7 @@ export function mergeFounderChanges(
 export function founderDocumentHeads(
   document: Automerge.Doc<FounderAutomergeDocument>
 ) {
-  return [...Automerge.getHeads(document)].sort()
+  return [...Automerge.getHeads(document)].sort((a, b) => a.localeCompare(b))
 }
 
 export function partitionAutomergeChanges<T>(

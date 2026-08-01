@@ -56,12 +56,73 @@ async function assignedRequest() {
     assigneePrincipalId: founderPrincipal.principalId,
     correlationId: "assign-offline",
   })
-  return { workspace, operator, founder, request }
+  return { workspace, operator, founder, founderPrincipal, request }
 }
 
 describe("founder offline synchronization and version history", () => {
   beforeEach(() => {
     process.env.FAIRLEND_WORKOS_ORGANIZATION_ID = "org_fairlend"
+  })
+
+  it("lets an administrator operate Elie's founder workflow without stealing ownership", async () => {
+    const { workspace, founder, founderPrincipal, request } =
+      await assignedRequest()
+    const administrator = workspace.withIdentity({
+      subject: "user_admin",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "administrator",
+      jti: "administrator-session",
+    })
+    const administratorPrincipal = await administrator.mutation(
+      api.principals.syncCurrent
+    )
+    const document = createFounderDocument(
+      request.humanId,
+      "Administrator QA draft"
+    )
+    const heads = founderDocumentHeads(document)
+
+    await administrator.mutation(api.founderInputs.submitAutomergeChanges, {
+      humanId: request.humanId,
+      documentId: "automerge:administrator-qa",
+      changes: encodedChanges(Automerge.getAllChanges(document)),
+      heads,
+      text: "Administrator QA draft",
+      correlationId: "administrator-qa-sync",
+    })
+
+    const stored = await administrator.run((ctx) =>
+      ctx.db
+        .query("founderInputDocuments")
+        .withIndex("by_request", (index) =>
+          index.eq("requestId", request.requestId)
+        )
+        .unique()
+    )
+    expect(stored?.founderPrincipalId).toBe(founderPrincipal.principalId)
+    await expect(
+      founder.query(api.founderInputs.getMine, { humanId: request.humanId })
+    ).resolves.toMatchObject({ text: "Administrator QA draft" })
+
+    const job = await administrator.mutation(api.agentJobs.submitFounderInput, {
+      humanId: request.humanId,
+      heads,
+      correlationId: "administrator-qa-submit",
+    })
+    expect(job.status).toBe("queued")
+    const audit = await administrator.run((ctx) =>
+      ctx.db
+        .query("auditEvents")
+        .withIndex("by_request_operation_correlation", (index) =>
+          index
+            .eq("requestId", request.requestId)
+            .eq("operation", "founder_input.submitted")
+            .eq("correlationId", "administrator-qa-submit")
+        )
+        .unique()
+    )
+    expect(audit?.actorPrincipalId).toBe(administratorPrincipal.principalId)
   })
 
   it("deduplicates authenticated Automerge changes and reports durable heads", async () => {
@@ -329,3 +390,4 @@ describe("founder offline synchronization and version history", () => {
     ).resolves.toEqual(restored)
   })
 })
+import "@automerge/automerge"

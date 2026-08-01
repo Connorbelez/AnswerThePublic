@@ -65,6 +65,30 @@ describe("WorkOS agent installation credential contract", () => {
     ).rejects.toBeInstanceOf(AuthenticationRequiredError)
   })
 
+  it("routes a human WorkOS JWT directly to Convex auth without agent validation", async () => {
+    const payload = btoa(
+      JSON.stringify({ sub: "user_123", org_id: "org_fairlend" })
+    )
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "")
+    const humanJwt = `header.${payload}.signature`
+    const validateCredential = vi
+      .fn()
+      .mockRejectedValue(new Error("Not an agent credential"))
+
+    const service = await createContentRequestServiceForApiRequest(
+      new Request("https://fairlend.test/api/v1/control", {
+        headers: { authorization: `Bearer ${humanJwt}` },
+      }),
+      "cli",
+      validateCredential
+    )
+
+    expect(validateCredential).not.toHaveBeenCalled()
+    expect(service.createManual).toBeTypeOf("function")
+  })
+
   it("applies the same WorkOS agent validation to scout ingestion", async () => {
     process.env.FAIRLEND_CONVEX_AGENT_ADMIN_KEY = "server-only-admin-key"
     const installation = {

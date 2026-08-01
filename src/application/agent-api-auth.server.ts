@@ -37,8 +37,12 @@ export async function resolveAgentApiBearer(
   const token = authorization.slice("Bearer ".length).trim()
   if (!token) throw new AuthenticationRequiredError()
   const isOpaqueAgentKey = token.split(".").length !== 3
-  const installation = await validateAgentCredential(token)
-  if ((isOpaqueAgentKey || looksLikeWorkosAgentJwt(token)) && !installation)
+  const isAgentJwt = looksLikeWorkosAgentJwt(token)
+  const installation =
+    isOpaqueAgentKey || isAgentJwt
+      ? await validateAgentCredential(token)
+      : null
+  if ((isOpaqueAgentKey || isAgentJwt) && !installation)
     throw new AuthenticationRequiredError()
   const adminKey = installation
     ? process.env.FAIRLEND_CONVEX_AGENT_ADMIN_KEY

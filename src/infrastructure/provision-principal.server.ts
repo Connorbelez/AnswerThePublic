@@ -2,16 +2,20 @@ import { ConvexHttpClient } from "convex/browser"
 
 import { api } from "../../convex/_generated/api"
 import { getWorkosServerConfig } from "@/config/workos-runtime-config"
+import { isExpectedProvisioningAccessDenial } from "@/infrastructure/convex-error-code"
+import { readWorkosAccessTokenClaims } from "@/infrastructure/workos-access-token-claims.server"
 
 export async function provisionPrincipalFromWorkos({
   accessToken,
   organizationId,
   verifiedEmail,
+  displayName,
 }: {
   accessToken: string
   organizationId: string | undefined
   verifiedEmail: string
-}) {
+  displayName?: string
+}): Promise<"provisioned" | "access_denied"> {
   const workos = getWorkosServerConfig()
   if (organizationId !== workos.organizationId) {
     throw new Error("The authenticated WorkOS organization is not FairLend.")
@@ -30,8 +34,24 @@ export async function provisionPrincipalFromWorkos({
 
   const client = new ConvexHttpClient(convexUrl)
   client.setAuth(accessToken)
-  await client.mutation(api.principals.syncCurrentProfile, {
-    verifiedEmail,
-    provisioningKey,
-  })
+  try {
+    await client.mutation(api.principals.syncCurrentProfile, {
+      verifiedEmail,
+      displayName,
+      provisioningKey,
+    })
+    return "provisioned"
+  } catch (error) {
+    if (isExpectedProvisioningAccessDenial(error)) {
+      // Complete OAuth so the user can reach /unauthorized and sign out.
+      return "access_denied"
+    }
+    if (String(error).includes("NoAuthProvider")) {
+      console.error(
+        "[authkit-convex] WorkOS JWT provider mismatch diagnostics",
+        readWorkosAccessTokenClaims(accessToken)
+      )
+    }
+    throw error
+  }
 }

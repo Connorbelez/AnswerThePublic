@@ -6,38 +6,28 @@ import {
   CircleAlert,
   ExternalLink,
   FileCheck2,
-  FileText,
   Link2,
-  Maximize2,
-  Mic,
-  Minimize2,
-  Pause,
   Pin,
-  Play,
-  Redo2,
-  RotateCcw,
   ScrollText,
   Sparkles,
-  Square,
-  Undo2,
 } from "lucide-react"
 
-import { contextCardVariants } from "@/components/context-card-variants"
-import { Card } from "@/components/ui/card"
 import type {
   ContentContextItem,
   ContentRequest,
   ContextDeckPreferences,
-  FounderArchivedVersion,
-  FounderVersionHistory,
 } from "@/application/content-requests"
+import {
+  FounderInputDrawer,
+  type FounderDraftController,
+} from "@/components/founder-input-drawer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
+import { ButtonAnchor } from "@/components/ui/button-link"
 import { Toggle } from "@/components/ui/toggle"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useHydrated } from "@/hooks/use-hydrated"
 import { cn } from "@/lib/utils"
+import { MarkdownContent } from "@/components/markdown-content"
 
 type CanvasItem = ContentContextItem & {
   id: string
@@ -129,7 +119,7 @@ function contextItemsFor(
           : [],
     })
   }
-  if (request.source?.body) {
+  if (request.source?.body && request.requestType !== "expert_interview") {
     sourceItems.push({
       id: "original-source-body",
       contextId: "original-source-body",
@@ -169,11 +159,17 @@ function contextItemsFor(
   }
   return [
     ...sourceItems,
-    ...contextItems.map((item) => ({
-      ...item,
-      id: item.contextId,
-      ...presentation[item.kind],
-    })),
+    ...contextItems
+      .filter(
+        (item) =>
+          request.requestType !== "expert_interview" ||
+          item.kind !== "research_requirements"
+      )
+      .map((item) => ({
+        ...item,
+        id: item.contextId,
+        ...presentation[item.kind],
+      })),
   ]
 }
 
@@ -190,11 +186,10 @@ function ContextCard({
 }) {
   const Icon = item.icon
   return (
-    <Card
-      as="article"
+    <article
       aria-label={item.title}
       data-pinned={String(pinned)}
-      className={contextCardVariants({ pinned, className: "gap-0" })}
+      className={cn("unified-context-card", pinned && "is-pinned")}
     >
       <div className="unified-context-card__header">
         <span className="unified-context-card__icon" aria-hidden="true">
@@ -221,7 +216,12 @@ function ContextCard({
           {item.bulletPoints.map((point, index) => (
             <div key={`${item.id}-${index}`} className="unified-context-point">
               {item.bulletPoints.length > 1 ? <span>{index + 1}</span> : null}
-              <p>{point}</p>
+              <MarkdownContent
+                className="unified-context-point__body"
+                minimumHeadingLevel={3}
+              >
+                {point}
+              </MarkdownContent>
             </div>
           ))}
         </div>
@@ -233,7 +233,7 @@ function ContextCard({
               key={`${citation.url}-${citation.label}`}
               href={citation.url}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
             >
               <Check aria-hidden="true" />
               <span>
@@ -245,7 +245,7 @@ function ContextCard({
           ))}
         </div>
       ) : null}
-    </Card>
+    </article>
   )
 }
 
@@ -273,49 +273,7 @@ export function UnifiedContextCanvas({
   ) => void | Promise<void>
   onDraftSave?: (text: string, correlationId: string) => Promise<unknown>
   onSubmitFounderInput?: () => Promise<void>
-  draftController?: {
-    text: string
-    status: "Saved" | "Saving" | "Offline" | "Save pending" | "Save blocked"
-    canUndo: boolean
-    canRedo: boolean
-    history: FounderVersionHistory | null
-    archiveEntries: Array<FounderArchivedVersion>
-    archiveDone: boolean
-    readOnly?: boolean
-    onTextChange(text: string): void
-    onUndo(): void | Promise<void>
-    onRedo(): void | Promise<void>
-    onLoadOlderHistory(): void | Promise<void>
-    onRestoreArchivedVersion(versionId: string): void | Promise<void>
-    voice?: {
-      supported: boolean
-      state:
-        | "idle"
-        | "requesting"
-        | "recording"
-        | "paused"
-        | "saving"
-        | "transcribing"
-        | "failed"
-      elapsedMs: number
-      errorCode: string | null
-      queuedCount: number
-      captures: Array<{
-        captureId: string
-        status: "uploaded" | "transcribing" | "transcribed" | "failed"
-        failureCode: string | null
-        transcriptMergedAt: number | null
-        discardedAt: number | null
-      }>
-      start(): void | Promise<void>
-      pause(): void
-      resume(): void
-      stop(): void | Promise<void>
-      retry(captureId?: string): void | Promise<void>
-      discard(captureId: string): void | Promise<void>
-      discardPending(): void | Promise<void>
-    }
-  }
+  draftController?: FounderDraftController
 }) {
   const hydrated = useHydrated()
   const items = useMemo(
@@ -339,8 +297,6 @@ export function UnifiedContextCanvas({
           .filter((item) => item.kind === "operator_cue")
           .map((item) => item.id)
   )
-  const [expanded, setExpanded] = useState(false)
-  const [historyOpen, setHistoryOpen] = useState(false)
   const [inputMode, setInputMode] = useState<"type" | "record">("type")
   const [draft, setDraft] = useState(initialDraft)
   const [saveStatus, setSaveStatus] = useState<
@@ -379,8 +335,6 @@ export function UnifiedContextCanvas({
   const draftWriteChain = useRef<Promise<void>>(Promise.resolve())
   const draftPersist = useRef<(write: DraftWrite) => void>(() => undefined)
   const [preferenceSyncFailed, setPreferenceSyncFailed] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState(false)
   const preferenceStorageKey = `fairlend:context-preferences:${encodeURIComponent(preferenceOwnerKey)}:${request.humanId}`
 
   useEffect(() => {
@@ -622,10 +576,6 @@ export function UnifiedContextCanvas({
     visible,
   ])
 
-  useEffect(() => {
-    if (expanded && inputMode === "type") editorRef.current?.focus()
-  }, [expanded, inputMode])
-
   function toggle(list: Array<string>, id: string) {
     return list.includes(id)
       ? list.filter((itemId) => itemId !== id)
@@ -637,17 +587,21 @@ export function UnifiedContextCanvas({
   )
 
   return (
-    <main className="unified-canvas" aria-label="Content Request workspace">
+    <main
+      className="unified-canvas"
+      id="main-content"
+      aria-label="Content Request workspace"
+    >
       <header className="unified-canvas__topbar">
-        <Button
+        <ButtonAnchor
+          className="size-11"
           variant="ghost"
           size="icon-lg"
           aria-label="Back to content requests"
-          nativeButton={false}
-          render={<a href="/app" />}
+          href="/app"
         >
           <ArrowLeft />
-        </Button>
+        </ButtonAnchor>
         <div>
           <p>{request.humanId} · Founder input</p>
           <h1>{request.title}</h1>
@@ -667,11 +621,7 @@ export function UnifiedContextCanvas({
         </p>
       ) : null}
 
-      <section
-        className="unified-context-deck"
-        aria-label="Context deck"
-        data-expanded={String(expanded)}
-      >
+      <section className="unified-context-deck" aria-label="Context deck">
         <div className="unified-context-deck__controls">
           <div>
             <p>Prepared brief</p>
@@ -684,7 +634,11 @@ export function UnifiedContextCanvas({
             Context settings are pending. They will retry when you reconnect.
           </p>
         ) : null}
-        <div className="unified-context-filters" aria-label="Context controls">
+        <div
+          className="unified-context-filters"
+          role="group"
+          aria-label="Context controls"
+        >
           {items.map((item) => {
             const isVisible = visible.includes(item.id)
             const isPinned = pinned.includes(item.id)
@@ -746,389 +700,29 @@ export function UnifiedContextCanvas({
         </div>
       </section>
 
-      <section
-        className="unified-editor"
-        id="founder-editor"
-        data-testid="founder-editor"
-        data-expanded={String(expanded)}
-        aria-label="Founder input editor"
-      >
-        <div className="unified-editor__toolbar">
-          <ToggleGroup
-            className="unified-editor__modes"
-            aria-label="Input method"
-            disabled={!hydrated || editorReadOnly}
-            value={[inputMode]}
-            onValueChange={(values) => {
-              const next = values[0]
-              if (next === "type" || next === "record") setInputMode(next)
-            }}
-          >
-            <ToggleGroupItem value="type" aria-label="Type input">
-              <FileText /> Type
-            </ToggleGroupItem>
-            <ToggleGroupItem value="record" aria-label="Record input">
-              <Mic /> Record
-            </ToggleGroupItem>
-          </ToggleGroup>
-          <span
-            className="unified-editor__save-status"
-            data-state={displayedSaveStatus.toLowerCase()}
-            role="status"
-            aria-live="polite"
-          >
-            {displayedSaveStatus}
-          </span>
-          <div className="unified-editor__secondary-actions">
-            {draftController ? (
-              <div
-                className="unified-editor__history-controls"
-                aria-label="Version history"
-              >
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-touch"
-                  aria-label="Undo founder input"
-                  disabled={
-                    !draftController.canUndo || draftController.readOnly
-                  }
-                  onClick={() => {
-                    if (!draftController.readOnly) void draftController.onUndo()
-                  }}
-                >
-                  <Undo2 />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-touch"
-                  aria-label="Redo founder input"
-                  disabled={
-                    !draftController.canRedo || draftController.readOnly
-                  }
-                  onClick={() => {
-                    if (!draftController.readOnly) void draftController.onRedo()
-                  }}
-                >
-                  <Redo2 />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm-touch"
-                  aria-expanded={historyOpen}
-                  aria-controls="founder-version-history"
-                  onClick={() => {
-                    setHistoryOpen((current) => !current)
-                    setExpanded(true)
-                  }}
-                >
-                  <ScrollText /> History ({draftController.history?.length ?? 0}
-                  )
-                </Button>
-              </div>
-            ) : null}
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm-touch"
-              aria-expanded={expanded}
-              aria-controls="founder-editor"
-              aria-label={expanded ? "Collapse editor" : "Expand editor"}
-              onClick={() => setExpanded((current) => !current)}
-            >
-              {expanded ? <Minimize2 /> : <Maximize2 />}
-              {expanded ? "Collapse" : "Expand"}
-            </Button>
-          </div>
-        </div>
-        {draftController && historyOpen ? (
-          <ol
-            id="founder-version-history"
-            className="unified-editor__version-history"
-            aria-label="Founder input version history"
-          >
-            {draftController.history?.entries.map((entry) => (
-              <li
-                key={`${entry.position}-${entry.state.correlationId}`}
-                aria-current={
-                  draftController.history?.position === entry.position
-                    ? "step"
-                    : undefined
-                }
-              >
-                <span>
-                  {entry.state.actorSubject} · version {entry.position + 1}
-                </span>
-                <time dateTime={new Date(entry.state.occurredAt).toISOString()}>
-                  {new Intl.DateTimeFormat(undefined, {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  }).format(entry.state.occurredAt)}
-                </time>
-              </li>
-            ))}
-            {draftController.history?.entries.length === 0 ? (
-              <li>No durable versions yet.</li>
-            ) : null}
-            {draftController.archiveEntries.map((entry) => (
-              <li key={`archive-${entry.versionId}`}>
-                <span>
-                  {entry.actorSubject} · archived revision {entry.revision}
-                </span>
-                <time dateTime={new Date(entry.occurredAt).toISOString()}>
-                  {new Intl.DateTimeFormat(undefined, {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  }).format(entry.occurredAt)}
-                </time>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm-touch"
-                  disabled={draftController.readOnly}
-                  onClick={() =>
-                    !draftController.readOnly &&
-                    void draftController.onRestoreArchivedVersion(
-                      entry.versionId
-                    )
-                  }
-                >
-                  Restore
-                </Button>
-              </li>
-            ))}
-            {!draftController.archiveDone ? (
-              <li>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm-touch"
-                  onClick={() => void draftController.onLoadOlderHistory()}
-                >
-                  Load older versions
-                </Button>
-              </li>
-            ) : null}
-          </ol>
-        ) : null}
-        <div className="unified-editor__input">
-          {inputMode === "type" ? (
-            <Textarea
-              ref={editorRef}
-              aria-label="Founder input"
-              value={displayedDraft}
-              readOnly={draftController?.readOnly}
-              onChange={(event) => {
-                if (editorReadOnly) return
-                if (draftRetryTimer.current !== null) {
-                  window.clearTimeout(draftRetryTimer.current)
-                  draftRetryTimer.current = null
-                }
-                draftVersion.current += 1
-                setDraft(event.target.value)
-                draftController?.onTextChange(event.target.value)
-                setSaveStatus(window.navigator.onLine ? "Saving" : "Offline")
-              }}
-              placeholder="Add your perspective…"
-            />
-          ) : draftController?.readOnly ? (
-            <div className="unified-editor__record-preview" role="status">
-              Founder input was submitted and is now read-only.
-            </div>
-          ) : (
-            <div className="unified-editor__record-preview">
-              {!draftController?.voice?.supported ? (
-                <div role="status">
-                  <strong>Voice recording unavailable</strong>
-                  <span>
-                    This browser cannot capture audio. Your typed input is still
-                    available under Type.
-                  </span>
-                </div>
-              ) : (
-                <>
-                  <Mic aria-hidden="true" />
-                  <div aria-live="polite">
-                    <strong>
-                      {draftController.voice.state === "recording"
-                        ? "Recording"
-                        : draftController.voice.state === "paused"
-                          ? "Recording paused"
-                          : draftController.voice.state === "requesting"
-                            ? "Requesting microphone access"
-                            : draftController.voice.state === "saving"
-                              ? "Audio saved locally"
-                              : draftController.voice.state === "transcribing"
-                                ? "Transcribing audio"
-                                : draftController.voice.state === "failed"
-                                  ? "Voice input needs attention"
-                                  : "Voice input"}
-                    </strong>
-                    <span>
-                      {draftController.voice.errorCode === "PERMISSION_DENIED"
-                        ? "Microphone permission was denied. Typed input was not changed."
-                        : draftController.voice.errorCode
-                          ? `Could not finish voice input (${draftController.voice.errorCode}). Typed input is safe.`
-                          : draftController.voice.queuedCount > 0
-                            ? `${draftController.voice.queuedCount} recording queued for upload.`
-                            : `${Math.floor(
-                                draftController.voice.elapsedMs / 60_000
-                              )
-                                .toString()
-                                .padStart(2, "0")}:${Math.floor(
-                                (draftController.voice.elapsedMs % 60_000) /
-                                  1_000
-                              )
-                                .toString()
-                                .padStart(2, "0")}`}
-                    </span>
-                  </div>
-                  <div className="unified-editor__record-actions">
-                    {draftController.voice.state === "recording" ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm-touch"
-                        onClick={draftController.voice.pause}
-                      >
-                        <Pause /> Pause
-                      </Button>
-                    ) : draftController.voice.state === "paused" ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm-touch"
-                        onClick={draftController.voice.resume}
-                      >
-                        <Play /> Resume
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        size="sm-touch"
-                        disabled={[
-                          "requesting",
-                          "saving",
-                          "transcribing",
-                        ].includes(draftController.voice.state)}
-                        onClick={() => void draftController.voice?.start()}
-                      >
-                        <Mic /> Start recording
-                      </Button>
-                    )}
-                    {["recording", "paused"].includes(
-                      draftController.voice.state
-                    ) ? (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm-touch"
-                        onClick={() => void draftController.voice?.stop()}
-                      >
-                        <Square /> Stop
-                      </Button>
-                    ) : null}
-                    {draftController.voice.state === "failed" ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm-touch"
-                        onClick={() => void draftController.voice?.retry()}
-                      >
-                        <RotateCcw /> Retry upload
-                      </Button>
-                    ) : null}
-                  </div>
-                  {draftController.voice.queuedCount > 0 ||
-                  draftController.voice.errorCode ===
-                    "LOCAL_AUDIO_SAVE_FAILED" ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm-touch"
-                      onClick={() =>
-                        void draftController.voice?.discardPending()
-                      }
-                    >
-                      Discard pending recordings
-                    </Button>
-                  ) : null}
-                  {draftController.voice.captures
-                    .filter(
-                      (capture) =>
-                        capture.status === "failed" && !capture.discardedAt
-                    )
-                    .map((capture) => (
-                      <div key={capture.captureId}>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm-touch"
-                          onClick={() =>
-                            void draftController.voice?.retry(capture.captureId)
-                          }
-                        >
-                          Retry transcription
-                          {capture.failureCode
-                            ? ` (${capture.failureCode})`
-                            : ""}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm-touch"
-                          onClick={() =>
-                            void draftController.voice?.discard(
-                              capture.captureId
-                            )
-                          }
-                        >
-                          Discard recording
-                        </Button>
-                      </div>
-                    ))}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-        {onSubmitFounderInput ? (
-          <div className="unified-editor__submit-row">
-            <span role="status" aria-live="polite">
-              {submitError
-                ? "Submission failed. Your input remains saved."
-                : voicePending
-                  ? "Finish, retry, or discard pending voice input before submitting."
-                  : "Submit when your perspective is complete."}
-            </span>
-            <Button
-              type="button"
-              size="sm-touch"
-              disabled={
-                submitting ||
-                displayedSaveStatus !== "Saved" ||
-                !displayedDraft.trim() ||
-                voicePending
-              }
-              onClick={async () => {
-                setSubmitting(true)
-                setSubmitError(false)
-                try {
-                  await onSubmitFounderInput()
-                } catch {
-                  setSubmitError(true)
-                } finally {
-                  setSubmitting(false)
-                }
-              }}
-            >
-              {submitting ? "Submitting…" : "Submit to drafting"}
-            </Button>
-          </div>
-        ) : null}
-      </section>
+      <FounderInputDrawer
+        controller={draftController}
+        draft={displayedDraft}
+        editorReadOnly={editorReadOnly}
+        editorRef={editorRef}
+        hydrated={hydrated}
+        inputMode={inputMode}
+        onInputModeChange={setInputMode}
+        onTextChange={(text) => {
+          if (editorReadOnly) return
+          if (draftRetryTimer.current !== null) {
+            window.clearTimeout(draftRetryTimer.current)
+            draftRetryTimer.current = null
+          }
+          draftVersion.current += 1
+          setDraft(text)
+          draftController?.onTextChange(text)
+          setSaveStatus(window.navigator.onLine ? "Saving" : "Offline")
+        }}
+        onSubmitFounderInput={onSubmitFounderInput}
+        saveStatus={displayedSaveStatus}
+        voicePending={voicePending}
+      />
     </main>
   )
 }

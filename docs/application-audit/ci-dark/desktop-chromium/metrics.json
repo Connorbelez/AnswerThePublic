@@ -1,0 +1,240 @@
+{
+  "label": "ci-dark",
+  "project": "desktop-chromium",
+  "viewport": {
+    "width": 1536,
+    "height": 1024
+  },
+  "capturedAt": "2026-07-29T03:41:14.481Z",
+  "bundle": {
+    "assetCount": 52,
+    "totalBytes": 4900640,
+    "totalGzipBytes": 1564796,
+    "executableBytes": 1520131,
+    "executableGzipBytes": 443777,
+    "deferredBinaryBytes": 3380509,
+    "deferredBinaryGzipBytes": 1121019,
+    "largestAssets": [
+      {
+        "file": "automerge-BdM9z0C5.wasm",
+        "kind": "wasm",
+        "bytes": 3380509,
+        "gzipBytes": 1121019
+      },
+      {
+        "file": "index-Ba9xIO_z.js",
+        "kind": "executable",
+        "bytes": 322130,
+        "gzipBytes": 103436
+      },
+      {
+        "file": "index-KdV_JVz6.css",
+        "kind": "executable",
+        "bytes": 263013,
+        "gzipBytes": 39994
+      },
+      {
+        "file": "founder-request-canvas-DV_gD1lk.js",
+        "kind": "executable",
+        "bytes": 228590,
+        "gzipBytes": 72684
+      },
+      {
+        "file": "app.requests._requestId-jJDQmEOq.js",
+        "kind": "executable",
+        "bytes": 164457,
+        "gzipBytes": 48448
+      },
+      {
+        "file": "markdown-content-DxTo0MUA.js",
+        "kind": "executable",
+        "bytes": 154375,
+        "gzipBytes": 45493
+      },
+      {
+        "file": "DialogTitle-BNuPPswY.js",
+        "kind": "executable",
+        "bytes": 48943,
+        "gzipBytes": 16070
+      },
+      {
+        "file": "avatar-DHno5VUf.js",
+        "kind": "executable",
+        "bytes": 45165,
+        "gzipBytes": 16211
+      },
+      {
+        "file": "app.expertise-prototype-CLeNsocO.js",
+        "kind": "executable",
+        "bytes": 42000,
+        "gzipBytes": 10733
+      },
+      {
+        "file": "respond._token-BgJfLwsK.js",
+        "kind": "executable",
+        "bytes": 40285,
+        "gzipBytes": 11816
+      },
+      {
+        "file": "utils-C3qR0QAR.js",
+        "kind": "executable",
+        "bytes": 35835,
+        "gzipBytes": 11739
+      },
+      {
+        "file": "dist-CF4mBLQy.js",
+        "kind": "executable",
+        "bytes": 31754,
+        "gzipBytes": 11527
+      }
+    ]
+  },
+  "warmNavigationMs": -0.4,
+  "warmNavigationCompleteMs": 83.3,
+  "routes": [
+    {
+      "route": "/sign-in",
+      "finalUrl": "/sign-in",
+      "visibleMs": 108.7,
+      "lcpMs": 68,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 659285,
+      "encodedBytes": 656585,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/unauthorized",
+      "finalUrl": "/unauthorized",
+      "visibleMs": 74.3,
+      "lcpMs": 44,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 3834,
+      "encodedBytes": 655123,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/route-that-does-not-exist",
+      "finalUrl": "/route-that-does-not-exist",
+      "visibleMs": 75,
+      "lcpMs": 36,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 1500,
+      "encodedBytes": 653389,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 119.8,
+      "lcpMs": 92,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 835027,
+      "encodedBytes": 826927,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/new",
+      "finalUrl": "/app/new",
+      "visibleMs": 125.2,
+      "lcpMs": 76,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 14171,
+      "encodedBytes": 792479,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010145",
+      "finalUrl": "/app/requests/CR-00000000000010145",
+      "visibleMs": 425.3,
+      "lcpMs": 384,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 344814,
+      "encodedBytes": 1148382,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 137.8,
+      "lcpMs": 108,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 410625,
+      "encodedBytes": 1219166,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010145",
+      "finalUrl": "/app/requests/CR-00000000000010145",
+      "visibleMs": 919.8,
+      "lcpMs": 712,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 3579413,
+      "encodedBytes": 4768115,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 140.4,
+      "lcpMs": 116,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 835027,
+      "encodedBytes": 826927,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 109.2,
+      "lcpMs": 96,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 835027,
+      "encodedBytes": 826927,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/share/b759cc8220e5381869b77c7dfd29019b167f7f611be54d2268f4bb2688f5568a",
+      "finalUrl": "/share/b759cc8220e5381869b77c7dfd29019b167f7f611be54d2268f4bb2688f5568a",
+      "visibleMs": 106.3,
+      "lcpMs": 64,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 159785,
+      "encodedBytes": 810774,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010145",
+      "finalUrl": "/app/requests/CR-00000000000010145",
+      "visibleMs": 389.4,
+      "lcpMs": 408,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 13610,
+      "encodedBytes": 1148394,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    }
+  ]
+}

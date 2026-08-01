@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router"
-import { ShieldAlert } from "lucide-react"
+import { LogOut, ShieldAlert } from "lucide-react"
 
+import { ButtonAnchor } from "@/components/ui/button-link"
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -15,7 +17,7 @@ export const Route = createFileRoute("/unauthorized")({
 
 function UnauthorizedPage() {
   return (
-    <main className="auth-page">
+    <main className="auth-page" id="main-content">
       <section className="auth-brand" aria-label="FairLend Content Requests">
         <span className="wordmark">FairLend</span>
         <p>Content Requests</p>
@@ -39,6 +41,17 @@ function UnauthorizedPage() {
             Agent editor, or Administrator role.
           </p>
         </CardContent>
+        <CardFooter>
+          <ButtonAnchor
+            size="lg"
+            variant="outline"
+            className="w-full justify-between"
+            href="/logout"
+          >
+            Sign out
+            <LogOut data-icon="inline-end" />
+          </ButtonAnchor>
+        </CardFooter>
       </Card>
     </main>
   )

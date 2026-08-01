@@ -27,13 +27,41 @@ export const Route = createFileRoute("/api/e2e/automated-request")({
             { status: 400 }
           )
         }
-        const { createAutomatedE2eRequest } =
-          await import("@/infrastructure/convex-test-workspace.server")
-        const data = await createAutomatedE2eRequest(
-          identity,
-          input.title,
-          input.assigneeSubject
-        )
+        const {
+          createAutomatedE2eRequest,
+          createExpertInterviewE2eRequest,
+          seedGuestNotificationSignalsE2e,
+        } = await import("@/infrastructure/convex-test-workspace.server")
+        const data =
+          input.expertInterview === true
+            ? await createExpertInterviewE2eRequest(identity, input.title)
+            : await createAutomatedE2eRequest(
+                identity,
+                input.title,
+                input.assigneeSubject,
+                input.includeDraft !== false
+              )
+        if (
+          input.expertInterview === true &&
+          input.seedGuestNotifications === true
+        ) {
+          const expertData = data as {
+            request: { requestId: string; humanId: string }
+          }
+          return Response.json(
+            {
+              data: {
+                ...expertData,
+                notificationSignals: await seedGuestNotificationSignalsE2e(
+                  identity,
+                  expertData.request.requestId,
+                  expertData.request.humanId
+                ),
+              },
+            },
+            { status: 201 }
+          )
+        }
         return Response.json({ data }, { status: 201 })
       },
     },

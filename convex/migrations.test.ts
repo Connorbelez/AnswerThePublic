@@ -62,6 +62,7 @@ describe("V1 migration deployment gate", () => {
         queueSortKey: undefined,
         activeVoiceCaptureCount: undefined,
         normalizedSourceUrl: undefined,
+        requestType: undefined,
       })
       const documentId = await ctx.db.insert("founderInputDocuments", {
         organizationId: "org_fairlend",
@@ -112,6 +113,7 @@ describe("V1 migration deployment gate", () => {
       "operator_projection",
       "original_target",
       "primary_deliverable",
+      "request_type",
       "voice_capture_count",
     ])
 
@@ -128,6 +130,7 @@ describe("V1 migration deployment gate", () => {
       {}
     )
     await backend.mutation(internal.migrations.backfillOperatorWorkspace, {})
+    await backend.mutation(internal.migrations.backfillContentRequestTypes, {})
 
     await expect(
       backend.query(internal.migrations.validateV1Invariants, {})
@@ -225,5 +228,274 @@ describe("V1 migration deployment gate", () => {
         },
       ],
     })
+  })
+
+  it("exempts Expert Interview provenance from Standard Request URL deduplication", async () => {
+    const backend = convexTest(schema, modules).withIdentity(operatorIdentity)
+    await backend.mutation(api.principals.syncCurrent)
+    const expert = await backend.mutation(api.expertInterviews.create, {
+      title: "Expert source provenance",
+      origin: "manual",
+      source: { url: "https://example.com/expert-source?utm_source=legacy" },
+      brief: {
+        topic: "Delayed closing recovery",
+        summary: "A practitioner interview about recovery sequencing.",
+        audience: "Ontario borrowers",
+        framing: "insider_knowledge",
+        fairlendPosture: "Educational and evidence-led.",
+        founderContribution: "Explain the recovery sequence.",
+      },
+      gaps: [
+        {
+          id: "gap-recovery",
+          kind: "reality_on_the_ground",
+          title: "First-hour recovery sequence",
+          existingCoverage: "Published guidance covers ordinary closings.",
+          whyItFallsShort: "It omits recovery sequencing.",
+          expertOpportunity: "Capture the practitioner sequence.",
+          citations: [
+            {
+              label: "Published closing guide",
+              url: "https://example.com/closing-guide",
+              supports: "The ordinary process that omits recovery.",
+            },
+          ],
+        },
+      ],
+      questions: [
+        {
+          id: "question-first-call",
+          question: "Who do you call first?",
+          motivation: "Expose the recovery sequence.",
+          gapIds: ["gap-recovery"],
+        },
+      ],
+      correlationId: "create-expert-source-provenance",
+    })
+    await backend.run((ctx) =>
+      ctx.db.patch(expert.request.requestId, {
+        normalizedSourceUrl: "https://example.com/expert-source",
+      })
+    )
+
+    await expect(
+      backend.mutation(internal.migrations.backfillNormalizedSourceUrls, {})
+    ).resolves.toMatchObject({ migrated: 1, done: true })
+    const stored = await backend.run((ctx) =>
+      ctx.db.get(expert.request.requestId)
+    )
+    expect(stored?.normalizedSourceUrl).toBeUndefined()
+    const validation = await backend.query(
+      internal.migrations.validateV1Invariants,
+      {}
+    )
+    expect(
+      validation.issues.filter((issue) => issue.humanId === expert.humanId)
+    ).toEqual([])
+
+    const standard = await backend.mutation(api.contentRequests.createManual, {
+      title: "Standard request for the same source",
+      origin: "manual",
+      source: { url: "https://example.com/expert-source" },
+      correlationId: "create-standard-same-expert-source",
+    })
+    expect(standard.humanId).not.toBe(expert.humanId)
+    expect(standard.requestType).toBe("standard")
+  })
+
+  it("ignores a legacy Expert package when backfilling an earlier Standard URL", async () => {
+    const backend = convexTest(schema, modules).withIdentity(operatorIdentity)
+    const principal = await backend.mutation(api.principals.syncCurrent)
+    const standard = await backend.mutation(api.contentRequests.createManual, {
+      title: "Earlier legacy Standard request",
+      origin: "manual",
+      correlationId: "earlier-legacy-standard",
+    })
+    const sourceUrl = "https://example.com/shared-legacy-source"
+    const sourceSnapshotId = await backend.run((ctx) =>
+      ctx.db.insert("sourceSnapshots", {
+        organizationId: "org_fairlend",
+        requestId: standard.requestId,
+        url: sourceUrl,
+        capturedByPrincipalId: principal.principalId,
+        capturedAt: 1,
+      })
+    )
+    await backend.run((ctx) =>
+      ctx.db.patch(standard.requestId, {
+        sourceSnapshotId,
+        normalizedSourceUrl: undefined,
+      })
+    )
+    const expert = await backend.mutation(api.expertInterviews.create, {
+      title: "Later legacy Expert request",
+      origin: "manual",
+      source: { url: sourceUrl },
+      brief: {
+        topic: "Legacy source classification",
+        summary: "Preserve a practitioner package independently.",
+        audience: "Ontario borrowers",
+        framing: "insider_knowledge",
+        fairlendPosture: "Educational and evidence-led.",
+        founderContribution: "Explain the practical sequence.",
+      },
+      gaps: [
+        {
+          id: "gap-legacy",
+          kind: "reality_on_the_ground",
+          title: "Legacy practitioner detail",
+          existingCoverage: "Published guidance covers the baseline.",
+          whyItFallsShort: "It omits practitioner detail.",
+          expertOpportunity: "Capture the real sequence.",
+          citations: [
+            {
+              label: "Published guide",
+              url: "https://example.com/published-guide",
+              supports: "The baseline coverage.",
+            },
+          ],
+        },
+      ],
+      questions: [
+        {
+          id: "question-legacy",
+          question: "What happens in practice?",
+          motivation: "Capture the missing sequence.",
+          gapIds: ["gap-legacy"],
+        },
+      ],
+      correlationId: "later-legacy-expert",
+    })
+    await backend.run((ctx) =>
+      ctx.db.patch(expert.request.requestId, {
+        requestType: "standard",
+        normalizedSourceUrl: sourceUrl,
+      })
+    )
+
+    const before = await backend.query(
+      internal.migrations.validateV1Invariants,
+      {}
+    )
+    expect(before.issues).toContainEqual({
+      humanId: expert.humanId,
+      code: "request_type",
+    })
+    await backend.mutation(internal.migrations.backfillNormalizedSourceUrls, {})
+    await backend.mutation(internal.migrations.backfillContentRequestTypes, {})
+    const state = await backend.run(async (ctx) => ({
+      standard: await ctx.db.get(standard.requestId),
+      expert: await ctx.db.get(expert.request.requestId),
+      conflicts: await ctx.db.query("migrationConflicts").collect(),
+    }))
+    expect(state.standard?.normalizedSourceUrl).toBe(sourceUrl)
+    expect(state.standard?.requestType).toBe("standard")
+    expect(state.expert?.normalizedSourceUrl).toBeUndefined()
+    expect(state.expert?.requestType).toBe("expert_interview")
+    expect(state.conflicts).toEqual([])
+  })
+
+  it("idempotently reconstructs completed founder promotions and refreshes their projection", async () => {
+    const workspace = convexTest(schema, modules)
+    const operator = workspace.withIdentity(operatorIdentity)
+    const founder = workspace.withIdentity({
+      ...operatorIdentity,
+      subject: "migration-founder",
+      role: "founder",
+      jti: "migration-founder-session",
+    })
+    await operator.mutation(api.principals.syncCurrent)
+    const founderPrincipal = await founder.mutation(api.principals.syncCurrent)
+    const created = await operator.mutation(api.contentRequests.createManual, {
+      title: "Previously promoted founder request",
+      origin: "manual",
+      correlationId: "create-legacy-promotion",
+    })
+    await operator.mutation(internal.contentRequests.assign, {
+      humanId: created.humanId,
+      assigneePrincipalId: founderPrincipal.principalId,
+      correlationId: "assign-legacy-promotion",
+    })
+    const [primary] = await operator.query(api.deliverables.list, {
+      humanId: created.humanId,
+    })
+    if (!primary) throw new Error("Primary deliverable missing")
+    await operator.mutation(api.deliverables.createVersion, {
+      deliverableId: primary.deliverableId,
+      body: "Prepared response",
+      correlationId: "version-legacy-promotion",
+    })
+    await operator.mutation(api.deliverables.createDerivative, {
+      humanId: created.humanId,
+      kind: "blog_article",
+      name: "Blog article",
+      correlationId: "derivative-legacy-promotion",
+    })
+
+    await expect(
+      operator.query(internal.migrations.validateV1Invariants, {})
+    ).resolves.toMatchObject({
+      issues: [{ humanId: created.humanId, code: "founder_handoff" }],
+    })
+
+    await expect(
+      operator.mutation(internal.migrations.backfillFounderHandoffs, {})
+    ).resolves.toEqual({ migrated: 1, done: true })
+    await expect(
+      operator.mutation(internal.migrations.backfillFounderHandoffs, {})
+    ).resolves.toEqual({ migrated: 0, done: true })
+
+    await expect(
+      operator.query(api.founderHandoffs.getCurrent, {
+        humanId: created.humanId,
+      })
+    ).resolves.toMatchObject({
+      recipient: { principalId: founderPrincipal.principalId },
+      selectedFormats: ["original_response", "blog_article"],
+      stage: "ready",
+      emailStatus: null,
+    })
+    await expect(
+      operator.query(internal.migrations.validateV1Invariants, {})
+    ).resolves.toMatchObject({ issues: [] })
+  })
+
+  it("normalizes legacy principal emails for direct indexed lookup", async () => {
+    const backend = convexTest(schema, modules).withIdentity(operatorIdentity)
+    await backend.run((ctx) =>
+      ctx.db.insert("principals", {
+        subject: "legacy-founder",
+        organizationId: "org_fairlend",
+        role: "founder",
+        kind: "human",
+        email: " Legacy.Founder@FairLend.CA ",
+        updatedAt: 1,
+      })
+    )
+
+    await expect(
+      backend.mutation(
+        internal.migrations.backfillNormalizedPrincipalEmails,
+        {}
+      )
+    ).resolves.toEqual({ migrated: 1, done: true })
+    await backend.run(async (ctx) => {
+      const founder = await ctx.db
+        .query("principals")
+        .withIndex("by_organization_role_email", (index) =>
+          index
+            .eq("organizationId", "org_fairlend")
+            .eq("role", "founder")
+            .eq("email", "legacy.founder@fairlend.ca")
+        )
+        .unique()
+      expect(founder?.subject).toBe("legacy-founder")
+    })
+    await expect(
+      backend.mutation(
+        internal.migrations.backfillNormalizedPrincipalEmails,
+        {}
+      )
+    ).resolves.toEqual({ migrated: 0, done: true })
   })
 })

@@ -39,7 +39,7 @@ async function founderVoiceWorkspace() {
     text: "Typed context remains intact.",
     correlationId: "create-founder-document",
   })
-  return { workspace, operator, founder, request }
+  return { workspace, operator, founder, founderPrincipal, request }
 }
 
 async function finishArchiveTransition(
@@ -94,6 +94,20 @@ async function finishArchiveTransition(
 describe("founder voice capture aggregate", () => {
   beforeEach(() => {
     process.env.FAIRLEND_WORKOS_ORGANIZATION_ID = "org_fairlend"
+  })
+
+  it("allows an administrator to QA Elie's founder voice controls", async () => {
+    const { workspace, request } = await founderVoiceWorkspace()
+    const administrator = workspace.withIdentity(
+      identity("administrator", "administrator")
+    )
+    await administrator.mutation(api.principals.syncCurrent)
+
+    await expect(
+      administrator.mutation(api.voiceCaptures.createUploadUrl, {
+        humanId: request.humanId,
+      })
+    ).resolves.toEqual(expect.any(String))
   })
 
   it("attaches one idempotent audio reference and transcript to the founder document", async () => {
@@ -411,10 +425,13 @@ describe("founder voice capture aggregate", () => {
         transcript: "First legacy transcript",
       })
     })
+    const secondStorageId = await workspace.run((ctx) =>
+      ctx.storage.store(audio)
+    )
     const second = await founder.mutation(api.voiceCaptures.finalizeUpload, {
       humanId: request.humanId,
       clientCaptureId: "capture-during-count-backfill",
-      storageId,
+      storageId: secondStorageId,
       mimeType: "audio/webm",
       sizeBytes: audio.size,
       durationMs: 1_000,

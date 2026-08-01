@@ -9,6 +9,7 @@ import { modules } from "./test.setup"
 describe("principals Convex contract", () => {
   beforeEach(() => {
     process.env.FAIRLEND_WORKOS_ORGANIZATION_ID = "org_fairlend"
+    process.env.WORKOS_CLIENT_ID = "client_fairlend"
   })
 
   it("rejects anonymous writes", async () => {
@@ -37,6 +38,68 @@ describe("principals Convex contract", () => {
     ).resolves.toHaveLength(1)
   })
 
+  it("provisions the configured founder as one searchable default Person", async () => {
+    process.env.FAIRLEND_ELIE_EMAIL = "elie@fairlend.ca"
+    process.env.FAIRLEND_PRINCIPAL_PROVISIONING_KEY =
+      "principal-provisioning-test-key"
+    const workspace = convexTest(schema, modules)
+    const operator = workspace.withIdentity({
+      subject: "founder-provisioning-operator",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "operator-editor",
+      email: "operator@fairlend.ca",
+    })
+    await operator.mutation(api.principals.syncCurrent)
+
+    const first = await operator.mutation(api.principals.seedFounder, {
+      provisioningKey: "principal-provisioning-test-key",
+      email: "elie@fairlend.ca",
+      subject: "user_elie",
+    })
+    const second = await operator.mutation(api.principals.seedFounder, {
+      provisioningKey: "principal-provisioning-test-key",
+      email: "elie@fairlend.ca",
+      subject: "user_elie",
+    })
+    const directory = await operator.query(api.people.search, {
+      query: "elie",
+      limit: 10,
+    })
+
+    expect(second).toEqual({ principalId: first.principalId, created: false })
+    expect(directory.defaultPersonId).toBeTruthy()
+    expect(directory.people).toEqual([
+      expect.objectContaining({
+        displayName: "Elie Tchitava",
+        email: "elie@fairlend.ca",
+        principalId: first.principalId,
+        isFounder: true,
+      }),
+    ])
+    await expect(
+      operator.run((ctx) => ctx.db.query("people").collect())
+    ).resolves.toHaveLength(1)
+  })
+
+  it("maps the WorkOS default admin role to administrator", async () => {
+    const t = convexTest(schema, modules).withIdentity({
+      subject: "user_admin",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "admin",
+      client_id: "client_fairlend",
+    })
+
+    await expect(t.mutation(api.principals.syncCurrent)).resolves.toMatchObject(
+      {
+        subject: "user_admin",
+        organizationId: "org_fairlend",
+        role: "administrator",
+      }
+    )
+  })
+
   it("rejects a valid role from another WorkOS organization", async () => {
     const t = convexTest(schema, modules).withIdentity({
       subject: "agent_01",
@@ -47,6 +110,20 @@ describe("principals Convex contract", () => {
 
     await expect(t.mutation(api.principals.syncCurrent)).rejects.toMatchObject({
       data: { code: "ORGANIZATION_ACCESS_DENIED" },
+    })
+  })
+
+  it("rejects a token issued for another app in the shared WorkOS environment", async () => {
+    const t = convexTest(schema, modules).withIdentity({
+      subject: "user_external_app",
+      issuer: "https://api.workos.com/",
+      client_id: "client_other_app",
+      org_id: "org_fairlend",
+      role: "founder",
+    })
+
+    await expect(t.mutation(api.principals.syncCurrent)).rejects.toMatchObject({
+      data: { code: "APPLICATION_ACCESS_DENIED" },
     })
   })
 

@@ -1,11 +1,30 @@
 import { Outlet, createFileRoute, redirect } from "@tanstack/react-router"
+import { House, Menu } from "lucide-react"
+
 import { loadWorkspaceSession } from "@/application/load-workspace-session"
 import { listMyNotifications } from "@/application/content-request-server-functions"
-import type { WorkspaceRole } from "@/application/workspace-session"
-import { ApplicationNavigation } from "@/components/application-navigation"
+import type {
+  WorkspaceRole,
+  WorkspaceViewSession,
+} from "@/application/workspace-session"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { ButtonLink } from "@/components/ui/button-link"
 import { NotificationCentre } from "@/components/notification-centre"
 import { SignOutControl } from "@/components/sign-out-control"
+import { ThemeToggle } from "@/components/theme-toggle"
+import { Separator } from "@/components/ui/separator"
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
+import { WorkspaceViewSwitcher } from "@/components/workspace-view-switcher"
+import { useHydrated } from "@/hooks/use-hydrated"
 
 const roleLabels = {
   founder: "Founder",
@@ -14,8 +33,24 @@ const roleLabels = {
   administrator: "Administrator",
 } satisfies Record<WorkspaceRole, string>
 
+const expertisePrototypeSession = {
+  subject: "prototype:admin",
+  organizationId: "org_fairlend",
+  email: "prototype@fairlend.ca",
+  displayName: "Prototype Admin",
+  role: "administrator",
+  principalId: "prototype-admin",
+  workspaceView: "operator",
+} satisfies WorkspaceViewSession
+
 export const Route = createFileRoute("/app")({
-  loader: async () => {
+  beforeLoad: async ({ location }) => {
+    if (
+      import.meta.env.MODE === "e2e" &&
+      location.pathname === "/app/expertise-prototype"
+    ) {
+      return { workspaceSession: expertisePrototypeSession }
+    }
     const result = await loadWorkspaceSession()
     if (result.status === "unauthenticated") {
       throw redirect({ to: "/sign-in", search: { returnTo: "/app" } })
@@ -23,9 +58,16 @@ export const Route = createFileRoute("/app")({
     if (result.status === "forbidden") {
       throw redirect({ to: "/unauthorized" })
     }
+    return { workspaceSession: result.session }
+  },
+  loader: async ({ context, location }) => {
     return {
-      ...result.session,
-      notifications: await listMyNotifications(),
+      ...context.workspaceSession,
+      notifications:
+        import.meta.env.MODE === "e2e" &&
+        location.pathname === "/app/expertise-prototype"
+          ? []
+          : await listMyNotifications(),
     }
   },
   component: ApplicationShell,
@@ -33,6 +75,7 @@ export const Route = createFileRoute("/app")({
 
 function ApplicationShell() {
   const session = Route.useLoaderData()
+  const hydrated = useHydrated()
   const initials = session.displayName
     .split(/\s+/)
     .map((part) => part[0])
@@ -44,12 +87,65 @@ function ApplicationShell() {
     <div className="app-shell">
       <header className="app-header">
         <div className="app-header__brand">
-          <ApplicationNavigation
-            canCreateRequest={session.role !== "founder"}
-          />
-          <span className="wordmark">FairLend</span>
+          <Sheet>
+            <SheetTrigger
+              render={
+                <Button
+                  className="app-header__menu-trigger"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Open navigation"
+                  disabled={!hydrated}
+                />
+              }
+            >
+              <Menu />
+            </SheetTrigger>
+            <SheetContent side="left" className="app-navigation-sheet">
+              <SheetHeader>
+                <SheetTitle>Navigation</SheetTitle>
+                <SheetDescription>
+                  Return to the content request gallery.
+                </SheetDescription>
+              </SheetHeader>
+              <nav
+                className="app-navigation-sheet__links"
+                aria-label="Application"
+              >
+                <SheetClose
+                  render={<ButtonLink to="/app" variant="ghost" size="lg" />}
+                >
+                  <House data-icon="inline-start" />
+                  Content request gallery
+                </SheetClose>
+              </nav>
+              <div className="app-navigation-sheet__account">
+                {session.role === "administrator" ? (
+                  <WorkspaceViewSwitcher
+                    workspaceView={session.workspaceView}
+                  />
+                ) : null}
+                <SignOutControl
+                  ownerKey={`${session.organizationId}:${session.principalId}`}
+                />
+              </div>
+            </SheetContent>
+          </Sheet>
+          <ButtonLink
+            className="app-header__home"
+            to="/app"
+            variant="ghost"
+            aria-label="FairLend content requests"
+          >
+            <span className="wordmark">FairLend</span>
+            <span className="app-header__product">Content requests</span>
+          </ButtonLink>
         </div>
         <div className="identity">
+          {session.role === "administrator" ? (
+            <WorkspaceViewSwitcher workspaceView={session.workspaceView} />
+          ) : null}
+          <ThemeToggle />
           <NotificationCentre notifications={session.notifications} />
           <SignOutControl
             ownerKey={`${session.organizationId}:${session.principalId}`}
@@ -63,6 +159,7 @@ function ApplicationShell() {
           </Avatar>
         </div>
       </header>
+      <Separator />
       <Outlet />
     </div>
   )

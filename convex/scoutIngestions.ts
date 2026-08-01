@@ -11,6 +11,7 @@ import {
 import {
   requireActiveRequest,
   requireEditor,
+  requireFounderWorkspacePrincipal,
   requirePrincipal,
 } from "./lib/authorization"
 import { contentRequestCreationDefaults } from "./lib/contentRequestDefaults"
@@ -147,7 +148,7 @@ export const apply = mutation({
     const requestHumanIds: Array<string> = []
 
     for (const opportunity of report.opportunities) {
-      const sourceMatches = await ctx.db
+      const sourceCandidates = await ctx.db
         .query("contentRequests")
         .withIndex("by_organization_normalized_source_url", (index) =>
           index
@@ -155,6 +156,21 @@ export const apply = mutation({
             .eq("normalizedSourceUrl", opportunity.normalizedSourceUrl)
         )
         .collect()
+      const sourceCandidateExpertPackages = await Promise.all(
+        sourceCandidates.map((candidate) =>
+          candidate.requestType === "expert_interview"
+            ? Promise.resolve(true)
+            : ctx.db
+                .query("expertInterviews")
+                .withIndex("by_request", (index) =>
+                  index.eq("requestId", candidate._id)
+                )
+                .unique()
+        )
+      )
+      const sourceMatches = sourceCandidates.filter(
+        (_, index) => !sourceCandidateExpertPackages[index]
+      )
       if (sourceMatches.length > 1) {
         throw new ConvexError({
           code: "SOURCE_COLLISION_REQUIRES_REMEDIATION",
@@ -196,6 +212,7 @@ export const apply = mutation({
             title: opportunity.title,
             normalizedTitle: normalizeText(opportunity.title),
             searchText: `${opportunity.title} ${existing.aliases.join(" ")} ${opportunity.question ?? ""} ${opportunity.normalizedSourceUrl}`,
+            requestType: existing.requestType ?? "standard",
             priority,
             timingLabel: opportunity.timingLabel,
             expiresAt,
@@ -217,6 +234,7 @@ export const apply = mutation({
           })
         } else {
           await ctx.db.patch(requestId, {
+            requestType: existing.requestType ?? "standard",
             timingLabel: opportunity.timingLabel,
             latestIngestionRunId: ingestionRunId,
             priority: "critical",
@@ -233,6 +251,7 @@ export const apply = mutation({
           normalizedTitle: normalizeText(opportunity.title),
           searchText: `${opportunity.title} ${opportunity.question ?? ""} ${opportunity.normalizedSourceUrl}`,
           aliases: [],
+          requestType: "standard",
           origin: "automated_scout",
           priority,
           normalizedSourceUrl: opportunity.normalizedSourceUrl,
@@ -704,17 +723,22 @@ async function contextRequestForPrincipal(
 }
 
 export const getContextDeckPreferences = query({
-  args: { humanId: v.string() },
+  args: { humanId: v.string(), founderWorkspace: v.optional(v.boolean()) },
   returns: v.union(contextDeckPreferencesValidator, v.null()),
   handler: async (ctx, args) => {
     const { principal, request } = await contextRequestForPrincipal(
       ctx,
       args.humanId
     )
+    const preferencePrincipalId = args.founderWorkspace
+      ? (await requireFounderWorkspacePrincipal(ctx, principal, request))._id
+      : principal._id
     const preferences = await ctx.db
       .query("contextDeckPreferences")
       .withIndex("by_request_principal", (index) =>
-        index.eq("requestId", request._id).eq("principalId", principal._id)
+        index
+          .eq("requestId", request._id)
+          .eq("principalId", preferencePrincipalId)
       )
       .unique()
     return preferences
@@ -734,6 +758,7 @@ export const saveContextDeckPreferences = mutation({
     pinnedContextIds: v.array(v.string()),
     knownContextIds: v.array(v.string()),
     correlationId: v.string(),
+    founderWorkspace: v.optional(v.boolean()),
   },
   returns: contextDeckPreferencesValidator,
   handler: async (ctx, args) => {
@@ -741,6 +766,9 @@ export const saveContextDeckPreferences = mutation({
       ctx,
       args.humanId
     )
+    const preferencePrincipalId = args.founderWorkspace
+      ? (await requireFounderWorkspacePrincipal(ctx, principal, request))._id
+      : principal._id
     const context = await ctx.db
       .query("contextItems")
       .withIndex("by_request_kind", (index) =>
@@ -772,7 +800,9 @@ export const saveContextDeckPreferences = mutation({
     const existing = await ctx.db
       .query("contextDeckPreferences")
       .withIndex("by_request_principal", (index) =>
-        index.eq("requestId", request._id).eq("principalId", principal._id)
+        index
+          .eq("requestId", request._id)
+          .eq("principalId", preferencePrincipalId)
       )
       .unique()
     const correlationId = args.correlationId.trim()
@@ -809,7 +839,7 @@ export const saveContextDeckPreferences = mutation({
       await ctx.db.insert("contextDeckPreferences", {
         organizationId: principal.organizationId,
         requestId: request._id,
-        principalId: principal._id,
+        principalId: preferencePrincipalId,
         ...value,
         updatedAt: now,
       })

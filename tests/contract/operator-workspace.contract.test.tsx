@@ -19,6 +19,7 @@ describe("Operator workspace card contract", () => {
           humanId: "CR-OPERATOR",
           title: "Answer the renewal question",
           aliases: [],
+          requestType: "standard",
           origin: "manual",
           priority: "critical",
           lifecycle: "founder_complete",
@@ -47,6 +48,24 @@ describe("Operator workspace card contract", () => {
         }}
         operational={{
           queue: "needs_operator",
+          founderHandoff: {
+            handoffId: "handoff-1",
+            recipient: {
+              principalId: "elie",
+              subject: "Elie",
+              role: "founder",
+            },
+            selectedFormats: [
+              "original_response",
+              "blog_article",
+              "linkedin_post",
+            ],
+            note: null,
+            stage: "ready",
+            deliveredAt: 1,
+            openedAt: 2,
+            emailStatus: "sent",
+          },
           agentJobStatus: "completed",
           requiredDeliveryConfirmed: 1,
           requiredDeliveryTotal: 2,
@@ -59,11 +78,14 @@ describe("Operator workspace card contract", () => {
       />
     )
 
-    expect(screen.getByText(/Assigned to Elie/)).toBeTruthy()
+    expect(screen.getByText("Elie").parentElement?.textContent).toBe(
+      "Assigned to Elie"
+    )
     expect(screen.getByText("Founder draft saved")).toBeTruthy()
     expect(screen.getByText("Needs operator")).toBeTruthy()
     expect(screen.getByText("Founder complete")).toBeTruthy()
     expect(screen.getByText("Job: completed")).toBeTruthy()
     expect(screen.getByText("Delivery 1/2")).toBeTruthy()
+    expect(screen.getByText("To Elie: Ready")).toBeTruthy()
   })
 })

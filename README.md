@@ -54,15 +54,24 @@ source or founder content.
 2. Copy `.env.example` to `.env.local` and supply the WorkOS and Convex values.
 3. In WorkOS, register `http://localhost:3000/api/auth/callback` as a redirect
    URI and `http://localhost:3000/api/auth/sign-in` as the sign-in endpoint.
-4. Provision the required Convex environment values, then run `bunx convex dev`
-   to regenerate `_generated` files and synchronize the schema/auth
-   configuration:
+4. Copy the managed WorkOS environment ID and its default application's client
+   ID from the WorkOS Applications page into `.env.local`. The client ID, API
+   key, environment ID, and organization ID must all belong to the same WorkOS
+   environment. Synchronize that identity boundary to the personal Convex dev
+   deployment, then provision the remaining Convex-only secrets:
 
    ```sh
-   bunx convex env set WORKOS_CLIENT_ID "client_..."
-   bunx convex env set FAIRLEND_WORKOS_ORGANIZATION_ID "org_..."
+   bun run auth:sync-dev
    bunx convex env set PUBLIC_SHARE_TOKEN_SECRET "$(openssl rand -hex 32)"
+   bunx convex env set GUEST_ACCESS_TOKEN_SECRET "$(openssl rand -hex 32)"
+   bunx convex env set GUEST_ACCESS_RESOLVE_SECRET "<same value as .env.local>"
+   bunx convex env set GUEST_ACCESS_EXPIRY_NOTIFICATION_THRESHOLD_HOURS "12"
+   bunx convex env set EXPERT_SYNTHESIS_SNAPSHOT_SECRET "$(openssl rand -hex 32)"
    ```
+
+   `auth:sync-dev` refuses production deployments. It copies the four WorkOS
+   identity variables from `.env.local` into the configured personal Convex dev
+   deployment so AuthKit tokens and Convex's JWT providers cannot drift.
 
    Set the public-share secret separately in every Convex deployment. Keep it
    stable: existing public URLs remain valid after rotation because only token
@@ -70,13 +79,34 @@ source or founder content.
    rejected with `PUBLIC_SHARE_SECRET_ROTATED`. Revoke or recreate those shares
    deliberately rather than returning a mismatched URL.
 
+   Guest Access requires two additional secrets. Generate
+   `GUEST_ACCESS_TOKEN_SECRET` once per Convex deployment; it keys the stored
+   token verifiers and must never be exposed to the TanStack server or a
+   `VITE_` variable. Generate `GUEST_ACCESS_RESOLVE_SECRET` separately and put
+   the identical value in `.env.local` and the Convex deployment. The TanStack
+   server uses it to authenticate its edge-derived network source to the public
+   Convex resolve mutation. Both values must contain at least 32 random bytes.
+   Rotating the token secret invalidates every active Guest Access URL. Rotate
+   the resolve secret on both sides in one maintenance window because mismatched
+   values temporarily reject guest opens. The optional
+   `GUEST_ACCESS_EXPIRY_NOTIFICATION_THRESHOLD_HOURS` Convex setting controls
+   the final notification window for unfinished grants and defaults to 12 hours.
+   `EXPERT_SYNTHESIS_SNAPSHOT_SECRET` signs the exact Submission/context-version
+   snapshot handed to a synthesis agent. Use a distinct stable Convex-only key;
+   the guest-token key is accepted only as a rolling-deployment fallback.
+
    The TanStack server also needs `FAIRLEND_CONVEX_AGENT_ADMIN_KEY`, a
    server-only Convex deploy/admin key. It is used only after WorkOS validates
    an `auth.md` installation credential, and only with Convex's acting-as mode
    so the existing `agent_editor` authorization and audit path remains in
    force. Never expose this key through a `VITE_` variable or client bundle.
 
-5. Run the app with `bun run dev`.
+5. Run the complete development stack with `bun run dev`. It first synchronizes
+   the WorkOS identity variables, then the Convex watcher synchronizes backend
+   functions before starting Vite and keeps both sides current as files change.
+   Code generation is disabled because this repository checks in
+   deployment-independent generated stubs. Use `bun run dev:web` only when a
+   separate `convex dev --codegen disable` watcher is already running.
 
 The checked-in generated Convex types let type checking and isolated contract
 tests run before a developer connects a deployment. `convex codegen` becomes the
@@ -89,13 +119,25 @@ source of truth once a deployment is configured.
 | `founder`         | `founder`         | Elie / founder workflow             |
 | `operator-editor` | `operator_editor` | Operator and editorial workspace    |
 | `agent-editor`    | `agent_editor`    | CLI, API, and ChatGPT agent editors |
-| `administrator`   | `administrator`   | System administration               |
+| `admin`           | `administrator`   | WorkOS default Admin role           |
+| `administrator`   | `administrator`   | FairLend custom admin role slug     |
 
 Convex derives the principal role and organization entirely from the signed
 WorkOS token. The WorkOS callback provisions the principal and verified email
 using a server-only shared provisioning secret; ordinary application loads are
 query-only, and profile display data comes from the verified WorkOS session
 rather than caller-controlled mutation arguments.
+
+Administrators have an authenticated header switch between the operator/admin
+workspace and Elie's founder workspace. The selection is persisted in an
+HTTP-only, same-site cookie and is accepted only for the `administrator` role.
+It changes the rendered queue and request experience but never impersonates a
+WorkOS identity: Convex still authorizes and audits every operation as the real
+administrator. Elie's queue is resolved from the verified
+`FAIRLEND_ELIE_EMAIL` principal, and founder-owned drafts and voice captures
+remain owned by that principal when an administrator exercises them for QA.
+If the founder has not signed in yet, the projection opens as an empty library
+until the founder principal is provisioned.
 
 ### Ticket 03 assignment migration
 
@@ -113,6 +155,76 @@ source snapshots so pre-ingestion records participate in URL deduplication.
 Canonical collisions are not guessed: the migration records an unresolved
 `normalized_source_url_collision` remediation item and leaves the duplicate
 aggregate untouched for operator resolution.
+
+## Expert Interview guest workflow
+
+An administrator creates a first-class Expert Interview, assigns each response
+link to an existing or newly registered Person, and shares the one-time
+`/respond/:token` URL through a channel they control. The respondent does not
+sign in. The route exposes only the approved brief, questions, motivations,
+their own response workspace, and administrator feedback. It supports batch and
+question-by-question answers, debounced autosave, one active editor lease,
+attachments, recordings, transcription retry/reselection, immutable submission,
+and explicit reopen. A second grant cannot read or mutate the first grant's
+workspace, assets, feedback, or Submissions.
+
+The plaintext bearer token is returned only at create or renewal. Convex stores
+an HMAC verifier, never the token; administrator projections, audit events,
+notifications, structured errors, logs, and analytics must contain only grant
+IDs and safe metadata. Invalid, revoked, and rotated tokens return no request
+content. Expired links show only the approved recovery message. Renewal rotates
+the token while preserving the Person, workspace, evidence, and history;
+revocation is immediate. Configure the 12-hour notification threshold and
+transactional-email outbox values from `.env.example`, then monitor failed
+outbox attempts and transcription watchdog failures after deployment.
+Guest projections never receive durable raw Storage URLs; only an authenticated
+administrator inspection can resolve an evidence download. Upload objects are
+claimed in the shared ownership registry before finalization, and the hourly
+storage-maintenance sweep removes unclaimed objects after a 24-hour grace
+period, covering a browser or worker crash between byte upload and registration.
+Monitor that cron alongside the upload-session and transcription watchdogs.
+
+Synthesis is an explicit administrator decision. List immutable Submissions,
+include or exclude each one, then call the idempotent mutation
+`expert_interview.processing_input` with the ordered included IDs and a stable
+idempotency key. The result contains an evidence-isolated prompt and a signed,
+expiring `processingSnapshot`. An exact preparation retry reuses that canonical
+snapshot; reusing the key for different inputs is rejected. Pass its token
+unchanged to `expert_interview.complete_processing`; first completion verifies
+the exact current included set, Interview package, context versions, operator
+instructions, and existing Deliverables before recording Deliverable-version
+provenance. Only an exact retry of an already committed result bypasses later
+mutable drift. Respondent text, transcripts, and filenames are escaped inside
+an untrusted-data boundary and cannot override operator instructions.
+`expert_interview.submissions` is intentionally classified as an additive,
+idempotent operation rather than a read: its first call may materialize and
+audit a frozen compatibility Submission for historical founder input. Raw HTTP
+callers must provide an `idempotencyKey` or `x-idempotency-key` for
+`expert_interview.processing_input`; the server never substitutes a random retry
+identity for this durable snapshot mutation.
+
+The ergonomic CLI mirrors the MCP/HTTP operations:
+
+```sh
+bun run content-requests -- people-search "Alex Expert"
+bun run content-requests -- person-create CR-EXAMPLE --name "Alex Expert" --email "alex@example.ca" --idempotency-key person-alex-v1
+bun run content-requests -- guest-create CR-EXAMPLE --person-id "$PERSON_ID" --idempotency-key grant-alex-v1
+bun run content-requests -- guest-list CR-EXAMPLE
+bun run content-requests -- guest-renew "$GRANT_ID" --idempotency-key renew-alex-v1
+bun run content-requests -- guest-revoke "$GRANT_ID" --idempotency-key revoke-alex-v1
+bun run content-requests -- expert-submissions CR-EXAMPLE
+bun run content-requests -- expert-selection CR-EXAMPLE --submission-id "$SUBMISSION_ID" --include --idempotency-key include-alex-v1
+bun run content-requests -- expert-processing-input CR-EXAMPLE --submissions "$SUBMISSION_ID" --idempotency-key prepare-synthesis-v1
+bun run content-requests -- expert-processing-complete CR-EXAMPLE --submissions "$SUBMISSION_ID" --processing-token "$PROCESSING_TOKEN" --payload-digest "$PAYLOAD_DIGEST" --file article.md --idempotency-key synthesis-v1
+```
+
+Release smoke checks should cover clipboard fallback, mobile guest editing,
+desktop administrator inspection, feedback/reopen, upload and recording
+recovery, expiry/renewal/revocation, notification deep links, synthesis
+selection, safe stale-token projections, and the legacy Public Share's distinct
+unauthenticated read-only/revocable behavior. Run `bun run typecheck`,
+`bun run lint`, `bun test`, the desktop/mobile Playwright projects, and
+`bun run build` before promotion.
 
 ## Founder context experience
 
@@ -135,9 +247,11 @@ and the height transition is disabled for reduced-motion preferences.
 Typed founder input continuously autosaves to the request's single durable
 founder document and reports `Saved`, `Saving`, or `Offline` without mounting a
 second editor. Meaningful text advances Pending work to In progress; opening or
-saving whitespace does not. Only the assigned founder can read or mutate raw
-draft text. Operators and agents receive the minimal `hasFounderDraft` and
-updated-at metadata needed to understand progress, never the private content.
+saving whitespace does not. Only the assigned founder and an administrator
+QA'ing that founder workspace can read or mutate raw draft text. Operators and
+agents receive the minimal `hasFounderDraft` and updated-at metadata needed to
+understand progress, never the private content. Administrator actions retain
+administrator attribution in the audit and timeline records.
 
 The same input surface can capture voice with explicit record, pause, resume,
 and stop controls. Audio is written to an owner-scoped IndexedDB queue before
@@ -166,8 +280,8 @@ guard and wait without discarding local work.
 
 Each durable materialization is also pushed to the dedicated `convex-timeline`
 component with actor, correlation, and timestamp attribution. Undo and redo
-remain founder-only, idempotent, audited, and visible in the founder's version
-history panel. The timeline retains 50 bounded instant-undo snapshots and
+remain founder-workspace-only, idempotent, audited, and visible in the founder's
+version history panel. The timeline retains 50 bounded instant-undo snapshots and
 projects only attribution metadata to the browser. Every durable materialization
 also enters a paginated immutable archive, so Elie can enumerate and restore
 versions older than the timeline window without loading unbounded full-text
@@ -193,6 +307,21 @@ Cloudflare Workers remains a supported alternate target. Configure the WorkOS
 values as Worker secrets/bindings and `VITE_CONVEX_URL` as a Worker variable,
 then run `bun run deploy`; that command creates a production build before
 Wrangler deploys it.
+
+Provision Guest Access secrets before the first production deployment:
+
+```sh
+bunx convex env set --prod GUEST_ACCESS_TOKEN_SECRET "$(openssl rand -hex 32)"
+bunx convex env set --prod GUEST_ACCESS_RESOLVE_SECRET "<shared-random-value>"
+bunx convex env set --prod GUEST_ACCESS_EXPIRY_NOTIFICATION_THRESHOLD_HOURS "12"
+bunx convex env set --prod EXPERT_SYNTHESIS_SNAPSHOT_SECRET "$(openssl rand -hex 32)"
+bunx wrangler secret put GUEST_ACCESS_RESOLVE_SECRET
+```
+
+Enter the exact same shared random value for the Convex resolve secret and the
+Cloudflare Worker prompt. `GUEST_ACCESS_TOKEN_SECRET` remains Convex-only.
+Verify both Convex environment entries with `bunx convex env list --prod`;
+Cloudflare intentionally does not reveal secret values after provisioning.
 
 ## Content Request contracts
 

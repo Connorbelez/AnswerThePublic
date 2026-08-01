@@ -13,6 +13,195 @@ function service(methods: Record<string, unknown>) {
 }
 
 describe("agent control-plane contract", () => {
+  it("requires a durable idempotency key for HTTP synthesis preparation", async () => {
+    const handler = createAgentControlHandler(async () => service({}))
+    const response = await handler.POST({
+      request: new Request("https://fairlend.test/api/v1/control", {
+        method: "POST",
+        body: JSON.stringify({
+          command: {
+            operation: "expert_interview.processing_input",
+            arguments: {
+              humanId: "CR-101",
+              submissionIds: ["submission-a"],
+            },
+          },
+        }),
+      }),
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "VALIDATION_FAILED" },
+    })
+  })
+
+  it("requires a durable idempotency key for HTTP synthesis completion", async () => {
+    const commitExpertSynthesis = vi.fn()
+    const handler = createAgentControlHandler(async () =>
+      service({ commitExpertSynthesis })
+    )
+    const response = await handler.POST({
+      request: new Request("https://fairlend.test/api/v1/control", {
+        method: "POST",
+        body: JSON.stringify({
+          command: {
+            operation: "expert_interview.complete_processing",
+            arguments: {
+              humanId: "CR-101",
+              submissionIds: ["submission-a"],
+              processingToken: "signed-processing-token",
+              payloadDigest: "a".repeat(64),
+              body: "# Attributed synthesis",
+            },
+          },
+        }),
+      }),
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "VALIDATION_FAILED" },
+    })
+    expect(commitExpertSynthesis).not.toHaveBeenCalled()
+  })
+
+  it("uses the shared lease-acquiring completion path through HTTP", async () => {
+    const commitExpertSynthesis = vi
+      .fn()
+      .mockRejectedValueOnce({
+        data: { code: "EXPERT_INTERVIEW_AGENT_JOB_LEASE_REQUIRED" },
+      })
+      .mockResolvedValueOnce({
+        deliverable: { deliverableId: "deliverable-1" },
+        provenance: {
+          provenanceId: "provenance-1",
+          submissionIds: ["submission-a"],
+          contextVersionIds: [],
+          payloadDigest: "a".repeat(64),
+          canonicalBundle: JSON.stringify({
+            version: 1,
+            request: {
+              humanId: "CR-101",
+              requestType: "expert_interview",
+            },
+            expertInterview: {},
+            contextVersions: [],
+            selectedSubmissions: [],
+            selectionDecisions: [],
+            existingDeliverables: [],
+            priorityInstructions: [],
+          }),
+        },
+      })
+    const claimExpertSynthesisJob = vi.fn().mockResolvedValue({
+      jobId: "job-1",
+      status: "running",
+      leaseToken: "complete-http",
+      leaseGeneration: 2,
+    })
+    const handler = createAgentControlHandler(async () =>
+      service({ commitExpertSynthesis, claimExpertSynthesisJob })
+    )
+    const response = await handler.POST({
+      request: new Request("https://fairlend.test/api/v1/control", {
+        method: "POST",
+        body: JSON.stringify({
+          command: {
+            operation: "expert_interview.complete_processing",
+            idempotencyKey: "complete-http",
+            arguments: {
+              humanId: "CR-101",
+              submissionIds: ["submission-a"],
+              processingToken: "signed-processing-token",
+              payloadDigest: "a".repeat(64),
+              body: "# Attributed synthesis",
+            },
+          },
+        }),
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(claimExpertSynthesisJob).toHaveBeenCalledWith(
+      "CR-101",
+      "complete-http",
+      15 * 60_000
+    )
+    expect(commitExpertSynthesis).toHaveBeenCalledTimes(2)
+    expect(commitExpertSynthesis).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        correlationId: "complete-http",
+        jobId: "job-1",
+        leaseToken: "complete-http",
+        leaseGeneration: 2,
+      })
+    )
+  })
+
+  it("classifies malformed nested Expert Interview packages as client validation errors", async () => {
+    const createManual = vi.fn()
+    const handler = createAgentControlHandler(async () =>
+      service({ createManual })
+    )
+    const baseArguments = {
+      title: "Bridge recovery",
+      brief: {
+        topic: "Bridge financing",
+        summary: "Recovery decisions",
+        audience: "Ontario homeowners",
+        framing: "unsupported",
+        fairlendPosture: "Educational",
+        founderContribution: "Practitioner judgment",
+      },
+      gaps: [
+        {
+          id: "gap-1",
+          kind: "reality_on_the_ground",
+          title: "Recovery sequence",
+          existingCoverage: "Eligibility only",
+          whyItFallsShort: "No recovery sequence",
+          expertOpportunity: "Describe the sequence",
+          citations: [],
+        },
+      ],
+      questions: [
+        {
+          id: "question-1",
+          question: "What happens first?",
+          motivation: "Expose the sequence",
+          gapIds: ["gap-1"],
+        },
+      ],
+    }
+    const requestFor = (arguments_: Record<string, unknown>) =>
+      new Request("https://fairlend.test/api/v1/control", {
+        method: "POST",
+        body: JSON.stringify({
+          command: {
+            operation: "expert_interview.create",
+            idempotencyKey: "expert-validation",
+            arguments: arguments_,
+          },
+        }),
+      })
+
+    const invalidFraming = await handler.POST({
+      request: requestFor(baseArguments),
+    })
+    const missingCitations = await handler.POST({
+      request: requestFor({
+        ...baseArguments,
+        brief: { ...baseArguments.brief, framing: "educational" },
+        gaps: [{ ...baseArguments.gaps[0], citations: undefined }],
+      }),
+    })
+
+    expect(invalidFraming.status).toBe(400)
+    expect(missingCitations.status).toBe(400)
+    expect(createManual).not.toHaveBeenCalled()
+  })
+
   it("exposes the V1 workflow while withholding immutable founder/source writes", () => {
     expect(agentControlOperations).toEqual(
       expect.arrayContaining([
@@ -233,6 +422,43 @@ describe("agent control-plane contract", () => {
     )
     expect(claimAgentJob).toHaveBeenNthCalledWith(1, "claim-attempt-1", 300_000)
     expect(claimAgentJob).toHaveBeenNthCalledWith(2, "claim-attempt-1", 300_000)
+  })
+
+  it("claims the job bound to an explicit request regardless of request type", async () => {
+    const claimAgentJob = vi.fn()
+    const claimAgentJobForRequest = vi.fn().mockResolvedValue({
+      jobId: "job-targeted",
+      requestHumanId: "CR-101",
+    })
+    const handler = createAgentControlHandler(async () =>
+      service({ claimAgentJob, claimAgentJobForRequest })
+    )
+    const response = await handler.POST({
+      request: new Request("https://fairlend.test/api/v1/control", {
+        method: "POST",
+        body: JSON.stringify({
+          command: {
+            operation: "job.claim",
+            idempotencyKey: "targeted-request-claim",
+            arguments: { humanId: "CR-101", leaseMs: 300_000 },
+          },
+        }),
+      }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(claimAgentJobForRequest).toHaveBeenCalledWith(
+      "CR-101",
+      "targeted-request-claim",
+      300_000
+    )
+    expect(claimAgentJob).not.toHaveBeenCalled()
+    await expect(response.json()).resolves.toMatchObject({
+      data: {
+        jobId: "job-targeted",
+        requestHumanId: "CR-101",
+      },
+    })
   })
 
   it("rejects conflicting nested and top-level idempotency keys", async () => {

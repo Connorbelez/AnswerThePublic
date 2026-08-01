@@ -1,0 +1,240 @@
+{
+  "label": "final",
+  "project": "desktop-chromium",
+  "viewport": {
+    "width": 1536,
+    "height": 1024
+  },
+  "capturedAt": "2026-07-20T05:17:02.520Z",
+  "bundle": {
+    "assetCount": 49,
+    "totalBytes": 4673075,
+    "totalGzipBytes": 1501932,
+    "executableBytes": 1292566,
+    "executableGzipBytes": 380913,
+    "deferredBinaryBytes": 3380509,
+    "deferredBinaryGzipBytes": 1121019,
+    "largestAssets": [
+      {
+        "file": "automerge_wasm_bg-BdM9z0C5.wasm",
+        "kind": "wasm",
+        "bytes": 3380509,
+        "gzipBytes": 1121019
+      },
+      {
+        "file": "founder-request-canvas-ryTzUdhq.js",
+        "kind": "executable",
+        "bytes": 251869,
+        "gzipBytes": 77031
+      },
+      {
+        "file": "index-BU6SFd8D.css",
+        "kind": "executable",
+        "bytes": 231343,
+        "gzipBytes": 35141
+      },
+      {
+        "file": "index-D_z3Lt-n.js",
+        "kind": "executable",
+        "bytes": 205832,
+        "gzipBytes": 65444
+      },
+      {
+        "file": "markdown-content-BtqzDHf-.js",
+        "kind": "executable",
+        "bytes": 154387,
+        "gzipBytes": 45495
+      },
+      {
+        "file": "app.requests._requestId-CkR_MS-s.js",
+        "kind": "executable",
+        "bytes": 97899,
+        "gzipBytes": 30488
+      },
+      {
+        "file": "avatar-Ce-BumnT.js",
+        "kind": "executable",
+        "bytes": 93581,
+        "gzipBytes": 31522
+      },
+      {
+        "file": "app-C_SnckCK.js",
+        "kind": "executable",
+        "bytes": 49545,
+        "gzipBytes": 16193
+      },
+      {
+        "file": "content-request-server-functions-QRRvVsxJ.js",
+        "kind": "executable",
+        "bytes": 41954,
+        "gzipBytes": 14787
+      },
+      {
+        "file": "utils-BXza46oy.js",
+        "kind": "executable",
+        "bytes": 35835,
+        "gzipBytes": 11739
+      },
+      {
+        "file": "dist-CYALE3ch.js",
+        "kind": "executable",
+        "bytes": 31753,
+        "gzipBytes": 11524
+      },
+      {
+        "file": "app-BZAlJuLe.js",
+        "kind": "executable",
+        "bytes": 16448,
+        "gzipBytes": 6196
+      }
+    ]
+  },
+  "warmNavigationMs": 0,
+  "warmNavigationCompleteMs": 132,
+  "routes": [
+    {
+      "route": "/sign-in",
+      "finalUrl": "/sign-in",
+      "visibleMs": 105.3,
+      "lcpMs": 64,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 628634,
+      "encodedBytes": 622934,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/unauthorized",
+      "finalUrl": "/unauthorized",
+      "visibleMs": 52.9,
+      "lcpMs": 44,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 7518,
+      "encodedBytes": 622973,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/route-that-does-not-exist",
+      "finalUrl": "/route-that-does-not-exist",
+      "visibleMs": 58,
+      "lcpMs": 48,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 5100,
+      "encodedBytes": 621155,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 88.4,
+      "lcpMs": 92,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 786084,
+      "encodedBytes": 775884,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/new",
+      "finalUrl": "/app/new",
+      "visibleMs": 81.5,
+      "lcpMs": 68,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 16968,
+      "encodedBytes": 755037,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010002",
+      "finalUrl": "/app/requests/CR-00000000000010002",
+      "visibleMs": 86.2,
+      "lcpMs": 632,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 267349,
+      "encodedBytes": 1012937,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 57.8,
+      "lcpMs": 52,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 3819304,
+      "encodedBytes": 4564036,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010002",
+      "finalUrl": "/app/requests/CR-00000000000010002",
+      "visibleMs": 64.8,
+      "lcpMs": 608,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 118385,
+      "encodedBytes": 4655434,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 67,
+      "lcpMs": 68,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 786084,
+      "encodedBytes": 775884,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 74,
+      "lcpMs": 76,
+      "cls": 0,
+      "longTasks": 1,
+      "transferredBytes": 786084,
+      "encodedBytes": 775884,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/share/5d4526aa41400547da491a4dbe59b64ff4cdc1166b557dc5081277cfea381e1d",
+      "finalUrl": "/share/5d4526aa41400547da491a4dbe59b64ff4cdc1166b557dc5081277cfea381e1d",
+      "visibleMs": 63.8,
+      "lcpMs": 56,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 163427,
+      "encodedBytes": 778582,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010002",
+      "finalUrl": "/app/requests/CR-00000000000010002",
+      "visibleMs": 59.2,
+      "lcpMs": 532,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 14115,
+      "encodedBytes": 1012949,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    }
+  ]
+}

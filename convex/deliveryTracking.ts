@@ -143,11 +143,7 @@ async function priorOperation(
   ctx: QueryCtx | MutationCtx,
   principal: Awaited<ReturnType<typeof requirePrincipal>>,
   operation:
-    | "create_target"
-    | "set_required"
-    | "set_retention"
-    | "confirm"
-    | "reopen",
+    "create_target" | "set_required" | "set_retention" | "confirm" | "reopen",
   correlationId: string,
   fingerprint: string
 ) {

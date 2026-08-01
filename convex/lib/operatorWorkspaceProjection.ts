@@ -2,6 +2,7 @@ import type { Id } from "../_generated/dataModel"
 import { internal } from "../_generated/api"
 import type { MutationCtx } from "../_generated/server"
 import { MAX_DELIVERY_TARGETS_PER_REQUEST } from "./requestLimits"
+import { founderHandoffStatus } from "./founderHandoff"
 
 function deriveQueue(input: {
   lifecycle: string
@@ -111,6 +112,7 @@ export async function refreshOperatorWorkspaceProjection(
     requiredTotal: required.length,
     requiredConfirmed: confirmed,
   })
+  const founderHandoff = await founderHandoffStatus(ctx, request, latestJob)
   const value = {
     organizationId: request.organizationId,
     requestId: request._id,
@@ -140,6 +142,7 @@ export async function refreshOperatorWorkspaceProjection(
     lifecycle: request.lifecycle,
     disposition: request.disposition,
     assigneePrincipalId: assignee._id,
+    founderHandoff: founderHandoff ?? undefined,
     agentJobStatus: latestJob?.status,
     requiredDeliveryConfirmed: confirmed,
     requiredDeliveryTotal: required.length,

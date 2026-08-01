@@ -1,0 +1,228 @@
+{
+  "label": "ci",
+  "project": "mobile-webkit",
+  "viewport": {
+    "width": 432,
+    "height": 910
+  },
+  "capturedAt": "2026-07-29T03:40:19.339Z",
+  "bundle": {
+    "assetCount": 52,
+    "totalBytes": 4900640,
+    "totalGzipBytes": 1564796,
+    "executableBytes": 1520131,
+    "executableGzipBytes": 443777,
+    "deferredBinaryBytes": 3380509,
+    "deferredBinaryGzipBytes": 1121019,
+    "largestAssets": [
+      {
+        "file": "automerge-BdM9z0C5.wasm",
+        "kind": "wasm",
+        "bytes": 3380509,
+        "gzipBytes": 1121019
+      },
+      {
+        "file": "index-Ba9xIO_z.js",
+        "kind": "executable",
+        "bytes": 322130,
+        "gzipBytes": 103436
+      },
+      {
+        "file": "index-KdV_JVz6.css",
+        "kind": "executable",
+        "bytes": 263013,
+        "gzipBytes": 39994
+      },
+      {
+        "file": "founder-request-canvas-DV_gD1lk.js",
+        "kind": "executable",
+        "bytes": 228590,
+        "gzipBytes": 72684
+      },
+      {
+        "file": "app.requests._requestId-jJDQmEOq.js",
+        "kind": "executable",
+        "bytes": 164457,
+        "gzipBytes": 48448
+      },
+      {
+        "file": "markdown-content-DxTo0MUA.js",
+        "kind": "executable",
+        "bytes": 154375,
+        "gzipBytes": 45493
+      },
+      {
+        "file": "DialogTitle-BNuPPswY.js",
+        "kind": "executable",
+        "bytes": 48943,
+        "gzipBytes": 16070
+      },
+      {
+        "file": "avatar-DHno5VUf.js",
+        "kind": "executable",
+        "bytes": 45165,
+        "gzipBytes": 16211
+      },
+      {
+        "file": "app.expertise-prototype-CLeNsocO.js",
+        "kind": "executable",
+        "bytes": 42000,
+        "gzipBytes": 10733
+      },
+      {
+        "file": "respond._token-BgJfLwsK.js",
+        "kind": "executable",
+        "bytes": 40285,
+        "gzipBytes": 11816
+      },
+      {
+        "file": "utils-C3qR0QAR.js",
+        "kind": "executable",
+        "bytes": 35835,
+        "gzipBytes": 11739
+      },
+      {
+        "file": "dist-CF4mBLQy.js",
+        "kind": "executable",
+        "bytes": 31754,
+        "gzipBytes": 11527
+      }
+    ]
+  },
+  "warmNavigationMs": 9,
+  "warmNavigationCompleteMs": 9,
+  "routes": [
+    {
+      "route": "/sign-in",
+      "finalUrl": "/sign-in",
+      "visibleMs": 111.1,
+      "lcpMs": 55,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 659835,
+      "encodedBytes": 656835,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/unauthorized",
+      "finalUrl": "/unauthorized",
+      "visibleMs": 100.5,
+      "lcpMs": 41,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 657773,
+      "encodedBytes": 655373,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/route-that-does-not-exist",
+      "finalUrl": "/route-that-does-not-exist",
+      "visibleMs": 98.9,
+      "lcpMs": 46,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 655439,
+      "encodedBytes": 653639,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 227.7,
+      "lcpMs": 111,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 835577,
+      "encodedBytes": 827177,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/new",
+      "finalUrl": "/app/new",
+      "visibleMs": 161.4,
+      "lcpMs": 55,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 800529,
+      "encodedBytes": 792729,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010003",
+      "finalUrl": "/app/requests/CR-00000000000010003",
+      "visibleMs": 905,
+      "lcpMs": 488,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 1159126,
+      "encodedBytes": 1148626,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 132.2,
+      "lcpMs": 99,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 835577,
+      "encodedBytes": 827177,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app/requests/CR-00000000000010003",
+      "finalUrl": "/app/requests/CR-00000000000010003",
+      "visibleMs": 895.1,
+      "lcpMs": 498,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 4786763,
+      "encodedBytes": 4772363,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 133.8,
+      "lcpMs": 77,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 835577,
+      "encodedBytes": 827177,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/app",
+      "finalUrl": "/app",
+      "visibleMs": 140.4,
+      "lcpMs": 71,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 835577,
+      "encodedBytes": 827177,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    },
+    {
+      "route": "/share/b4ec96cbd8beb28242e795d8684ebb644ad979b86c759414b8003d6477efc6a6",
+      "finalUrl": "/share/b4ec96cbd8beb28242e795d8684ebb644ad979b86c759414b8003d6477efc6a6",
+      "visibleMs": 108.8,
+      "lcpMs": 51,
+      "cls": 0,
+      "longTasks": 0,
+      "transferredBytes": 813724,
+      "encodedBytes": 811024,
+      "horizontalOverflow": 0,
+      "accessibilityViolations": []
+    }
+  ]
+}

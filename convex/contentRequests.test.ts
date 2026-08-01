@@ -46,6 +46,7 @@ describe("Content Request workflow contract", () => {
 
     expect(created).toMatchObject({
       title: "Explain a portable mortgage",
+      requestType: "standard",
       origin: "manual",
       priority: "critical",
       lifecycle: "pending",
@@ -56,6 +57,44 @@ describe("Content Request workflow contract", () => {
       backend.query(api.contentRequests.getByHumanId, {
         humanId: created.humanId,
       })
+    ).resolves.toEqual(created)
+  })
+
+  it("replays createManual audit records written before requestType joined the fingerprint", async () => {
+    const backend = await operatorBackend()
+    const input = {
+      title: "Legacy idempotent request",
+      origin: "manual" as const,
+      correlationId: "legacy-create-fingerprint",
+    }
+    const created = await backend.mutation(
+      api.contentRequests.createManual,
+      input
+    )
+    await backend.run(async (ctx) => {
+      const audit = await ctx.db
+        .query("auditEvents")
+        .withIndex("by_organization_actor_operation_correlation", (index) =>
+          index
+            .eq("organizationId", "org_fairlend")
+            .eq("actorPrincipalId", created.assignee.principalId)
+            .eq("operation", "content_request.created")
+            .eq("correlationId", input.correlationId)
+        )
+        .unique()
+      if (!audit) throw new Error("Missing creation audit")
+      await ctx.db.patch(audit._id, {
+        inputFingerprint: JSON.stringify({
+          title: input.title,
+          origin: input.origin,
+          aliases: [],
+          source: null,
+        }),
+      })
+    })
+
+    await expect(
+      backend.mutation(api.contentRequests.createManual, input)
     ).resolves.toEqual(created)
   })
 
@@ -423,6 +462,74 @@ describe("Content Request workflow contract", () => {
     ).rejects.toMatchObject({ data: { code: "RESOURCE_ACCESS_DENIED" } })
   })
 
+  it("projects the same suppression-safe notifications through list and paginated queries", async () => {
+    const backend = await operatorBackend()
+    const request = await backend.mutation(api.contentRequests.createManual, {
+      title: "Notification projection contract",
+      origin: "manual",
+      correlationId: "notification-projection-request",
+    })
+    const ids = await backend.run(async (ctx) => {
+      const activeWithDeepLink = await ctx.db.insert("notifications", {
+        organizationId: "org_fairlend",
+        requestId: request.requestId,
+        recipientPrincipalId: request.assignee.principalId,
+        type: "guest_submission",
+        deepLink: `/app/requests/${request.humanId}#guest-access-test`,
+        emailQueued: true,
+        emailStatus: "queued",
+        createdAt: 3,
+      })
+      const activeLegacy = await ctx.db.insert("notifications", {
+        organizationId: "org_fairlend",
+        requestId: request.requestId,
+        recipientPrincipalId: request.assignee.principalId,
+        type: "request_assigned",
+        emailQueued: false,
+        emailStatus: "failed",
+        createdAt: 2,
+      })
+      const suppressed = await ctx.db.insert("notifications", {
+        organizationId: "org_fairlend",
+        requestId: request.requestId,
+        recipientPrincipalId: request.assignee.principalId,
+        type: "guest_upload_failed",
+        emailQueued: true,
+        emailStatus: "queued",
+        createdAt: 1,
+        suppressedAt: 4,
+      })
+      return { activeWithDeepLink, activeLegacy, suppressed }
+    })
+
+    const listed = await backend.query(
+      api.contentRequests.listMyNotifications,
+      {}
+    )
+    const paginated = await backend.query(
+      api.contentRequests.listMyNotificationsPage,
+      { paginationOpts: { numItems: 50, cursor: null } }
+    )
+
+    expect(paginated.page).toEqual(listed)
+    expect(listed.map(({ notificationId }) => notificationId)).toEqual([
+      ids.activeWithDeepLink,
+      ids.activeLegacy,
+    ])
+    expect(
+      listed.find(
+        ({ notificationId }) => notificationId === ids.activeWithDeepLink
+      )?.deepLink
+    ).toBe(`/app/requests/${request.humanId}#guest-access-test`)
+    expect(
+      listed.find(({ notificationId }) => notificationId === ids.activeLegacy)
+        ?.deepLink
+    ).toBe(`/app/requests/${request.humanId}`)
+    expect(
+      listed.some(({ notificationId }) => notificationId === ids.suppressed)
+    ).toBe(false)
+  })
+
   it("sorts explicit founder work ahead of newer automated work before limiting", async () => {
     const workspace = convexTest(schema, modules)
     const operator = workspace.withIdentity(operatorIdentity)
@@ -508,6 +615,24 @@ describe("Content Request workflow contract", () => {
     expect(stored?.email).toBe("verified@fairlend.ca")
   })
 
+  it("returns an empty founder projection before the configured founder signs in", async () => {
+    const workspace = convexTest(schema, modules)
+    const administrator = workspace.withIdentity({
+      subject: "user_admin_without_founder",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "admin",
+      email: "admin-without-founder@fairlend.ca",
+    })
+    await administrator.mutation(api.principals.syncCurrent)
+
+    await expect(
+      administrator.query(api.contentRequests.listFounderWorkspace, {
+        founderEmail: "elie@fairlend.ca",
+      })
+    ).resolves.toEqual([])
+  })
+
   it("shows founders only assigned work and tracks first/latest open separately", async () => {
     const workspace = convexTest(schema, modules)
     const operator = workspace.withIdentity(operatorIdentity)
@@ -516,9 +641,22 @@ describe("Content Request workflow contract", () => {
       issuer: "https://api.workos.com/",
       org_id: "org_fairlend",
       role: "founder",
+      email: "ELIE@FAIRLEND.CA",
+    })
+    const administrator = workspace.withIdentity({
+      subject: "user_admin",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "administrator",
+      email: "admin@fairlend.ca",
     })
     await operator.mutation(api.principals.syncCurrent)
     const founderPrincipal = await founder.mutation(api.principals.syncCurrent)
+    await administrator.mutation(api.principals.syncCurrent)
+    const storedFounder = await administrator.run((ctx) =>
+      ctx.db.get(founderPrincipal.principalId)
+    )
+    expect(storedFounder?.email).toBe("elie@fairlend.ca")
     const assigned = await operator.mutation(api.contentRequests.createManual, {
       title: "Assigned to Elie",
       origin: "manual",
@@ -539,6 +677,16 @@ describe("Content Request workflow contract", () => {
     expect(founderLibrary.map((request) => request.title)).toEqual([
       "Assigned to Elie",
     ])
+    await expect(
+      administrator.query(api.contentRequests.listFounderWorkspace, {
+        founderEmail: "ELIE@FAIRLEND.CA",
+      })
+    ).resolves.toEqual(founderLibrary)
+    await expect(
+      operator.query(api.contentRequests.listFounderWorkspace, {
+        founderEmail: "elie@fairlend.ca",
+      })
+    ).rejects.toMatchObject({ data: { code: "ROLE_ACCESS_DENIED" } })
     const opened = await founder.mutation(api.contentRequests.open, {
       humanId: assigned.humanId,
       correlationId: "corr-open-1",
@@ -578,6 +726,95 @@ describe("Content Request workflow contract", () => {
         correlationId: "corr-founder-denied",
       })
     ).rejects.toMatchObject({ data: { code: "ROLE_ACCESS_DENIED" } })
+  })
+
+  it("merges bounded pending and in-progress founder queues in queue order", async () => {
+    const workspace = convexTest(schema, modules)
+    const operator = workspace.withIdentity(operatorIdentity)
+    const founder = workspace.withIdentity({
+      subject: "user_bounded_founder",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "founder",
+      email: "bounded@fairlend.ca",
+    })
+    const administrator = workspace.withIdentity({
+      subject: "user_bounded_admin",
+      issuer: "https://api.workos.com/",
+      org_id: "org_fairlend",
+      role: "administrator",
+      email: "admin@fairlend.ca",
+    })
+    const operatorPrincipal = await operator.mutation(
+      api.principals.syncCurrent
+    )
+    const founderPrincipal = await founder.mutation(api.principals.syncCurrent)
+    await administrator.mutation(api.principals.syncCurrent)
+
+    await administrator.run(async (ctx) => {
+      const fixtures = [
+        {
+          humanId: "CR-FOUNDER-ARCHIVED",
+          title: "Archived queue entry",
+          queueSortKey: "00",
+          lifecycle: "pending" as const,
+          retention: "archived" as const,
+        },
+        {
+          humanId: "CR-FOUNDER-RESPONDED",
+          title: "Responded queue entry",
+          queueSortKey: "01",
+          lifecycle: "responded" as const,
+          retention: "active" as const,
+        },
+        {
+          humanId: "CR-FOUNDER-PENDING",
+          title: "Pending queue entry",
+          queueSortKey: "02",
+          lifecycle: "pending" as const,
+          retention: "active" as const,
+        },
+        {
+          humanId: "CR-FOUNDER-IN-PROGRESS",
+          title: "In-progress queue entry",
+          queueSortKey: "03",
+          lifecycle: "in_progress" as const,
+          retention: "active" as const,
+        },
+      ]
+      for (const [index, fixture] of fixtures.entries()) {
+        await ctx.db.insert("contentRequests", {
+          ...fixture,
+          organizationId: "org_fairlend",
+          normalizedTitle: fixture.title.toLowerCase(),
+          searchText: fixture.title.toLowerCase(),
+          aliases: [],
+          origin: "manual",
+          priority: "critical",
+          disposition: "active",
+          aggregateVersion: 1,
+          assigneePrincipalId: founderPrincipal.principalId,
+          watcherPrincipalIds: [],
+          createdByPrincipalId: operatorPrincipal.principalId,
+          createdAt: index,
+          updatedAt: index,
+        })
+      }
+    })
+
+    const founderLibrary = await founder.query(api.contentRequests.list, {
+      limit: 2,
+    })
+    expect(founderLibrary.map((request) => request.title)).toEqual([
+      "Pending queue entry",
+      "In-progress queue entry",
+    ])
+    await expect(
+      administrator.query(api.contentRequests.listFounderWorkspace, {
+        founderEmail: "bounded@fairlend.ca",
+        limit: 2,
+      })
+    ).resolves.toEqual(founderLibrary)
   })
 
   it("autosaves only the assigned founder's text and exposes draft metadata without private content", async () => {
@@ -802,6 +1039,77 @@ describe("Content Request workflow contract", () => {
     await expect(
       backend.query(internal.notifications.listRetryableEmailDeliveries, {})
     ).resolves.toContain(dueAfterExhausted)
+
+    const { fifthAttempt, failedDue, leaseExpiredDue } = await backend.run(
+      async (ctx) => {
+        const common = {
+          organizationId: finalDelivery.organizationId,
+          requestId: finalDelivery.requestId,
+          notificationId: finalDelivery.notificationId,
+          recipientPrincipalId: finalDelivery.recipientPrincipalId,
+          recipientEmail: finalDelivery.recipientEmail,
+          template: finalDelivery.template,
+          deepLink: finalDelivery.deepLink,
+        }
+        for (let index = 0; index < 25; index += 1) {
+          await ctx.db.insert("notificationEmailOutbox", {
+            ...common,
+            status: "queued",
+            attempts: 0,
+            nextAttemptAt: Date.now() - 1,
+            createdAt: 200 + index,
+            updatedAt: 200 + index,
+          })
+        }
+        const failedDue = await ctx.db.insert("notificationEmailOutbox", {
+          ...common,
+          status: "failed",
+          attempts: 2,
+          nextAttemptAt: Date.now() - 1,
+          createdAt: 300,
+          updatedAt: 300,
+        })
+        const leaseExpiredDue = await ctx.db.insert("notificationEmailOutbox", {
+          ...common,
+          status: "sending",
+          attempts: 2,
+          claimToken: "expired-balanced-claim",
+          leaseExpiresAt: Date.now() - 1,
+          createdAt: 301,
+          updatedAt: 301,
+        })
+        const fifthAttempt = await ctx.db.insert("notificationEmailOutbox", {
+          ...common,
+          status: "sending",
+          attempts: 5,
+          claimToken: "fifth-attempt-crash",
+          leaseExpiresAt: Date.now() - 1,
+          createdAt: 302,
+          updatedAt: 302,
+        })
+        return { fifthAttempt, failedDue, leaseExpiredDue }
+      }
+    )
+    const balancedRetryable = await backend.query(
+      internal.notifications.listRetryableEmailDeliveries,
+      {}
+    )
+    expect(balancedRetryable).toEqual(
+      expect.arrayContaining([failedDue, leaseExpiredDue, fifthAttempt])
+    )
+    await expect(
+      backend.mutation(internal.notifications.claimEmailDelivery, {
+        deliveryId: fifthAttempt,
+        claimToken: "fifth-attempt-reclaim",
+      })
+    ).resolves.toBeNull()
+    const fifthTerminal = await backend.run((ctx) => ctx.db.get(fifthAttempt))
+    expect(fifthTerminal).toMatchObject({
+      status: "exhausted",
+      lastErrorCode: "EMAIL_ATTEMPTS_EXHAUSTED",
+    })
+    expect(fifthTerminal?.claimToken).toBeUndefined()
+    expect(fifthTerminal?.leaseExpiresAt).toBeUndefined()
   })
 
   it("backfills assignment fields on records created before Ticket 03", async () => {
