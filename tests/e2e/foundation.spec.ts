@@ -2324,6 +2324,26 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
         (viewport!.height - drawerBounds!.y)
     )
   ).toBeLessThanOrEqual(1)
+  if (browserName === "webkit") {
+    await founderPage.evaluate(() => {
+      window.scrollTo(
+        0,
+        Math.min(
+          240,
+          document.documentElement.scrollHeight - window.innerHeight
+        )
+      )
+    })
+    await expect
+      .poll(() => founderPage.evaluate(() => window.scrollY))
+      .toBeGreaterThan(0)
+    const scrolledDrawerBounds = await drawer.boundingBox()
+    expect(scrolledDrawerBounds).not.toBeNull()
+    expect(
+      Math.abs(scrolledDrawerBounds!.y - focusedDrawerBounds!.y)
+    ).toBeLessThanOrEqual(1)
+    await expect(editor).toHaveAttribute("data-detent", "peek")
+  }
   const flowPositions = await founderPage.evaluate(() => ({
     app: getComputedStyle(document.querySelector(".app-header")!).position,
     request: getComputedStyle(
@@ -2462,6 +2482,9 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
       bottomOverride: drawer?.style.bottom ?? null,
       bodyBackground: body ? getComputedStyle(body).backgroundColor : null,
       heightOverride: drawer?.style.height ?? null,
+      keyboardAnchored: drawer?.dataset.keyboardAnchored ?? null,
+      keyboardInset:
+        drawer?.style.getPropertyValue("--founder-keyboard-inset") ?? null,
       opacity: inputStyles.opacity,
       visibility: inputStyles.visibility,
     }
@@ -2470,6 +2493,8 @@ test("an operator assigns Elie and his mobile library switches from stack to gri
     bottomOverride: "",
     bodyBackground: "rgb(255, 255, 255)",
     heightOverride: "",
+    keyboardAnchored: "false",
+    keyboardInset: "0px",
     opacity: "1",
     visibility: "visible",
   })

@@ -1459,7 +1459,7 @@
 
 .founder-input-drawer[data-slot="drawer-content"] {
   right: 0;
-  bottom: 0;
+  bottom: var(--founder-keyboard-inset, 0px);
   left: 0;
   width: 100%;
   height: 100svh;

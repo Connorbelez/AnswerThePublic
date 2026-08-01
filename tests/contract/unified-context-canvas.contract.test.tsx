@@ -120,7 +120,10 @@ function expandFounderEditor() {
 }
 
 describe("Variant G Unified Context Canvas", () => {
-  afterEach(cleanup)
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+  })
 
   it("renders inactive founder work as visibly read-only", () => {
     const onTextChange = vi.fn()
@@ -384,6 +387,44 @@ describe("Variant G Unified Context Canvas", () => {
     expect(screen.getByRole("textbox", { name: "Founder input" })).toBe(input)
     expect(body.hasAttribute("inert")).toBe(false)
     expect(body.hasAttribute("aria-hidden")).toBe(false)
+  })
+
+  it("anchors the focused minimized input to the visual viewport while scrolling", async () => {
+    const visualViewport = Object.assign(new EventTarget(), {
+      height: 480,
+      offsetTop: 20,
+    })
+    vi.stubGlobal("innerHeight", 800)
+    vi.stubGlobal("visualViewport", visualViewport)
+    expect(window.visualViewport).toBe(visualViewport)
+    render(
+      <UnifiedContextCanvas
+        request={request}
+        contextItems={context}
+        preferenceOwnerKey="org-fairlend:founder-1"
+      />
+    )
+
+    const input = screen.getByRole("textbox", { name: "Founder input" })
+    const drawer = screen.getByTestId("founder-editor-drawer")
+    input.focus()
+    expect(document.activeElement).toBe(input)
+    visualViewport.dispatchEvent(new Event("resize"))
+
+    await waitFor(() =>
+      expect(drawer.style.getPropertyValue("--founder-keyboard-inset")).toBe(
+        "300px"
+      )
+    )
+    visualViewport.offsetTop = 60
+    visualViewport.dispatchEvent(new Event("scroll"))
+    await waitFor(() =>
+      expect(drawer.style.getPropertyValue("--founder-keyboard-inset")).toBe(
+        "260px"
+      )
+    )
+    expect(drawer.getAttribute("data-detent")).toBe("peek")
+    expect(drawer.style.height).toBe("")
   })
 
   it("removes internal research instructions and source summaries from expert interviews", () => {

@@ -1,4 +1,4 @@
-import { useRef, useState, type RefObject } from "react"
+import { useEffect, useRef, useState, type RefObject } from "react"
 import { Maximize2, Minimize2, Redo2, ScrollText, Undo2 } from "lucide-react"
 
 import type {
@@ -87,9 +87,69 @@ export function FounderInputDrawer({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(false)
+  const [drawerElement, setDrawerElement] = useState<HTMLDivElement | null>(
+    null
+  )
   const modeControlsRef = useRef<HTMLDivElement>(null)
   const detent = detentFor(activeSnapPoint)
   const expanded = detent !== "peek"
+
+  useEffect(() => {
+    if (!drawerElement || !window.visualViewport) return
+
+    const activeDrawer: HTMLDivElement = drawerElement
+    const activeViewport: VisualViewport = window.visualViewport
+
+    let frame: number | null = null
+
+    function syncKeyboardInset() {
+      if (frame !== null) window.cancelAnimationFrame(frame)
+
+      frame = window.requestAnimationFrame(() => {
+        frame = null
+
+        const activeElement = document.activeElement
+        const inputFocused =
+          activeElement instanceof HTMLElement &&
+          activeDrawer.contains(activeElement) &&
+          activeElement.matches("input, textarea, [contenteditable='true']")
+        const keyboardInset = inputFocused
+          ? Math.max(
+              0,
+              window.innerHeight -
+                activeViewport.height -
+                activeViewport.offsetTop
+            )
+          : 0
+
+        activeDrawer.style.setProperty(
+          "--founder-keyboard-inset",
+          `${Math.round(keyboardInset)}px`
+        )
+        activeDrawer.dataset.keyboardAnchored = String(
+          inputFocused && keyboardInset > 0
+        )
+      })
+    }
+
+    activeViewport.addEventListener("resize", syncKeyboardInset)
+    activeViewport.addEventListener("scroll", syncKeyboardInset)
+    window.addEventListener("scroll", syncKeyboardInset, { passive: true })
+    document.addEventListener("focusin", syncKeyboardInset)
+    document.addEventListener("focusout", syncKeyboardInset)
+    syncKeyboardInset()
+
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame)
+      activeViewport.removeEventListener("resize", syncKeyboardInset)
+      activeViewport.removeEventListener("scroll", syncKeyboardInset)
+      window.removeEventListener("scroll", syncKeyboardInset)
+      document.removeEventListener("focusin", syncKeyboardInset)
+      document.removeEventListener("focusout", syncKeyboardInset)
+      activeDrawer.style.removeProperty("--founder-keyboard-inset")
+      delete activeDrawer.dataset.keyboardAnchored
+    }
+  }, [drawerElement])
 
   function expandTo(snapPoint: DrawerSnapPoint = FULL_SNAP_POINT) {
     setActiveSnapPoint(snapPoint)
@@ -124,6 +184,7 @@ export function FounderInputDrawer({
       repositionInputs={false}
     >
       <DrawerContent
+        ref={setDrawerElement}
         className="founder-input-drawer"
         showHandle={false}
         showOverlay={false}
